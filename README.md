@@ -1,17 +1,36 @@
-# livora_labs
+# Livora — App móvil
 
-A new Flutter project.
+App Flutter de la plataforma de reciclaje trazable **Livora**. Da acceso a los
+cuatro perfiles de la red: **Hogar**, **Recolector**, **Centro de Acopio** y
+**Tienda (Almacén)**, con billetera de EcoTokens (Arbitrum Sepolia),
+notificaciones y flujo completo de trazabilidad: solicitud → recolección →
+lote → pesaje → consolidación → venta B2B.
 
-## Getting Started
+## Ejecutar
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+La app apunta por defecto a la API de producción. Para usar otro servidor
+(local o Render), tócale el engranaje ⚙️ en la pantalla de inicio de sesión:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- Emulador Android: `http://10.0.2.2:3000`
+- iOS / macOS: `http://localhost:3000`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Generar APK
+
+```bash
+flutter build apk --release
+# → build/app/outputs/flutter-apk/app-release.apk
+```
+
+## Estructura
+
+- `lib/core/` — tema (paleta de marca), cliente HTTP, sesión, formatos
+- `lib/services/livora_api.dart` — endpoints tipados del backend NestJS
+- `lib/screens/` — módulos por rol (`hogar/`, `recolector/`, `acopio/`, `tienda/`) y pantallas comunes (billetera, notificaciones, perfil)
+- `assets/images/livora_icon.svg` — ícono oficial de la marca
+
+Backend: [Livora-api-service](https://github.com/Livora-Labs/Livora-api-service)
