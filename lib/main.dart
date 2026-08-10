@@ -35,7 +35,7 @@ class LivoraApp extends StatelessWidget {
       ],
       child: Consumer<SessionController>(
         builder: (context, session, _) => MaterialApp(
-          title: 'Livora',
+          title: 'Livora Labs',
           debugShowCheckedModeBanner: false,
           theme: LivoraTheme.light(),
           locale: const Locale('es'),
