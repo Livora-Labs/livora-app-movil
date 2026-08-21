@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "704226223285",
+    "project_id": "livora-app-fd5a3",
+    "storage_bucket": "livora-app-fd5a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:704226223285:android:e09f5a64485e35ad890afc",
+        "android_client_info": {
+          "package_name": "com.livoralabs.livora_labs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAT37porW9iF07VNJnoR6oqqdV15w2jusM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
