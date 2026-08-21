@@ -90,7 +90,7 @@ class CollectionRequest {
   }
 
   final String id;
-  final String status;
+  String status;
   final Map<String, double> itemsEstimated;
   final String? description;
   final String? verificationPin;

@@ -2,7 +2,7 @@
 
 App Flutter de la plataforma de reciclaje trazable **Livora**. Da acceso a los
 cuatro perfiles de la red: **Hogar**, **Recolector**, **Centro de Acopio** y
-**Tienda (Almacén)**, con billetera de EcoTokens (Arbitrum Sepolia),
+**Tienda (Almacén)**, con billetera de EcoTokens (Stellar Testnet),
 notificaciones y flujo completo de trazabilidad: solicitud → recolección →
 lote → pesaje → consolidación → venta B2B.
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive/hive.dart';
 
 import '../models/models.dart';
 import 'api_client.dart';
@@ -63,8 +64,36 @@ class SessionController extends ChangeNotifier {
       '/auth/register',
       body: {'email': email, 'password': password, 'role': role},
     );
-    // El registro no devuelve token: iniciamos sesión de inmediato.
-    await login(email, password);
+  }
+
+  Future<void> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    final data = await _api.post(
+      '/auth/verify-email',
+      body: {'email': email, 'code': code},
+    );
+    if (data is! Map<String, dynamic>) {
+      throw ApiException('Respuesta de verificación de correo inválida');
+    }
+    final token = data['accessToken'] as String?;
+    final userJson = data['user'];
+    if (token == null || userJson is! Map<String, dynamic>) {
+      throw ApiException('Respuesta de verificación de correo inválida');
+    }
+    _api.authToken = token;
+    _user = AuthUser.fromJson(userJson);
+    await _prefs.setString(_tokenKey, token);
+    await _prefs.setString(_userKey, jsonEncode(_user!.toJson()));
+    notifyListeners();
+  }
+
+  Future<void> resendOtp({required String email}) async {
+    await _api.post(
+      '/auth/resend-otp',
+      body: {'email': email},
+    );
   }
 
   Future<void> logout() async {
@@ -72,6 +101,19 @@ class SessionController extends ChangeNotifier {
     _user = null;
     await _prefs.remove(_tokenKey);
     await _prefs.remove(_userKey);
+
+    // Purga completa de base de datos local Hive
+    try {
+      if (Hive.isBoxOpen('offline_verifications')) {
+        await Hive.box('offline_verifications').clear();
+      } else {
+        final box = await Hive.openBox('offline_verifications');
+        await box.clear();
+      }
+    } catch (e) {
+      debugPrint('Error al limpiar base de datos local Hive: $e');
+    }
+
     notifyListeners();
   }
 }

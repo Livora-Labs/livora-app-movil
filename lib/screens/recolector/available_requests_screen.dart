@@ -7,6 +7,7 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 import '../common/profile.dart';
 
@@ -32,7 +33,24 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   @override
   void initState() {
     super.initState();
+    _initLocation();
+  }
+
+  Future<void> _initLocation() async {
     _load();
+    try {
+      final pos = await LocationService.getCurrentPosition();
+      if (pos != null && mounted) {
+        setState(() {
+          _latController.text = pos.latitude.toStringAsFixed(6);
+          _lngController.text = pos.longitude.toStringAsFixed(6);
+          _nearbyFilter = true;
+        });
+        _load();
+      }
+    } catch (_) {
+      // Ignorar fallas, el usuario verá la lista completa y podrá filtrar manualmente.
+    }
   }
 
   @override

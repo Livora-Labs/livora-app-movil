@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
+import 'verify_otp_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -61,14 +63,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
     try {
+      final email = _emailController.text.trim();
       await context.read<SessionController>().register(
-            email: _emailController.text.trim(),
+            email: email,
             password: _passwordController.text,
             role: _role,
           );
       if (mounted) {
-        // La raíz de la app ya muestra el panel del rol; cerramos esta pantalla.
-        Navigator.popUntil(context, (route) => route.isFirst);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VerifyOtpScreen(email: email),
+          ),
+        );
       }
     } on ApiException catch (error) {
       if (mounted) showAppSnack(context, error.message, error: true);
@@ -161,6 +168,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       label: 'Crear cuenta',
                       busy: _busy,
                       onPressed: _register,
+                    ),
+                    const SizedBox(height: 16),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Al registrarte, aceptas nuestros ',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        children: [
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: GestureDetector(
+                              onTap: () async {
+                                final url = Uri.parse('https://livora.org/terminos');
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              child: const Text(
+                                'Términos de Uso',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: LivoraColors.forest,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const TextSpan(text: ' y nuestra '),
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: GestureDetector(
+                              onTap: () async {
+                                final url = Uri.parse('https://livora.org/privacidad');
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              child: const Text(
+                                'Política de Privacidad',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: LivoraColors.forest,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const TextSpan(text: '.'),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
                   ],

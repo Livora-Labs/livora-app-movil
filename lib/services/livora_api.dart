@@ -65,6 +65,17 @@ class LivoraApi {
     return CollectionRequest.fromJson(raw as Map<String, dynamic>);
   }
 
+  Future<CollectionRequest> verifyCollectionRequest(
+    String id,
+    String pin,
+  ) async {
+    final raw = await client.post(
+      '/collection-requests/$id/verify',
+      body: {'pin': pin},
+    );
+    return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
   Future<HouseholdMetrics> householdMetrics() async {
     final raw = await client.get('/households/me/metrics');
     return HouseholdMetrics.fromJson(raw as Map<String, dynamic>);
@@ -182,6 +193,42 @@ class LivoraApi {
     return raw is Map<String, dynamic> ? raw : {};
   }
 
+  // ---------------------------------------------------------------- Tienda
+
+  Future<Map<String, dynamic>> generateQrRedemption(double amount) async {
+    final raw = await client.post('/stores/redemptions/qr', body: {
+      'tokenAmount': amount,
+    });
+    return raw is Map<String, dynamic> ? raw : {};
+  }
+
+  Future<Map<String, dynamic>> redemptionDetails(String qrCodeRef) async {
+    final raw = await client.get('/stores/redemptions/$qrCodeRef');
+    return raw is Map<String, dynamic> ? raw : {};
+  }
+
+  Future<Map<String, dynamic>> confirmRedemption(String qrCodeRef) async {
+    final raw = await client.post('/stores/redemptions/confirm/$qrCodeRef');
+    return raw is Map<String, dynamic> ? raw : {};
+  }
+
+  Future<Map<String, dynamic>> requestSettlement(double amount) async {
+    final raw = await client.post('/stores/settlements', body: {
+      'tokenAmount': amount,
+    });
+    return raw is Map<String, dynamic> ? raw : {};
+  }
+
+  Future<List<dynamic>> storeRedemptions() async {
+    final raw = await client.get('/stores/redemptions');
+    return raw is List ? raw : [];
+  }
+
+  Future<List<dynamic>> storeSettlements() async {
+    final raw = await client.get('/stores/settlements/history');
+    return raw is List ? raw : [];
+  }
+
   // ------------------------------------------------------- Notificaciones
 
   Future<List<AppNotification>> notifications({int page = 1, int limit = 50}) async {
@@ -194,5 +241,13 @@ class LivoraApi {
 
   Future<void> markNotification(String id, {required bool isRead}) async {
     await client.patch('/notifications/$id', body: {'isRead': isRead});
+  }
+
+  Future<void> updateFcmToken(String fcmToken) async {
+    await client.patch('/users/fcm-token', body: {'fcmToken': fcmToken});
+  }
+
+  Future<void> deleteAccount() async {
+    await client.delete('/users/me');
   }
 }

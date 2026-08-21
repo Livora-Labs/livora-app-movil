@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../services/livora_api.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 import '../../widgets/materials_editor.dart';
 
@@ -23,6 +24,13 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
   Map<String, double> _materials = {};
   bool _busy = false;
+  bool _fetchingLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCurrentLocation();
+  }
 
   @override
   void dispose() {
@@ -30,6 +38,22 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     _latController.dispose();
     _lngController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchCurrentLocation() async {
+    if (_fetchingLocation) return;
+    setState(() => _fetchingLocation = true);
+    try {
+      final pos = await LocationService.getCurrentPosition();
+      if (pos != null && mounted) {
+        setState(() {
+          _latController.text = pos.latitude.toStringAsFixed(6);
+          _lngController.text = pos.longitude.toStringAsFixed(6);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _fetchingLocation = false);
+    }
   }
 
   double? _coord(TextEditingController controller) =>
@@ -176,6 +200,21 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                               : null;
                         },
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: _fetchingLocation
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: LivoraColors.forest,
+                              ),
+                            )
+                          : const Icon(Icons.my_location, color: LivoraColors.forest),
+                      onPressed: _fetchingLocation ? null : _fetchCurrentLocation,
+                      tooltip: 'Obtener mi ubicación actual',
                     ),
                   ],
                 ),

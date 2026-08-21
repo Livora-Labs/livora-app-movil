@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:hive/hive.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
+import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
 import '../auth/login_screen.dart';
@@ -115,15 +118,42 @@ Future<void> _showProfileSheet(BuildContext context) {
               ),
               if (user.walletAddress != null)
                 _CopyTile(
-                  label: 'Billetera (Arbitrum)',
+                  label: 'Billetera (Stellar)',
                   value: user.walletAddress!,
                   hint: 'Compártela para recibir EcoTokens.',
                 ),
+              const SizedBox(height: 8),
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () => showServerSettingsDialog(sheetContext),
                 icon: const Icon(Icons.dns_outlined),
                 label: const Text('Configurar servidor'),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton.icon(
+                    onPressed: () async {
+                      final url = Uri.parse('https://livora.org/terminos');
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    icon: const Icon(Icons.description_outlined, size: 16),
+                    label: const Text('Términos', style: TextStyle(fontSize: 12)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final url = Uri.parse('https://livora.org/privacidad');
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    icon: const Icon(Icons.privacy_tip_outlined, size: 16),
+                    label: const Text('Privacidad', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               FilledButton.icon(
@@ -144,6 +174,37 @@ Future<void> _showProfileSheet(BuildContext context) {
                 },
                 icon: const Icon(Icons.logout),
                 label: const Text('Cerrar sesión'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                ),
+                onPressed: () async {
+                  final confirmed = await confirmDialog(
+                    sheetContext,
+                    title: 'Eliminar mi cuenta',
+                    message: 'Advertencia Irreversible: ¿Estás completamente seguro de eliminar tu cuenta de Livora de manera permanente? Esta acción borrará de forma definitiva tu correo, tokens FCM, claves privadas cifradas y PINs.',
+                    confirmLabel: 'Eliminar Permanente',
+                  );
+                  if (!confirmed || !sheetContext.mounted) return;
+                  
+                  try {
+                    await sheetContext.read<LivoraApi>().deleteAccount();
+                    try {
+                      await Hive.box('offline_verifications').clear();
+                    } catch (_) {}
+                    Navigator.of(sheetContext).popUntil((route) => route.isFirst);
+                    await sheetContext.read<SessionController>().logout();
+                  } catch (e) {
+                    if (sheetContext.mounted) {
+                      showAppSnack(sheetContext, 'Error al eliminar cuenta: $e', error: true);
+                    }
+                  }
+                },
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Eliminar mi cuenta'),
               ),
             ],
           ),

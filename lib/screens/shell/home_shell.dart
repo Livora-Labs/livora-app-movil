@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../core/formats.dart';
 import '../../core/session.dart';
+import '../../services/livora_api.dart';
 import '../acopio/center_batches_screen.dart';
 import '../common/notifications_screen.dart';
 import '../common/wallet_screen.dart';
@@ -10,6 +12,8 @@ import '../hogar/hogar_dashboard.dart';
 import '../recolector/available_requests_screen.dart';
 import '../recolector/my_batch_screen.dart';
 import '../tienda/inventory_screen.dart';
+import '../tienda/store_history_screen.dart';
+import '../tienda/store_qr_generator_screen.dart';
 
 class _TabSpec {
   const _TabSpec(this.label, this.icon, this.body);
@@ -29,6 +33,55 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupFcm();
+  }
+
+  Future<void> _setupFcm() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+      
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        final token = await messaging.getToken();
+        if (token != null && mounted) {
+          debugPrint('FCM Token obtenido y registrado');
+          await context.read<LivoraApi>().updateFcmToken(token);
+        }
+      }
+      
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        if (mounted && message.notification != null) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(message.notification!.title ?? 'Notificación'),
+              content: Text(message.notification!.body ?? ''),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cerrar'),
+                ),
+              ],
+            ),
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint('Error configurando FCM en HomeShell: $e');
+    }
+  }
 
   List<_TabSpec> _tabsFor(String role) {
     const wallet = _TabSpec(
@@ -69,7 +122,8 @@ class _HomeShellState extends State<HomeShell> {
           alerts,
         ],
       Roles.almacen => const [
-          _TabSpec('Inventario', Icons.storefront_outlined, InventoryScreen()),
+          _TabSpec('Cobrar', Icons.qr_code_scanner_outlined, StoreQrGeneratorScreen()),
+          _TabSpec('Historial', Icons.history_outlined, StoreHistoryScreen()),
           wallet,
           alerts,
         ],

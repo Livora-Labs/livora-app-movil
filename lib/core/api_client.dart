@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'env_config.dart';
 
 /// Error de la API de Livora con mensaje legible para el usuario.
 class ApiException implements Exception {
@@ -25,9 +26,8 @@ class ApiClient {
   String? authToken;
 
   /// API de producción (AWS EC2). Para otro entorno cámbiala desde el
-  /// diálogo "Servidor" de la app (Render: https://livora-api-service.onrender.com,
-  /// emulador Android: http://10.0.2.2:3000, iOS/macOS: http://localhost:3000).
-  static const defaultBaseUrl = 'http://52.200.2.107';
+  /// diálogo "Servidor" de la app.
+  static const defaultBaseUrl = EnvConfig.apiBaseUrl;
 
   String get baseUrl {
     final saved = _prefs.getString(_baseUrlKey);

@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Libora utiliza tu ubicación para encontrar solicitudes de reciclaje y centros de acopio cercanos en tiempo real.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Libora utiliza tu ubicación para encontrar solicitudes de reciclaje y centros de acopio cercanos en tiempo real.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Libora requiere acceso a la cámara para escanear los códigos QR de centros de acopio y comercios aliados.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

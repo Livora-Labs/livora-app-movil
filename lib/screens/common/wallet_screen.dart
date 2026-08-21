@@ -8,6 +8,7 @@ import '../../core/session.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import 'profile.dart';
+import 'qr_scanner_view.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -82,7 +83,65 @@ class _WalletScreenState extends State<WalletScreen> {
           ),
           title: const Text('Transferencia enviada'),
           content: Text(
-            'La red Arbitrum está procesando tu transacción.\n\nID: $txId',
+            'La red Stellar está procesando tu transacción.\n\nID: $txId',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      _loadBalance();
+    } on ApiException catch (error) {
+      if (mounted) showAppSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _scanAndPay(BuildContext context) async {
+    final scannedCode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QRScannerView()),
+    );
+    if (scannedCode == null || scannedCode.isEmpty || !mounted) return;
+
+    setState(() => _sending = true);
+    try {
+      final details = await context.read<LivoraApi>().redemptionDetails(scannedCode);
+      if (!mounted) return;
+
+      final storeName = details['store']?['name']?.toString() ?? 'Comercio';
+      final tokenAmount = double.tryParse(details['tokenAmount']?.toString() ?? '0') ?? 0.0;
+
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Confirmar Canje',
+        message: '¿Autorizas el pago de $tokenAmount EcoTokens a "$storeName"?',
+        confirmLabel: 'Confirmar Pago',
+      );
+
+      if (!confirmed || !mounted) return;
+
+      final result = await context.read<LivoraApi>().confirmRedemption(scannedCode);
+      if (!mounted) return;
+
+      final txHash = result['transactionId']?.toString() ?? result['txHash']?.toString() ?? '—';
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(
+            Icons.check_circle,
+            color: LivoraColors.green,
+            size: 40,
+          ),
+          title: const Text('Canje Exitoso'),
+          content: Text(
+            'Has transferido $tokenAmount EcoTokens a "$storeName" correctamente.\n\nTx: $txHash',
             style: const TextStyle(fontSize: 13),
           ),
           actions: [
@@ -164,7 +223,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         ),
                   const SizedBox(height: 2),
                   const Text(
-                    'ECO · Arbitrum Sepolia',
+                    'ECO · Stellar Testnet (Soroban)',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   if (address != null) ...[
@@ -211,6 +270,25 @@ class _WalletScreenState extends State<WalletScreen> {
                 ],
               ),
             ),
+            if (user?.role != Roles.almacen) ...[
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: LivoraColors.forest,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => _scanAndPay(context),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text(
+                  'Escanear y Pagar QR',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             const SectionTitle(text: 'Transferir EcoTokens'),
             Card(
@@ -225,16 +303,16 @@ class _WalletScreenState extends State<WalletScreen> {
                         controller: _addressController,
                         decoration: livoraInput(
                           'Dirección destino',
-                          hint: '0x…',
+                          hint: 'G…',
                           icon: Icons.account_balance_wallet_outlined,
                         ),
                         validator: (value) {
                           final text = value?.trim() ?? '';
-                          final valid = RegExp(r'^0x[0-9a-fA-F]{40}$')
+                          final valid = RegExp(r'^G[A-D2-7][A-Z2-7]{54}$')
                               .hasMatch(text);
                           return valid
                               ? null
-                              : 'Dirección inválida (formato 0x… de 42 caracteres)';
+                              : 'Dirección inválida (formato Stellar G... de 56 caracteres)';
                         },
                       ),
                       const SizedBox(height: 14),

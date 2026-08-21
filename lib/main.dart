@@ -2,35 +2,88 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'core/api_client.dart';
 import 'core/app_theme.dart';
 import 'core/session.dart';
+import 'core/env_config.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/shell/home_shell.dart';
 import 'services/livora_api.dart';
+import 'services/offline_queue_manager.dart';
+import 'dart:ui';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+    debugPrint("Notificación recibida en segundo plano: ${message.notification?.title}");
+  } catch (e) {
+    debugPrint("Error inicializando Firebase en background: $e");
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final api = ApiClient(prefs);
-  final session = SessionController(api, prefs);
-  await session.restore();
-  runApp(LivoraApp(api: api, session: session));
+
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = EnvConfig.sentryDsn;
+      options.tracesSampleRate = 1.0;
+    },
+    appRunner: () async {
+      // Registrar capturadores de excepciones de Flutter y plataforma hacia Sentry
+      FlutterError.onError = (FlutterErrorDetails details) {
+        FlutterError.presentError(details);
+        Sentry.captureException(details.exception, stackTrace: details.stack);
+      };
+
+      PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+        Sentry.captureException(error, stackTrace: stack);
+        return true;
+      };
+
+      final prefs = await SharedPreferences.getInstance();
+      final api = ApiClient(prefs);
+      final session = SessionController(api, prefs);
+      await session.restore();
+
+      final livoraApi = LivoraApi(api);
+      await OfflineQueueManager.init(livoraApi);
+
+      try {
+        await Firebase.initializeApp();
+        FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      } catch (e) {
+        debugPrint('FCM no inicializado en entorno local: $e');
+      }
+
+      runApp(LivoraApp(api: api, session: session, livoraApi: livoraApi));
+    },
+  );
 }
 
 class LivoraApp extends StatelessWidget {
-  const LivoraApp({super.key, required this.api, required this.session});
+  const LivoraApp({
+    super.key,
+    required this.api,
+    required this.session,
+    required this.livoraApi,
+  });
 
   final ApiClient api;
   final SessionController session;
+  final LivoraApi livoraApi;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         Provider.value(value: api),
-        Provider(create: (_) => LivoraApi(api)),
+        Provider.value(value: livoraApi),
         ChangeNotifierProvider.value(value: session),
       ],
       child: Consumer<SessionController>(
