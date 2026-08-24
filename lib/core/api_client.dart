@@ -360,18 +360,66 @@ String apiErrorMessage(dynamic body, int status) {
     return null;
   }
 
+  String? cleanMessage(String? msg) {
+    if (msg == null || msg.isEmpty) return null;
+    final lower = msg.toLowerCase();
+    if (lower == 'unauthorized' || lower.contains('invalid credentials') || lower.contains('jwt')) {
+      return 'Credenciales incorrectas o sesión expirada. Por favor, inicia sesión de nuevo.';
+    }
+    if (lower == 'forbidden' || lower.contains('access denied') || lower.contains('missing permission')) {
+      return 'No tienes permisos para realizar esta acción.';
+    }
+    if (lower == 'bad request') {
+      return 'Solicitud incorrecta. Por favor, verifica los datos enviados.';
+    }
+    if (lower == 'not found' || lower.contains('route not found')) {
+      return 'El recurso solicitado no fue encontrado.';
+    }
+    if (lower == 'internal server error' || lower.contains('database error')) {
+      return 'Error interno en el servidor. Por favor, inténtalo de nuevo más tarde.';
+    }
+    return msg;
+  }
+
   if (body is Map) {
     final error = body['error'];
     if (error is Map) {
       final details = joinIfList(error['details']);
       if (details != null) return details;
-      final message = joinIfList(error['message']);
+      final message = cleanMessage(joinIfList(error['message']));
       if (message != null) return message;
     }
-    if (error is String && error.isNotEmpty) return error;
+    if (error is String && error.isNotEmpty) {
+      final cleaned = cleanMessage(error);
+      if (cleaned != null) return cleaned;
+    }
     // Formato estándar de NestJS: { "message": "..." | ["...", ...] }
-    final message = joinIfList(body['message']);
+    final message = cleanMessage(joinIfList(body['message']));
     if (message != null) return message;
   }
-  return 'Error del servidor (HTTP $status)';
+
+  switch (status) {
+    case 400:
+      return 'Solicitud incorrecta. Por favor, verifica los datos enviados.';
+    case 401:
+      return 'Credenciales incorrectas o sesión expirada. Por favor, inicia sesión de nuevo.';
+    case 403:
+      return 'No tienes permisos para realizar esta acción.';
+    case 404:
+      return 'El recurso solicitado no fue encontrado.';
+    case 409:
+      return 'Conflicto en la solicitud. Es posible que el recurso ya exista.';
+    case 422:
+      return 'Los datos proporcionados no son válidos.';
+    case 429:
+      return 'Demasiadas solicitudes. Por favor, espera un momento y vuelve a intentarlo.';
+    case 500:
+      return 'Error interno en el servidor. Por favor, inténtalo de nuevo más tarde.';
+    case 502:
+    case 503:
+    case 504:
+      return 'El servicio no está disponible temporalmente. Inténtalo más tarde.';
+    default:
+      return 'Error del servidor (HTTP $status)';
+  }
 }
