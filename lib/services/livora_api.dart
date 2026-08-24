@@ -19,6 +19,7 @@ class LivoraApi {
     required double latitude,
     required double longitude,
     String? description,
+    String? photoUrl,
   }) async {
     final raw = await client.post('/collection-requests', body: {
       'itemsEstimated': itemsEstimated,
@@ -26,8 +27,32 @@ class LivoraApi {
       'longitude': longitude,
       if (description != null && description.isNotEmpty)
         'description': description,
+      if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
     });
     return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
+  // -------------------------------------------------------------- Archivos
+
+  /// Sube un archivo a `POST /uploads` y devuelve su URL pública.
+  ///
+  /// `purpose` decide bucket y tipos aceptados en el backend:
+  /// `collection` (jpeg/png), `kyc` (jpeg/png/pdf) y `receipt`. Máximo 10 MB.
+  Future<String> uploadFile({
+    required String filePath,
+    required String purpose,
+  }) async {
+    final raw = await client.uploadFile(
+      '/uploads',
+      filePath: filePath,
+      fieldName: 'file',
+      fields: {'purpose': purpose},
+    );
+    final url = (raw is Map<String, dynamic>) ? raw['url'] as String? : null;
+    if (url == null || url.isEmpty) {
+      throw ApiException('El servidor no devolvió la URL del archivo subido');
+    }
+    return url;
   }
 
   /// HOGAR: sus propias solicitudes. RECOLECTOR: solicitudes PENDING
@@ -108,6 +133,21 @@ class LivoraApi {
   Future<CollectorReputation> collectorReputation() async {
     final raw = await client.get('/collectors/me/reputation');
     return CollectorReputation.fromJson(raw as Map<String, dynamic>);
+  }
+
+  /// Estado actual de la verificación KYC del recolector.
+  Future<KycApplication> kycApplication() async {
+    final raw = await client.get('/collectors/me/kyc-application');
+    return KycApplication.fromJson(raw as Map<String, dynamic>);
+  }
+
+  /// Envía la solicitud de verificación KYC del recolector con la URL del
+  /// documento ya subido a `/uploads` (`purpose: kyc`).
+  Future<void> submitKycApplication(String documentUrl) async {
+    await client.post(
+      '/collectors/kyc-applications',
+      body: {'documentUrl': documentUrl},
+    );
   }
 
   // ------------------------------------------------------ Centro de acopio

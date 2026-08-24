@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../acopio/center_batches_screen.dart';
 import '../common/notifications_screen.dart';
 import '../common/wallet_screen.dart';
@@ -38,6 +39,17 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     _setupFcm();
+    // Al entrar a la zona autenticada abrimos el socket; se cierra al salir
+    // (logout) porque el shell se desmonta.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<LivoraRealtime>().connect();
+    });
+  }
+
+  @override
+  void dispose() {
+    context.read<LivoraRealtime>().disconnect();
+    super.dispose();
   }
 
   Future<void> _setupFcm() async {

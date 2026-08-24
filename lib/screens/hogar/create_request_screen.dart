@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
@@ -30,6 +33,69 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   void initState() {
     super.initState();
     _fetchCurrentLocation();
+  }
+
+  /// Foto opcional del material. Se sube apenas se elige (a `/uploads` con
+  /// `purpose: collection`) para que el error, si lo hay, salga antes de
+  /// enviar el formulario y no al final.
+  File? _photo;
+  String? _photoUrl;
+  bool _uploadingPhoto = false;
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      // El backend acepta hasta 10 MB; reducimos en origen para no gastar
+      // datos móviles del usuario en una foto de 12 MP.
+      maxWidth: 1600,
+      imageQuality: 80,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _photo = File(picked.path);
+      _photoUrl = null;
+      _uploadingPhoto = true;
+    });
+    try {
+      final url = await context.read<LivoraApi>().uploadFile(
+            filePath: picked.path,
+            purpose: 'collection',
+          );
+      if (mounted) setState(() => _photoUrl = url);
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() => _photo = null);
+        showAppSnack(context, error.message, error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  Future<void> _choosePhotoSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tomar una foto'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickPhoto(source);
   }
 
   @override
@@ -77,6 +143,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             latitude: _coord(_latController)!,
             longitude: _coord(_lngController)!,
             description: _descriptionController.text.trim(),
+            photoUrl: _photoUrl,
           );
       if (!mounted) return;
       await showDialog<void>(
@@ -141,6 +208,18 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 const SectionTitle(text: '¿Qué vas a reciclar?'),
                 MaterialsEditor(
                   onChanged: (materials) => _materials = materials,
+                ),
+                const SizedBox(height: 8),
+                const SectionTitle(text: 'Foto (opcional)'),
+                _PhotoField(
+                  photo: _photo,
+                  uploading: _uploadingPhoto,
+                  uploaded: _photoUrl != null,
+                  onPick: _choosePhotoSource,
+                  onRemove: () => setState(() {
+                    _photo = null;
+                    _photoUrl = null;
+                  }),
                 ),
                 const SizedBox(height: 8),
                 const SectionTitle(text: 'Detalles'),
@@ -238,6 +317,93 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Selector de foto con vista previa y estado de subida.
+class _PhotoField extends StatelessWidget {
+  const _PhotoField({
+    required this.photo,
+    required this.uploading,
+    required this.uploaded,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final File? photo;
+  final bool uploading;
+  final bool uploaded;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    if (photo == null) {
+      return OutlinedButton.icon(
+        onPressed: onPick,
+        icon: const Icon(Icons.add_a_photo_outlined),
+        label: const Text('Añadir foto del material'),
+        style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+      );
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Image.file(
+                photo!,
+                height: 160,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+              if (uploading)
+                Container(
+                  height: 160,
+                  width: double.infinity,
+                  color: Colors.black.withValues(alpha: 0.45),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
+            ],
+          ),
+          ListTile(
+            dense: true,
+            leading: Icon(
+              uploaded ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
+              color: uploaded ? LivoraColors.green : LivoraColors.ink,
+              size: 20,
+            ),
+            title: Text(
+              uploading
+                  ? 'Subiendo foto…'
+                  : uploaded
+                      ? 'Foto lista'
+                      : 'Foto sin subir',
+              style: const TextStyle(fontSize: 13),
+            ),
+            trailing: Wrap(
+              children: [
+                IconButton(
+                  tooltip: 'Cambiar',
+                  onPressed: uploading ? null : onPick,
+                  icon: const Icon(Icons.swap_horiz, size: 20),
+                ),
+                IconButton(
+                  tooltip: 'Quitar',
+                  onPressed: uploading ? null : onRemove,
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

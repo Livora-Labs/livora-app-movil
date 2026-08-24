@@ -5,8 +5,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:hive/hive.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/api_client.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
+import '../../core/stellar.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
@@ -118,9 +120,12 @@ Future<void> _showProfileSheet(BuildContext context) {
               ),
               if (user.walletAddress != null)
                 _CopyTile(
-                  label: 'Billetera (Stellar)',
+                  label: 'Billetera (${Stellar.networkLabel})',
                   value: user.walletAddress!,
                   hint: 'Compártela para recibir EcoTokens.',
+                  explorerUrl: Stellar.isValidAddress(user.walletAddress)
+                      ? Stellar.accountUrl(user.walletAddress!)
+                      : null,
                 ),
               const SizedBox(height: 8),
               const SizedBox(height: 8),
@@ -175,35 +180,13 @@ Future<void> _showProfileSheet(BuildContext context) {
                 icon: const Icon(Icons.logout),
                 label: const Text('Cerrar sesión'),
               ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
+              const SizedBox(height: 4),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF8C3A3A),
                 ),
-                onPressed: () async {
-                  final confirmed = await confirmDialog(
-                    sheetContext,
-                    title: 'Eliminar mi cuenta',
-                    message: 'Advertencia Irreversible: ¿Estás completamente seguro de eliminar tu cuenta de Livora de manera permanente? Esta acción borrará de forma definitiva tu correo, tokens FCM, claves privadas cifradas y PINs.',
-                    confirmLabel: 'Eliminar Permanente',
-                  );
-                  if (!confirmed || !sheetContext.mounted) return;
-                  
-                  try {
-                    await sheetContext.read<LivoraApi>().deleteAccount();
-                    try {
-                      await Hive.box('offline_verifications').clear();
-                    } catch (_) {}
-                    Navigator.of(sheetContext).popUntil((route) => route.isFirst);
-                    await sheetContext.read<SessionController>().logout();
-                  } catch (e) {
-                    if (sheetContext.mounted) {
-                      showAppSnack(sheetContext, 'Error al eliminar cuenta: $e', error: true);
-                    }
-                  }
-                },
-                icon: const Icon(Icons.delete_forever_outlined),
+                onPressed: () => _confirmDeleteAccount(sheetContext),
+                icon: const Icon(Icons.delete_forever_outlined, size: 18),
                 label: const Text('Eliminar mi cuenta'),
               ),
             ],
@@ -214,12 +197,49 @@ Future<void> _showProfileSheet(BuildContext context) {
   );
 }
 
+/// Eliminación de cuenta (GDPR): `DELETE /users/me` anonimiza y borra los
+/// datos del usuario en el backend. Es irreversible, por eso pedimos una
+/// confirmación explícita antes de llamar.
+Future<void> _confirmDeleteAccount(BuildContext context) async {
+  final confirmed = await confirmDialog(
+    context,
+    title: 'Eliminar mi cuenta',
+    message:
+        'Se borrarán tu perfil, tu billetera y tu historial de reciclaje de '
+        'forma permanente. Esta acción no se puede deshacer.\n\n'
+        '¿Seguro que deseas continuar?',
+    confirmLabel: 'Eliminar',
+  );
+  if (!confirmed || !context.mounted) return;
+
+  final session = context.read<SessionController>();
+  final navigator = Navigator.of(context);
+  final messengerContext = navigator.context;
+  try {
+    await session.deleteAccount();
+    navigator.popUntil((route) => route.isFirst);
+    if (messengerContext.mounted) {
+      showAppSnack(messengerContext, 'Tu cuenta fue eliminada');
+    }
+  } on ApiException catch (error) {
+    if (messengerContext.mounted) {
+      showAppSnack(messengerContext, error.message, error: true);
+    }
+  }
+}
+
 class _CopyTile extends StatelessWidget {
-  const _CopyTile({required this.label, required this.value, this.hint});
+  const _CopyTile({
+    required this.label,
+    required this.value,
+    this.hint,
+    this.explorerUrl,
+  });
 
   final String label;
   final String value;
   final String? hint;
+  final Uri? explorerUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -277,6 +297,21 @@ class _CopyTile extends StatelessWidget {
               },
               icon: const Icon(Icons.copy_rounded, size: 18),
             ),
+            if (explorerUrl != null)
+              IconButton(
+                tooltip: 'Ver en Stellar Expert',
+                onPressed: () async {
+                  final opened = await Stellar.openInExplorer(explorerUrl!);
+                  if (!opened && context.mounted) {
+                    showAppSnack(
+                      context,
+                      'No se pudo abrir Stellar Expert',
+                      error: true,
+                    );
+                  }
+                },
+                icon: const Icon(Icons.open_in_new, size: 18),
+              ),
           ],
         ),
       ),

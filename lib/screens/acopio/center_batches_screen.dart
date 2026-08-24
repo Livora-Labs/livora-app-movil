@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,7 +8,9 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
+import '../../widgets/live_indicator.dart';
 import '../common/profile.dart';
 import 'receive_batch_screen.dart';
 import 'sale_screen.dart';
@@ -34,10 +38,30 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
   final Set<String> _selected = {};
   bool _consolidating = false;
 
+  StreamSubscription<Map<String, dynamic>>? _liveSubscription;
+
   @override
   void initState() {
     super.initState();
     _load();
+    // El servidor nos suscribió a la sala `center:<id>`: cuando un lote
+    // termina de procesarse en cadena, la lista se refresca sola.
+    _liveSubscription = context
+        .read<LivoraRealtime>()
+        .on(RealtimeEvents.batchCompleted)
+        .listen(_onBatchCompleted);
+  }
+
+  void _onBatchCompleted(Map<String, dynamic> data) {
+    if (!mounted) return;
+    _load();
+    showAppSnack(context, 'Un lote terminó de procesarse');
+  }
+
+  @override
+  void dispose() {
+    _liveSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -193,6 +217,7 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
         context,
         'Lotes',
         actions: [
+          const LiveIndicator(),
           IconButton(
             tooltip: 'PIN de recepción',
             onPressed: _showPin,

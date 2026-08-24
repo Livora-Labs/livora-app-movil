@@ -48,7 +48,29 @@ class _HogarDashboardState extends State<HogarDashboard> {
     }
   }
 
+  /// El backend solo permite una solicitud activa por hogar (PENDING o
+  /// ACCEPTED). La detectamos aquí para no dejar que el usuario llene el
+  /// formulario y se coma el error al final.
+  CollectionRequest? get _activeRequest {
+    for (final request in _requests ?? const <CollectionRequest>[]) {
+      if (request.status == 'PENDING' || request.status == 'ACCEPTED') {
+        return request;
+      }
+    }
+    return null;
+  }
+
   Future<void> _openCreate() async {
+    final active = _activeRequest;
+    if (active != null) {
+      showAppSnack(
+        context,
+        'Ya tienes una solicitud ${requestStatusLabel(active.status).toLowerCase()}. '
+        'Complétala o cancélala para crear otra.',
+        error: true,
+      );
+      return;
+    }
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const CreateRequestScreen()),
@@ -64,10 +86,22 @@ class _HogarDashboardState extends State<HogarDashboard> {
 
     return Scaffold(
       appBar: livoraAppBar(context, 'Hola, ${Roles.label(user?.role ?? '')}'),
+      // Se ve apagado cuando hay una solicitud activa, pero sigue respondiendo
+      // al toque para explicar por qué no se puede crear otra.
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openCreate,
-        icon: const Icon(Icons.recycling),
-        label: const Text('Solicitar recolección'),
+        backgroundColor: _activeRequest != null
+            ? LivoraColors.ink.withValues(alpha: 0.25)
+            : null,
+        foregroundColor: _activeRequest != null ? Colors.white : null,
+        icon: Icon(
+          _activeRequest != null ? Icons.hourglass_bottom : Icons.recycling,
+        ),
+        label: Text(
+          _activeRequest != null
+              ? 'Solicitud en curso'
+              : 'Solicitar recolección',
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _load,

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/session.dart';
+import '../../core/stellar.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import 'profile.dart';
@@ -54,11 +55,12 @@ class _WalletScreenState extends State<WalletScreen> {
   Future<void> _send() async {
     if (!_formKey.currentState!.validate()) return;
     final amount = double.parse(_amountController.text.replaceAll(',', '.'));
+    final toAddress = Stellar.normalize(_addressController.text);
     final confirmed = await confirmDialog(
       context,
       title: 'Confirmar transferencia',
       message:
-          '¿Enviar $amount EcoTokens a\n${_addressController.text.trim()}?\n\nLa comisión de red la cubre Livora.',
+          '¿Enviar $amount EcoTokens a\n$toAddress?\n\nLa comisión de red la cubre Livora.',
       confirmLabel: 'Enviar',
     );
     if (!confirmed || !mounted) return;
@@ -66,7 +68,7 @@ class _WalletScreenState extends State<WalletScreen> {
     setState(() => _sending = true);
     try {
       final result = await context.read<LivoraApi>().sendTokens(
-            toAddress: _addressController.text.trim(),
+            toAddress: toAddress,
             amount: amount,
           );
       if (!mounted) return;
@@ -87,6 +89,13 @@ class _WalletScreenState extends State<WalletScreen> {
             style: const TextStyle(fontSize: 13),
           ),
           actions: [
+            if (Stellar.isValidTxHash(txId))
+              TextButton.icon(
+                onPressed: () =>
+                    Stellar.openInExplorer(Stellar.transactionUrl(txId)),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('Ver en Stellar Expert'),
+              ),
             FilledButton(
               style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
               onPressed: () => Navigator.pop(dialogContext),
@@ -145,6 +154,13 @@ class _WalletScreenState extends State<WalletScreen> {
             style: const TextStyle(fontSize: 13),
           ),
           actions: [
+            if (Stellar.isValidTxHash(txHash))
+              TextButton.icon(
+                onPressed: () =>
+                    Stellar.openInExplorer(Stellar.transactionUrl(txHash)),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('Ver en Stellar Expert'),
+              ),
             FilledButton(
               style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
               onPressed: () => Navigator.pop(dialogContext),
@@ -222,9 +238,9 @@ class _WalletScreenState extends State<WalletScreen> {
                           ),
                         ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'ECO · Stellar Testnet (Soroban)',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  Text(
+                    'ECO · ${Stellar.networkLabel}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   if (address != null) ...[
                     const SizedBox(height: 14),
@@ -263,6 +279,34 @@ class _WalletScreenState extends State<WalletScreen> {
                               size: 16,
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () async {
+                          final opened = await Stellar.openInExplorer(
+                            Stellar.accountUrl(address),
+                          );
+                          if (!opened && context.mounted) {
+                            showAppSnack(
+                              context,
+                              'No se pudo abrir Stellar Expert',
+                              error: true,
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.open_in_new, size: 16),
+                        label: const Text(
+                          'Ver en Stellar Expert',
+                          style: TextStyle(fontSize: 12),
                         ),
                       ),
                     ),
@@ -306,14 +350,20 @@ class _WalletScreenState extends State<WalletScreen> {
                           hint: 'G…',
                           icon: Icons.account_balance_wallet_outlined,
                         ),
-                        validator: (value) {
-                          final text = value?.trim() ?? '';
-                          final valid = RegExp(r'^G[A-D2-7][A-Z2-7]{54}$')
-                              .hasMatch(text);
-                          return valid
-                              ? null
-                              : 'Dirección inválida (formato Stellar G... de 56 caracteres)';
-                        },
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[A-Za-z2-7]'),
+                          ),
+                          TextInputFormatter.withFunction(
+                            (_, next) => next.copyWith(
+                              text: next.text.toUpperCase(),
+                            ),
+                          ),
+                        ],
+                        validator: (value) => Stellar.isValidAddress(value)
+                            ? null
+                            : 'Dirección Stellar inválida (formato G… de 56 caracteres)',
                       ),
                       const SizedBox(height: 14),
                       TextFormField(

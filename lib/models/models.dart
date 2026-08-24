@@ -52,6 +52,7 @@ class CollectionRequest {
     required this.status,
     required this.itemsEstimated,
     this.description,
+    this.photoUrl,
     this.verificationPin,
     this.latitude = 0,
     this.longitude = 0,
@@ -72,6 +73,7 @@ class CollectionRequest {
       status: json['status'] as String? ?? 'PENDING',
       itemsEstimated: parseMaterials(json['itemsEstimated']),
       description: json['description'] as String?,
+      photoUrl: json['photoUrl'] as String?,
       verificationPin: json['verificationPin'] as String?,
       latitude: _toDouble(json['latitude']),
       longitude: _toDouble(json['longitude']),
@@ -93,6 +95,7 @@ class CollectionRequest {
   String status;
   final Map<String, double> itemsEstimated;
   final String? description;
+  final String? photoUrl;
   final String? verificationPin;
   final double latitude;
   final double longitude;
@@ -226,6 +229,38 @@ class InventoryItem {
   final String materialType;
   final double quantityKg;
   final DateTime? updatedAt;
+}
+
+/// Estado de la verificación KYC de un recolector.
+///
+/// `GET /collectors/me/kyc-application` devuelve `NOT_SUBMITTED` cuando el
+/// recolector todavía no envió ningún documento.
+class KycApplication {
+  KycApplication({
+    required this.status,
+    this.documentUrl,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory KycApplication.fromJson(Map<String, dynamic> json) => KycApplication(
+        status: json['status'] as String? ?? 'NOT_SUBMITTED',
+        documentUrl: json['documentUrl'] as String?,
+        createdAt: _toDate(json['createdAt']),
+        updatedAt: _toDate(json['updatedAt']),
+      );
+
+  final String status;
+  final String? documentUrl;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  bool get isSubmitted => status != 'NOT_SUBMITTED';
+  bool get isApproved => status == 'APPROVED';
+  bool get isRejected => status == 'REJECTED';
+
+  /// Solo se puede (re)enviar si nunca se envió o si fue rechazada.
+  bool get canSubmit => !isSubmitted || isRejected;
 }
 
 /// Métricas del hogar.
