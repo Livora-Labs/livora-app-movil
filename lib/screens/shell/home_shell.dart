@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/formats.dart';
 import '../../core/session.dart';
+import '../../services/livora_realtime.dart';
 import '../acopio/center_batches_screen.dart';
 import '../common/notifications_screen.dart';
 import '../common/wallet_screen.dart';
@@ -29,6 +30,22 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Al entrar a la zona autenticada abrimos el socket; se cierra al salir
+    // (logout) porque el shell se desmonta.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<LivoraRealtime>().connect();
+    });
+  }
+
+  @override
+  void dispose() {
+    context.read<LivoraRealtime>().disconnect();
+    super.dispose();
+  }
 
   List<_TabSpec> _tabsFor(String role) {
     const wallet = _TabSpec(

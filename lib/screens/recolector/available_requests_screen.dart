@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,8 +9,11 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
+import '../../widgets/live_indicator.dart';
 import '../common/profile.dart';
+import 'kyc_screen.dart';
 
 /// Solicitudes PENDING disponibles para el recolector, con filtro de cercanía.
 class AvailableRequestsScreen extends StatefulWidget {
@@ -29,14 +34,29 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   bool _nearbyFilter = false;
   String? _acceptingId;
 
+  StreamSubscription<Map<String, dynamic>>? _liveSubscription;
+
   @override
   void initState() {
     super.initState();
     _load();
+    // El servidor nos metió en la sala `collectors:active` al conectar, así
+    // que las solicitudes nuevas llegan solas: sin polling ni pull-to-refresh.
+    _liveSubscription = context
+        .read<LivoraRealtime>()
+        .on(RealtimeEvents.collectionCreated)
+        .listen(_onCollectionCreated);
+  }
+
+  void _onCollectionCreated(Map<String, dynamic> data) {
+    if (!mounted) return;
+    _load();
+    showAppSnack(context, 'Llegó una solicitud nueva');
   }
 
   @override
   void dispose() {
+    _liveSubscription?.cancel();
     _latController.dispose();
     _lngController.dispose();
     _radiusController.dispose();
@@ -95,6 +115,15 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
         context,
         'Solicitudes',
         actions: [
+          const LiveIndicator(),
+          IconButton(
+            tooltip: 'Verificar mi identidad',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const KycScreen()),
+            ),
+            icon: const Icon(Icons.verified_user_outlined),
+          ),
           IconButton(
             tooltip: 'Mi reputación',
             onPressed: () => _showReputation(context),
@@ -294,6 +323,21 @@ class _AvailableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (request.photoUrl != null) ...[
+              // Ver el material antes de aceptar ayuda al recolector a decidir
+              // si le sirve el viaje.
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  request.photoUrl!,
+                  height: 120,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             Row(
               children: [
                 Expanded(

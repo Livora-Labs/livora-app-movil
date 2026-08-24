@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
+import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -49,6 +50,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscure = true;
   bool _busy = false;
 
+  /// Replica la validación del `RegisterDto` del backend para que el usuario
+  /// vea el error antes de enviar el formulario y no reciba un 400 al final.
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+    if (password.length < 8) return 'Mínimo 8 caracteres';
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      return 'Debe incluir al menos una minúscula';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      return 'Debe incluir al menos una mayúscula';
+    }
+    if (!RegExp(r'\d').hasMatch(password)) {
+      return 'Debe incluir al menos un número';
+    }
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>_+\-=\[\]\\/]').hasMatch(password)) {
+      return 'Debe incluir al menos un símbolo (! @ # \$ % ...)';
+    }
+    return null;
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -59,16 +80,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
+    final email = _emailController.text.trim();
     setState(() => _busy = true);
     try {
       await context.read<SessionController>().register(
-            email: _emailController.text.trim(),
+            email: email,
             password: _passwordController.text,
             role: _role,
           );
       if (mounted) {
-        // La raíz de la app ya muestra el panel del rol; cerramos esta pantalla.
-        Navigator.popUntil(context, (route) => route.isFirst);
+        // El registro solo dispara el envío del OTP: la cuenta y el token
+        // salen del paso de verificación.
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => VerifyEmailScreen(email: email),
+          ),
+        );
       }
     } on ApiException catch (error) {
       if (mounted) showAppSnack(context, error.message, error: true);
@@ -126,7 +153,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: livoraInput(
                         'Contraseña',
                         icon: Icons.lock_outline,
-                        helper: 'Mínimo 8 caracteres',
+                        helper: 'Mínimo 8 caracteres, con mayúscula, '
+                            'minúscula, número y símbolo (ej. Password123!)',
                         suffix: IconButton(
                           onPressed: () =>
                               setState(() => _obscure = !_obscure),
@@ -138,10 +166,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                       obscureText: _obscure,
-                      validator: (value) =>
-                          value == null || value.length < 8
-                              ? 'Mínimo 8 caracteres'
-                              : null,
+                      validator: _validatePassword,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(

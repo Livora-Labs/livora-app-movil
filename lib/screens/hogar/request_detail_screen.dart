@@ -106,6 +106,30 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 14),
+                      if (request.photoUrl != null) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(
+                            request.photoUrl!,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            // Si el bucket no sirve la imagen no rompemos la
+                            // pantalla: el resto del detalle sigue siendo útil.
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                            loadingBuilder: (context, child, progress) =>
+                                progress == null
+                                    ? child
+                                    : const SizedBox(
+                                        height: 180,
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                       if (request.status == 'PENDING' ||
                           request.status == 'ACCEPTED') ...[
                         Container(

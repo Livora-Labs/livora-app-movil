@@ -178,7 +178,7 @@ Future<void> showServerSettingsDialog(BuildContext context) async {
               'URL base',
               hint: ApiClient.defaultBaseUrl,
               helper:
-                  'Producción: ${ApiClient.defaultBaseUrl} · Desarrollo local: http://10.0.2.2:3000 (emulador Android) o http://localhost:3000 (iOS/macOS).',
+                  'Stellar (actual): ${ApiClient.defaultBaseUrl} · Arbitrum (anterior): https://52.200.2.107.sslip.io · Desarrollo local: http://10.0.2.2:3000 (emulador Android) o http://localhost:3000 (iOS/macOS).',
             ),
             keyboardType: TextInputType.url,
           ),

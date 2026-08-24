@@ -71,5 +71,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Livora usa la cámara para que puedas fotografiar los materiales que vas a reciclar y tu documento de verificación.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Livora accede a tus fotos para adjuntar la imagen de los materiales o de tu documento de verificación.</string>
 </dict>
 </plist>

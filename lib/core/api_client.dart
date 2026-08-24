@@ -1,15 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Error de la API de Livora con mensaje legible para el usuario.
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode});
+  ApiException(this.message, {this.statusCode, this.code});
 
   final String message;
   final int? statusCode;
+
+  /// Código de negocio del backend: `{ "error": { "code": "...", ... } }`.
+  final String? code;
+
+  bool get isUnauthorized => statusCode == 401;
+  bool get isRateLimited => statusCode == 429;
 
   @override
   String toString() => message;
@@ -17,17 +25,39 @@ class ApiException implements Exception {
 
 /// Cliente HTTP hacia el backend NestJS de Livora.
 class ApiClient {
-  ApiClient(this._prefs);
+  ApiClient(this._prefs, {http.Client? client})
+      : _client = client ?? http.Client();
 
   static const _baseUrlKey = 'livora_base_url';
+  static const _legacyBaseUrlMigratedKey = 'livora_base_url_stellar_migrated';
+
+  /// URLs del entorno Arbitrum que quedaron guardadas en instalaciones previas.
+  static const _legacyBaseUrls = {
+    'http://52.200.2.107',
+    'https://52.200.2.107',
+    'https://52.200.2.107.sslip.io',
+    'https://livora-api-service.onrender.com',
+  };
+
+  /// El backend limita a 100 peticiones por 60 s por IP (ThrottlerModule).
+  /// Ante un 429 reintentamos con backoff en lugar de martillar el endpoint.
+  static const _maxRateLimitRetries = 2;
 
   final SharedPreferences _prefs;
+  final http.Client _client;
   String? authToken;
 
-  /// API de producción (AWS EC2). Para otro entorno cámbiala desde el
-  /// diálogo "Servidor" de la app (Render: https://livora-api-service.onrender.com,
-  /// emulador Android: http://10.0.2.2:3000, iOS/macOS: http://localhost:3000).
-  static const defaultBaseUrl = 'http://52.200.2.107';
+  /// Se invoca cuando una petición autenticada recibe 401. Debe intentar
+  /// renovar la sesión (`POST /auth/refresh`) y devolver el nuevo access token,
+  /// o `null` si no se pudo renovar. Lo enchufa [SessionController]; si
+  /// devuelve un token, la petición original se reintenta una sola vez.
+  Future<String?> Function()? onTokenExpired;
+
+  /// API de producción sobre Stellar/Soroban (AWS EC2 + TLS por sslip.io).
+  /// Para otro entorno cámbiala desde el diálogo "Servidor" de la app
+  /// (Arbitrum anterior: https://52.200.2.107.sslip.io, emulador Android:
+  /// http://10.0.2.2:3000, iOS/macOS: http://localhost:3000).
+  static const defaultBaseUrl = 'https://stellar.52.200.2.107.sslip.io';
 
   String get baseUrl {
     final saved = _prefs.getString(_baseUrlKey);
@@ -44,6 +74,22 @@ class ApiClient {
     }
   }
 
+  /// Migración única para instalaciones que ya tenían guardada la URL del
+  /// entorno Arbitrum: se borra la preferencia para que caigan en el nuevo
+  /// [defaultBaseUrl] de Stellar. Si el usuario vuelve a fijarla a mano desde
+  /// el diálogo "Servidor", su elección se respeta (la migración no se repite).
+  Future<void> migrateLegacyBaseUrl() async {
+    if (_prefs.getBool(_legacyBaseUrlMigratedKey) == true) return;
+    await _prefs.setBool(_legacyBaseUrlMigratedKey, true);
+
+    final saved = _prefs.getString(_baseUrlKey)?.trim();
+    if (saved == null) return;
+    final normalized = saved.replaceAll(RegExp(r'/+$'), '').toLowerCase();
+    if (_legacyBaseUrls.contains(normalized)) {
+      await _prefs.remove(_baseUrlKey);
+    }
+  }
+
   Future<dynamic> get(String path, {Map<String, Object?>? query}) =>
       _send('GET', path, query: query);
 
@@ -52,6 +98,108 @@ class ApiClient {
 
   Future<dynamic> patch(String path, {Object? body}) =>
       _send('PATCH', path, body: body);
+
+  Future<dynamic> delete(String path, {Object? body}) =>
+      _send('DELETE', path, body: body);
+
+  /// Sube un archivo por multipart. El backend expone `POST /uploads` con el
+  /// campo `file` y un `purpose` que decide bucket y tipos permitidos.
+  ///
+  /// Comparte con [_send] el manejo de sesión: ante un 401 renueva el token y
+  /// reintenta una sola vez.
+  Future<dynamic> uploadFile(
+    String path, {
+    required String filePath,
+    required String fieldName,
+    Map<String, String> fields = const {},
+    bool refreshed = false,
+  }) async {
+    final request = http.MultipartRequest('POST', _uri(path, null));
+    request.headers['Accept'] = 'application/json';
+    if (authToken != null) {
+      request.headers['Authorization'] = 'Bearer $authToken';
+    }
+    request.fields.addAll(fields);
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        fieldName,
+        filePath,
+        contentType: _mediaTypeFor(filePath),
+      ),
+    );
+
+    http.Response response;
+    try {
+      final streamed = await _client.send(request).timeout(
+            const Duration(seconds: 120),
+          );
+      response = await http.Response.fromStream(streamed);
+    } on TimeoutException {
+      throw ApiException(
+        'La subida tardó demasiado. Revisa tu conexión e inténtalo de nuevo.',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        'No se pudo conectar con $baseUrl. Revisa la URL del servidor y tu conexión.',
+      );
+    }
+
+    dynamic decoded;
+    if (response.bodyBytes.isNotEmpty) {
+      try {
+        decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      } catch (_) {
+        decoded = null;
+      }
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) return decoded;
+
+    if (response.statusCode == 401 &&
+        !refreshed &&
+        authToken != null &&
+        onTokenExpired != null) {
+      final renewedToken = await onTokenExpired!();
+      if (renewedToken != null) {
+        return uploadFile(
+          path,
+          filePath: filePath,
+          fieldName: fieldName,
+          fields: fields,
+          refreshed: true,
+        );
+      }
+    }
+
+    throw ApiException(
+      _errorMessage(decoded, response.statusCode),
+      statusCode: response.statusCode,
+      code: _errorCode(decoded),
+    );
+  }
+
+  /// El backend valida el mime type contra una lista blanca por `purpose`, así
+  /// que hay que declararlo: `MultipartFile` por defecto manda
+  /// `application/octet-stream` y sería rechazado siempre.
+  MediaType _mediaTypeFor(String filePath) {
+    final extension = filePath.toLowerCase().split('.').last;
+    return switch (extension) {
+      'jpg' || 'jpeg' => MediaType('image', 'jpeg'),
+      'png' => MediaType('image', 'png'),
+      'pdf' => MediaType('application', 'pdf'),
+      _ => MediaType('application', 'octet-stream'),
+    };
+  }
+
+  /// Comprueba que el backend responde antes de operar (`GET /health`).
+  Future<bool> healthCheck() async {
+    try {
+      final raw = await get('/health');
+      return raw is Map && raw['status'] == 'ok';
+    } on ApiException {
+      return false;
+    }
+  }
 
   Uri _uri(String path, Map<String, Object?>? query) {
     final params = <String, String>{};
@@ -67,6 +215,8 @@ class ApiClient {
     String path, {
     Map<String, Object?>? query,
     Object? body,
+    int attempt = 0,
+    bool refreshed = false,
   }) async {
     final request = http.Request(method, _uri(path, query));
     request.headers['Accept'] = 'application/json';
@@ -80,9 +230,8 @@ class ApiClient {
 
     http.Response response;
     try {
-      // Margen amplio: algunos entornos (p. ej. Render gratuito) tardan
-      // hasta ~1 minuto en "despertar" tras inactividad.
-      final streamed = await request.send().timeout(
+      // Margen amplio: algunos entornos tardan en "despertar" tras inactividad.
+      final streamed = await _client.send(request).timeout(
             const Duration(seconds: 60),
           );
       response = await http.Response.fromStream(streamed);
@@ -110,33 +259,120 @@ class ApiClient {
       return decoded;
     }
 
+    // Rate limit (100 req / 60 s): esperamos y reintentamos con backoff.
+    if (response.statusCode == 429 && attempt < _maxRateLimitRetries) {
+      await Future<void>.delayed(_retryDelay(response, attempt));
+      return _send(
+        method,
+        path,
+        query: query,
+        body: body,
+        attempt: attempt + 1,
+      );
+    }
+
+    if (response.statusCode == 429) {
+      throw ApiException(
+        'Demasiadas peticiones al servidor. Espera un momento y vuelve a intentarlo.',
+        statusCode: 429,
+        code: _errorCode(decoded),
+      );
+    }
+
+    // El accessToken de Supabase vive 1 h. Ante un 401 en una petición
+    // autenticada intentamos renovar la sesión una sola vez y repetimos.
+    if (response.statusCode == 401 &&
+        !refreshed &&
+        authToken != null &&
+        onTokenExpired != null) {
+      final renewedToken = await onTokenExpired!();
+      if (renewedToken != null) {
+        return _send(
+          method,
+          path,
+          query: query,
+          body: body,
+          attempt: attempt,
+          refreshed: true,
+        );
+      }
+    }
+
     if (response.statusCode == 401) {
       throw ApiException(
         'Tu sesión expiró o las credenciales no son válidas. Inicia sesión nuevamente.',
         statusCode: 401,
+        code: _errorCode(decoded),
       );
     }
 
     throw ApiException(
       _errorMessage(decoded, response.statusCode),
       statusCode: response.statusCode,
+      code: _errorCode(decoded),
     );
   }
 
-  String _errorMessage(dynamic body, int status) {
-    if (body is Map<String, dynamic>) {
-      // Formato del filtro global de Livora: { "error": { "code", "message" } }
-      final error = body['error'];
-      if (error is Map) {
-        final message = error['message'];
-        if (message is String && message.isNotEmpty) return message;
-      }
-      if (error is String && error.isNotEmpty) return error;
-      // Formato estándar de NestJS: { "message": "..." | ["...", ...] }
-      final message = body['message'];
-      if (message is String && message.isNotEmpty) return message;
-      if (message is List && message.isNotEmpty) return message.join('\n');
+  /// Respeta el header `Retry-After` del throttler; si no viene, backoff
+  /// exponencial (2 s, 4 s) para no reintentar de inmediato.
+  Duration _retryDelay(http.Response response, int attempt) {
+    final retryAfter = int.tryParse(response.headers['retry-after'] ?? '');
+    if (retryAfter != null && retryAfter > 0) {
+      return Duration(seconds: min(retryAfter, 30));
     }
-    return 'Error del servidor (HTTP $status)';
+    return Duration(seconds: 2 * pow(2, attempt).toInt());
   }
+
+  String? _errorCode(dynamic body) => apiErrorCode(body);
+
+  String _errorMessage(dynamic body, int status) =>
+      apiErrorMessage(body, status);
+}
+
+/// Extrae el `code` de `{ "error": { "code", ... } }`.
+String? apiErrorCode(dynamic body) {
+  if (body is Map) {
+    final error = body['error'];
+    if (error is Map) {
+      final code = error['code'];
+      if (code is String && code.isNotEmpty) return code;
+    }
+  }
+  return null;
+}
+
+/// Convierte el cuerpo de error del backend en un mensaje para el usuario.
+///
+/// El filtro global de Livora responde
+/// `{ "error": { "code", "message", "details"? } }`. En los errores de
+/// validación `message` es genérico ("Error de validación en los parámetros de
+/// entrada") y el motivo real viene en `details` como lista de strings, así que
+/// `details` tiene prioridad.
+String apiErrorMessage(dynamic body, int status) {
+  String? joinIfList(dynamic value) {
+    if (value is String && value.isNotEmpty) return value;
+    if (value is List) {
+      final items = value
+          .map((item) => '$item')
+          .where((item) => item.isNotEmpty)
+          .toList();
+      if (items.isNotEmpty) return items.join('\n');
+    }
+    return null;
+  }
+
+  if (body is Map) {
+    final error = body['error'];
+    if (error is Map) {
+      final details = joinIfList(error['details']);
+      if (details != null) return details;
+      final message = joinIfList(error['message']);
+      if (message != null) return message;
+    }
+    if (error is String && error.isNotEmpty) return error;
+    // Formato estándar de NestJS: { "message": "..." | ["...", ...] }
+    final message = joinIfList(body['message']);
+    if (message != null) return message;
+  }
+  return 'Error del servidor (HTTP $status)';
 }

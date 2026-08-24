@@ -1,4 +1,4 @@
-package com.livoralabs.livora_labs
+package com.grupolivoralabs.livora
 
 import io.flutter.embedding.android.FlutterActivity
 
