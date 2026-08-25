@@ -290,4 +290,60 @@ class LivoraApi {
   Future<void> deleteAccount() async {
     await client.delete('/users/me');
   }
+
+  Future<Map<String, dynamic>> getDashboard() async {
+    final raw = await client.get('/users/me/dashboard');
+    return raw as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? phone,
+    String? address,
+    double? latitude,
+    double? longitude,
+    bool? marketingAccepted,
+  }) async {
+    final raw = await client.patch('/users/me', body: {
+      if (name != null) 'name': name,
+      if (phone != null) 'phone': phone,
+      if (address != null) 'address': address,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (marketingAccepted != null) 'marketingAccepted': marketingAccepted,
+    });
+    return raw as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> changePassword(String newPassword) async {
+    final raw = await client.patch('/users/me/password', body: {
+      'newPassword': newPassword,
+    });
+    return raw as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>?> getStoreProfile() async {
+    try {
+      final raw = await client.get('/stores/profile');
+      return raw as Map<String, dynamic>;
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> updateStoreProfile({
+    required String businessName,
+    required String ruc,
+    required String address,
+    required String bankAccount,
+  }) async {
+    final raw = await client.patch('/stores/profile', body: {
+      'businessName': businessName,
+      'ruc': ruc,
+      'address': address,
+      'bankAccount': bankAccount,
+    });
+    return raw as Map<String, dynamic>;
+  }
 }

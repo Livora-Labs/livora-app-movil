@@ -13,6 +13,7 @@ import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
 import '../auth/login_screen.dart';
+import 'profile_screen.dart';
 
 /// AppBar estándar de la app con acceso al perfil.
 AppBar livoraAppBar(
@@ -47,7 +48,13 @@ class ProfileButton extends StatelessWidget {
         user == null || user.email.isEmpty ? '?' : user.email[0].toUpperCase();
     return IconButton(
       tooltip: 'Mi cuenta',
-      onPressed: () => _showProfileSheet(context),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) => const ProfileScreen(),
+          ),
+        );
+      },
       icon: CircleAvatar(
         radius: 15,
         backgroundColor: LivoraColors.forest,
@@ -157,6 +164,18 @@ Future<void> _showProfileSheet(BuildContext context) {
                     },
                     icon: const Icon(Icons.privacy_tip_outlined, size: 16),
                     label: const Text('Privacidad', style: TextStyle(fontSize: 12)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final api = sheetContext.read<LivoraApi>();
+                      final webBaseUrl = api.client.baseUrl.replaceAll('/api', '');
+                      final url = Uri.parse('$webBaseUrl/libro-de-reclamaciones');
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    icon: const Icon(Icons.menu_book_outlined, size: 16, color: LivoraColors.amber),
+                    label: const Text('Reclamos', style: TextStyle(fontSize: 12, color: LivoraColors.amber)),
                   ),
                 ],
               ),

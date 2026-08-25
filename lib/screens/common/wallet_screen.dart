@@ -85,7 +85,7 @@ class _WalletScreenState extends State<WalletScreen> {
           ),
           title: const Text('Transferencia enviada'),
           content: Text(
-            'La red Stellar está procesando tu transacción.\n\nID: $txId',
+            'Tu transacción está siendo verificada.\n\nCódigo: $txId',
             style: const TextStyle(fontSize: 13),
           ),
           actions: [
@@ -93,8 +93,8 @@ class _WalletScreenState extends State<WalletScreen> {
               TextButton.icon(
                 onPressed: () =>
                     Stellar.openInExplorer(Stellar.transactionUrl(txId)),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('Ver en Stellar Expert'),
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: const Text('Ver comprobante digital'),
               ),
             FilledButton(
               style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
@@ -158,8 +158,8 @@ class _WalletScreenState extends State<WalletScreen> {
               TextButton.icon(
                 onPressed: () =>
                     Stellar.openInExplorer(Stellar.transactionUrl(txHash)),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('Ver en Stellar Expert'),
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: const Text('Ver comprobante digital'),
               ),
             FilledButton(
               style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
@@ -239,7 +239,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         ),
                   const SizedBox(height: 2),
                   Text(
-                    'ECO · ${Stellar.networkLabel}',
+                    'ECO · Billetera de Incentivos',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   if (address != null) ...[
@@ -298,14 +298,14 @@ class _WalletScreenState extends State<WalletScreen> {
                           if (!opened && context.mounted) {
                             showAppSnack(
                               context,
-                              'No se pudo abrir Stellar Expert',
+                              'No se pudo abrir el explorador de transacciones',
                               error: true,
                             );
                           }
                         },
-                        icon: const Icon(Icons.open_in_new, size: 16),
+                        icon: const Icon(Icons.receipt_long_outlined, size: 16),
                         label: const Text(
-                          'Ver en Stellar Expert',
+                          'Ver en el explorador digital',
                           style: TextStyle(fontSize: 12),
                         ),
                       ),
@@ -363,7 +363,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         ],
                         validator: (value) => Stellar.isValidAddress(value)
                             ? null
-                            : 'Dirección Stellar inválida (formato G… de 56 caracteres)',
+                            : 'Dirección de billetera inválida (formato G… de 56 caracteres)',
                       ),
                       const SizedBox(height: 14),
                       TextFormField(

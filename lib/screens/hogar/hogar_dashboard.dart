@@ -20,7 +20,8 @@ class HogarDashboard extends StatefulWidget {
 }
 
 class _HogarDashboardState extends State<HogarDashboard> {
-  HouseholdMetrics? _metrics;
+  Map<String, dynamic>? _dashboardData;
+  bool _loadingDashboard = true;
   List<CollectionRequest>? _requests;
   String? _error;
 
@@ -34,17 +35,23 @@ class _HogarDashboardState extends State<HogarDashboard> {
     final api = context.read<LivoraApi>();
     try {
       final results = await Future.wait([
-        api.householdMetrics(),
+        api.getDashboard(),
         api.collectionRequests(),
       ]);
       if (!mounted) return;
       setState(() {
-        _metrics = results[0] as HouseholdMetrics;
-        _requests = results[1] as List<CollectionRequest>;
+        _dashboardData = results[0];
+        _requests = results[1];
+        _loadingDashboard = false;
         _error = null;
       });
     } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(() {
+          _error = error.message;
+          _loadingDashboard = false;
+        });
+      }
     }
   }
 
@@ -81,7 +88,6 @@ class _HogarDashboardState extends State<HogarDashboard> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<SessionController>().user;
-    final metrics = _metrics;
     final requests = _requests;
 
     return Scaffold(
@@ -122,7 +128,38 @@ class _HogarDashboardState extends State<HogarDashboard> {
                   ),
                 ),
               ),
-            if (metrics != null) ...[
+            // Tarjeta de PIN de Verificación
+            if (_loadingDashboard)
+              const Card(
+                margin: EdgeInsets.only(bottom: 16),
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SizedBox(
+                    height: 100,
+                    child: Center(child: _Skeleton()),
+                  ),
+                ),
+              )
+            else
+              _PinVerificationCard(activeRequest: _dashboardData?['activeRequest']),
+
+            if (_loadingDashboard) ...[
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.4,
+                children: const [
+                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
+                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
+                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
+                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ] else if (_dashboardData != null) ...[
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -134,30 +171,56 @@ class _HogarDashboardState extends State<HogarDashboard> {
                   StatCard(
                     icon: Icons.recycling,
                     label: 'Kg reciclados',
-                    value: fmtNumber(metrics.totalRecycledKg),
+                    value: fmtNumber(_dashboardData!['esgMetrics']?['totalKgRecycled'] ?? 0.0),
                     color: LivoraColors.green,
                   ),
                   StatCard(
                     icon: Icons.toll,
-                    label: 'EcoTokens ganados',
-                    value: fmtNumber(metrics.ecoTokensEarned),
+                    label: 'Saldo EcoTokens',
+                    value: '${_dashboardData!['wallet']?['balance'] ?? "0.00"} ECO',
                     color: LivoraColors.blue,
                   ),
                   StatCard(
-                    icon: Icons.list_alt,
-                    label: 'Solicitudes totales',
-                    value: '${metrics.totalRequests}',
-                    color: LivoraColors.cyan,
+                    icon: Icons.eco_outlined,
+                    label: 'CO₂ Ahorrado',
+                    value: '${fmtNumber(_dashboardData!['esgMetrics']?['co2SavedKg'] ?? 0.0)} kg',
+                    color: LivoraColors.amber,
                   ),
                   StatCard(
-                    icon: Icons.check_circle_outline,
-                    label: 'Completadas',
-                    value: '${metrics.completedRequests}',
-                    color: LivoraColors.forest,
+                    icon: Icons.list_alt,
+                    label: 'Recolecciones',
+                    value: '${_dashboardData!['esgMetrics']?['totalCollections'] ?? 0}',
+                    color: LivoraColors.cyan,
                   ),
                 ],
               ),
               const SizedBox(height: 16),
+              if ((_dashboardData!['esgMetrics']?['totalCollections'] ?? 0) == 0)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: LivoraColors.paper,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: LivoraColors.ink.withValues(alpha: 0.1)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.spa_outlined, color: LivoraColors.green),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Aún no has generado impacto. ¡Crea tu primer recojo!',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: LivoraColors.deep,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
             const SectionTitle(text: 'Mis solicitudes'),
             if (requests == null && _error == null)
@@ -247,6 +310,128 @@ class _RequestCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PinVerificationCard extends StatelessWidget {
+  const _PinVerificationCard({required this.activeRequest});
+
+  final Map<String, dynamic>? activeRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasActive = activeRequest != null;
+    final pin = hasActive ? activeRequest!['pin'] as String? ?? '---' : '---';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      color: hasActive ? LivoraColors.blue.withValues(alpha: 0.1) : LivoraColors.paper,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: hasActive ? LivoraColors.blue : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.key_rounded,
+                  color: hasActive ? LivoraColors.blue : LivoraColors.ink.withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'PIN DE VERIFICACIÓN',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    letterSpacing: 0.8,
+                    color: LivoraColors.deep,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              pin,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 4,
+                color: hasActive ? LivoraColors.blue : LivoraColors.ink.withValues(alpha: 0.4),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              hasActive
+                  ? 'Dicta este PIN al recolector al entregar tus materiales.'
+                  : 'Sin recolección activa. Se generará automáticamente al solicitar un recojo.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: LivoraColors.ink.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Skeleton extends StatefulWidget {
+  const _Skeleton({this.width, this.height, this.borderRadius});
+
+  final double? width;
+  final double? height;
+  final double? borderRadius;
+
+  @override
+  State<_Skeleton> createState() => _SkeletonState();
+}
+
+class _SkeletonState extends State<_Skeleton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.4, end: 0.8).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _animation.value,
+          child: Container(
+            width: widget.width ?? double.infinity,
+            height: widget.height ?? 20,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(widget.borderRadius ?? 8),
+            ),
+          ),
+        );
+      },
     );
   }
 }

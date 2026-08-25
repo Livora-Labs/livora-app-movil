@@ -48,23 +48,14 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  int _tapCount = 0;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Stack(
           children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                tooltip: 'Servidor',
-                onPressed: () => showServerSettingsDialog(context),
-                icon: Icon(
-                  Icons.settings_outlined,
-                  color: LivoraColors.ink.withValues(alpha: 0.6),
-                ),
-              ),
-            ),
             Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
@@ -72,7 +63,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   constraints: const BoxConstraints(maxWidth: 440),
                   child: Column(
                     children: [
-                      const LivoraWordmark(),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _tapCount++;
+                            if (_tapCount >= 5) {
+                              _tapCount = 0;
+                              showServerSettingsDialog(context);
+                            }
+                          });
+                        },
+                        child: const LivoraWordmark(),
+                      ),
                       const SizedBox(height: 32),
                       Card(
                         child: Padding(
@@ -178,7 +180,7 @@ Future<void> showServerSettingsDialog(BuildContext context) async {
               'URL base',
               hint: ApiClient.defaultBaseUrl,
               helper:
-                  'Stellar (actual): ${ApiClient.defaultBaseUrl} · Arbitrum (anterior): https://52.200.2.107.sslip.io · Desarrollo local: http://10.0.2.2:3000 (emulador Android) o http://localhost:3000 (iOS/macOS).',
+                  'Servidor de conexión de la API de Livora. Por defecto: ${ApiClient.defaultBaseUrl}',
             ),
             keyboardType: TextInputType.url,
           ),
