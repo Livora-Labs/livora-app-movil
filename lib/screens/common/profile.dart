@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:hive/hive.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/api_client.dart';
@@ -12,7 +11,6 @@ import '../../core/stellar.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
-import '../auth/login_screen.dart';
 import 'profile_screen.dart';
 
 /// AppBar estándar de la app con acceso al perfil.
@@ -71,7 +69,7 @@ class ProfileButton extends StatelessWidget {
   }
 }
 
-Future<void> _showProfileSheet(BuildContext context) {
+Future<void> showProfileSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -135,13 +133,6 @@ Future<void> _showProfileSheet(BuildContext context) {
                       : null,
                 ),
               const SizedBox(height: 8),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () => showServerSettingsDialog(sheetContext),
-                icon: const Icon(Icons.dns_outlined),
-                label: const Text('Configurar servidor'),
-              ),
-              const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [

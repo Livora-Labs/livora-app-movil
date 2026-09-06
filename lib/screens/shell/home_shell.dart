@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -12,9 +14,10 @@ import '../common/wallet_screen.dart';
 import '../hogar/hogar_dashboard.dart';
 import '../recolector/available_requests_screen.dart';
 import '../recolector/my_batch_screen.dart';
-import '../tienda/inventory_screen.dart';
+import '../acopio/inventory_screen.dart';
 import '../tienda/store_history_screen.dart';
 import '../tienda/store_qr_generator_screen.dart';
+import '../tienda/store_wallet_screen.dart';
 
 class _TabSpec {
   const _TabSpec(this.label, this.icon, this.body);
@@ -34,6 +37,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  StreamSubscription<RemoteMessage>? _fcmSubscription;
 
   @override
   void initState() {
@@ -48,6 +52,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    _fcmSubscription?.cancel();
     context.read<LivoraRealtime>().disconnect();
     super.dispose();
   }
@@ -69,11 +74,20 @@ class _HomeShellState extends State<HomeShell> {
         final token = await messaging.getToken();
         if (token != null && mounted) {
           debugPrint('FCM Token obtenido y registrado');
-          await context.read<LivoraApi>().updateFcmToken(token);
+          final platform = Theme.of(context).platform == TargetPlatform.iOS ? 'IOS' : 'ANDROID';
+          await context.read<LivoraApi>().registerDeviceToken(token, platform: platform);
         }
       }
+
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+        if (mounted) {
+          final platform = Theme.of(context).platform == TargetPlatform.iOS ? 'IOS' : 'ANDROID';
+          context.read<LivoraApi>().registerDeviceToken(newToken, platform: platform);
+        }
+      });
       
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      _fcmSubscription?.cancel();
+      _fcmSubscription = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         if (mounted && message.notification != null) {
           showDialog(
             context: context,
@@ -91,7 +105,7 @@ class _HomeShellState extends State<HomeShell> {
         }
       });
     } catch (e) {
-      debugPrint('Error configurando FCM en HomeShell: $e');
+      debugPrint('FCM no disponible en este entorno: $e');
     }
   }
 
@@ -133,10 +147,10 @@ class _HomeShellState extends State<HomeShell> {
           wallet,
           alerts,
         ],
-      Roles.almacen => const [
+      Roles.tienda => const [
           _TabSpec('Cobrar', Icons.qr_code_scanner_outlined, StoreQrGeneratorScreen()),
           _TabSpec('Historial', Icons.history_outlined, StoreHistoryScreen()),
-          wallet,
+          _TabSpec('Billetera', Icons.account_balance_wallet_outlined, StoreWalletScreen()),
           alerts,
         ],
       _ => const [wallet, alerts],

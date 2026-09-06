@@ -28,7 +28,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  SentryWidgetsFlutterBinding.ensureInitialized();
 
   await SentryFlutter.init(
     (options) {
@@ -39,12 +39,14 @@ Future<void> main() async {
       // Registrar capturadores de excepciones de Flutter y plataforma hacia Sentry
       FlutterError.onError = (FlutterErrorDetails details) {
         FlutterError.presentError(details);
+        debugPrint('FLUTTER ERROR: ${details.exception}\n${details.stack}');
         Sentry.captureException(details.exception, stackTrace: details.stack);
       };
 
       PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+        debugPrint('PLATFORM ERROR: $error\n$stack');
         Sentry.captureException(error, stackTrace: stack);
-        return true;
+        return false;
       };
 
       final prefs = await SharedPreferences.getInstance();
@@ -56,6 +58,9 @@ Future<void> main() async {
       final livoraApi = LivoraApi(api);
       await OfflineQueueManager.init(livoraApi);
 
+      final realtime = LivoraRealtime(api);
+      session.onLogout = () => realtime.disconnect();
+
       try {
         await Firebase.initializeApp();
         FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -63,7 +68,12 @@ Future<void> main() async {
         debugPrint('FCM no inicializado en entorno local: $e');
       }
 
-      runApp(LivoraApp(api: api, session: session, livoraApi: livoraApi));
+      runApp(LivoraApp(
+        api: api,
+        session: session,
+        livoraApi: livoraApi,
+        realtime: realtime,
+      ));
     },
   );
 }
@@ -74,11 +84,13 @@ class LivoraApp extends StatelessWidget {
     required this.api,
     required this.session,
     required this.livoraApi,
+    required this.realtime,
   });
 
   final ApiClient api;
   final SessionController session;
   final LivoraApi livoraApi;
+  final LivoraRealtime realtime;
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +99,7 @@ class LivoraApp extends StatelessWidget {
         Provider.value(value: api),
         Provider.value(value: livoraApi),
         ChangeNotifierProvider.value(value: session),
-        ChangeNotifierProvider(create: (_) => LivoraRealtime(api)),
+        ChangeNotifierProvider.value(value: realtime),
       ],
       child: Consumer<SessionController>(
         builder: (context, session, _) => MaterialApp(

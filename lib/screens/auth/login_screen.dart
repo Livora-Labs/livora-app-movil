@@ -37,6 +37,54 @@ class _LoginScreenState extends State<LoginScreen> {
             _emailController.text.trim(),
             _passwordController.text,
           );
+    } on WebExclusiveRoleException catch (e) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogCtx) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.laptop_chromebook, color: LivoraColors.forest),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Acceso Exclusivo Web',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: LivoraColors.deep,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              e.message,
+              style: const TextStyle(
+                fontSize: 14,
+                color: LivoraColors.deep,
+                height: 1.4,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text(
+                  'Aceptar',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: LivoraColors.forest,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
     } on ApiException catch (error) {
       if (mounted) showAppSnack(context, error.message, error: true);
     } catch (_) {
@@ -47,8 +95,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
-
-  int _tapCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -63,18 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   constraints: const BoxConstraints(maxWidth: 440),
                   child: Column(
                     children: [
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _tapCount++;
-                            if (_tapCount >= 5) {
-                              _tapCount = 0;
-                              showServerSettingsDialog(context);
-                            }
-                          });
-                        },
-                        child: const LivoraWordmark(),
-                      ),
+                      const LivoraWordmark(),
                       const SizedBox(height: 32),
                       Card(
                         child: Padding(
@@ -162,44 +197,3 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// Diálogo para configurar la URL del backend (útil en emulador vs. equipo).
-Future<void> showServerSettingsDialog(BuildContext context) async {
-  final api = context.read<ApiClient>();
-  final controller = TextEditingController(text: api.baseUrl);
-
-  await showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('Servidor de la API'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: controller,
-            decoration: livoraInput(
-              'URL base',
-              hint: ApiClient.defaultBaseUrl,
-              helper:
-                  'Servidor de conexión de la API de Livora. Por defecto: ${ApiClient.defaultBaseUrl}',
-            ),
-            keyboardType: TextInputType.url,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-          onPressed: () async {
-            await api.setBaseUrl(controller.text);
-            if (dialogContext.mounted) Navigator.pop(dialogContext);
-          },
-          child: const Text('Guardar'),
-        ),
-      ],
-    ),
-  );
-}

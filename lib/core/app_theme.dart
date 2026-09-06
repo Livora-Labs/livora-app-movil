@@ -11,13 +11,27 @@ class LivoraColors {
   static const cyan = Color(0xFF00B4D8);
   static const blue = Color(0xFF0077B6);
   static const ink = Color(0xFF44515A);
+  static const slate = Color(0xFF44515A);
   static const paper = Color(0xFFF4FAF7);
+  static const amber = Color(0xFFF59E0B);
+  static const coral = Color(0xFFEF4444);
+  static const gold = Color(0xFFEAB308);
+  static const border = Color(0xFFE2E8F0);
 
   static const brandGradient = LinearGradient(
     begin: Alignment.bottomLeft,
     end: Alignment.topRight,
     colors: [forest, green, cyan, blue],
   );
+}
+
+extension ColorValuesCompat on Color {
+  Color withValues({double? alpha, double? red, double? green, double? blue}) {
+    if (alpha != null) {
+      return withOpacity(alpha.clamp(0.0, 1.0));
+    }
+    return this;
+  }
 }
 
 /// Decoración estándar para campos de texto de la app.
@@ -78,7 +92,7 @@ class LivoraTheme {
           fontWeight: FontWeight.w800,
         ),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: Colors.white,
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -91,7 +105,7 @@ class LivoraTheme {
         style: FilledButton.styleFrom(
           backgroundColor: LivoraColors.forest,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -102,7 +116,7 @@ class LivoraTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: LivoraColors.forest,
           side: const BorderSide(color: LivoraColors.forest),
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),

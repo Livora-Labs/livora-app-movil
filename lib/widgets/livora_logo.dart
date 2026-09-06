@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
-/// Ícono oficial de Livora (SVG en assets/images/livora_icon.svg).
+/// Isotipo oficial de Livora (PNG sin fondo) para barras de navegación y encabezados de la UI.
 class LivoraLogo extends StatelessWidget {
   const LivoraLogo({super.key, this.size = 64});
 
@@ -9,10 +8,20 @@ class LivoraLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SvgPicture.asset(
-      'assets/images/livora_icon.svg',
+    return Image.asset(
+      'assets/images/livora_isotipo.png',
       width: size,
       height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        // Fallback al ícono clásico por seguridad si no existiera el archivo
+        return Image.asset(
+          'assets/icon/icon.png',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+        );
+      },
     );
   }
 }

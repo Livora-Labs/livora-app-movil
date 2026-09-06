@@ -4,9 +4,13 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/formats.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
+import '../../widgets/livora_shimmer.dart';
 
+/// Pantalla de Perfil Comercial para el rol TIENDA.
+/// Valida datos fiscales estrictos bajo regulación peruana (RUC 11 dígitos iniciando con 10/20 y CCI de 20 dígitos).
 class StoreProfileScreen extends StatefulWidget {
   const StoreProfileScreen({super.key});
 
@@ -52,6 +56,8 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
       }
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.message, error: true);
+    } catch (_) {
+      // Error silencioso al cargar perfil nuevo
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -59,9 +65,13 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
 
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final api = context.read<LivoraApi>();
+    await HapticFeedback.lightImpact();
+    if (!mounted) return;
     setState(() => _busy = true);
+
     try {
-      final api = context.read<LivoraApi>();
       await api.updateStoreProfile(
         businessName: _businessNameController.text.trim(),
         ruc: _rucController.text.trim(),
@@ -74,6 +84,10 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
       }
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) {
+        showAppSnack(context, 'Error al guardar el perfil comercial', error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -84,95 +98,134 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Perfil Comercial de Tienda'),
-        backgroundColor: LivoraColors.deep,
-        foregroundColor: Colors.white,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const LivoraShimmerList(
+              itemCount: 4,
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 80),
+            )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'Información de Negocio',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: LivoraColors.deep,
+                    // Banner Informativo
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: LivoraColors.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: LivoraColors.forest.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.verified_user_outlined, color: LivoraColors.forest, size: 24),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Datos Fiscales y Bancarios',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: LivoraColors.deep,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Configura tu RUC y cuenta interbancaria (CCI) para recibir tus liquidaciones en moneda nacional (PEN).',
+                                  style: TextStyle(fontSize: 12, color: LivoraColors.ink, height: 1.3),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Registra los datos fiscales de tu establecimiento y la cuenta bancaria para recibir tus liquidaciones en moneda nacional (Fiat BCP/CCI).',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
                     const SizedBox(height: 24),
+
+                    // Campo Razón Social
                     TextFormField(
                       controller: _businessNameController,
                       decoration: livoraInput(
                         'Razón Social / Nombre Comercial',
                         icon: Icons.store_outlined,
+                        hint: 'Mi Tienda S.A.C.',
                       ),
                       validator: (v) => v == null || v.trim().isEmpty
-                          ? 'Ingresa la razón social del negocio'
+                          ? 'Ingresa la razón social o nombre comercial'
                           : null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
+
+                    // Campo RUC (11 dígitos, inicia con 10 o 20)
                     TextFormField(
                       controller: _rucController,
                       decoration: livoraInput(
-                        'RUC',
+                        'RUC (11 dígitos)',
                         icon: Icons.badge_outlined,
                         hint: '20608912345',
+                        helper: 'Debe contener exactamente 11 dígitos e iniciar con 10 u 20.',
                       ),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(11),
-                      ],
-                      validator: (v) {
-                        if (v == null || v.trim().length != 11) {
-                          return 'El RUC debe tener 11 dígitos';
-                        }
-                        return null;
-                      },
+                      inputFormatters: kRucInputFormatters,
+                      validator: validateRuc,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
+
+                    // Campo Dirección Comercial
                     TextFormField(
                       controller: _addressController,
                       decoration: livoraInput(
                         'Dirección Comercial',
                         icon: Icons.location_on_outlined,
+                        hint: 'Av. Larco 123, Miraflores, Lima',
                       ),
                       validator: (v) => v == null || v.trim().isEmpty
                           ? 'Ingresa la dirección física de la tienda'
                           : null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
+
+                    // Campo Cuenta Bancaria CCI (exactamente 20 dígitos)
                     TextFormField(
                       controller: _bankAccountController,
                       decoration: livoraInput(
-                        'Cuenta Bancaria (BCP CCI)',
+                        'Código de Cuenta Interbancario (CCI)',
                         icon: Icons.account_balance_outlined,
-                        hint: '002-191-XXXXXXXXXXXXXXXX-XX',
+                        hint: '00219100000000000012',
+                        helper: 'Debe ser un CCI de exactamente 20 dígitos (no número de cuenta corriente local de 13 dígitos).',
                       ),
-                      validator: (v) => v == null || v.trim().isEmpty
-                          ? 'Ingresa tu cuenta interbancaria (CCI)'
-                          : null,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: kCciInputFormatters,
+                      validator: validateCci,
                     ),
                     const SizedBox(height: 32),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: LivoraColors.forest,
-                        minimumSize: const Size(0, 50),
-                      ),
-                      onPressed: _busy ? null : _saveProfile,
-                      child: _busy
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Guardar Configuración Comercial'),
+
+                    // Botón Principal BusyButton con respuesta háptica
+                    BusyButton(
+                      label: 'Guardar Configuración Comercial',
+                      icon: Icons.save_rounded,
+                      busy: _busy,
+                      onPressed: _saveProfile,
                     ),
                   ],
                 ),

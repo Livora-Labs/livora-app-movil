@@ -40,15 +40,32 @@ class Stellar {
       _txHashPattern.hasMatch((value ?? '').trim().toLowerCase());
 
   static Uri accountUrl(String address) => Uri.parse(
-        'https://stellar.expert/explorer/$explorerNetwork/account/$address',
+        'https://stellar.expert/explorer/$explorerNetwork/account/${normalize(address)}',
       );
 
   static Uri transactionUrl(String hash) => Uri.parse(
-        'https://stellar.expert/explorer/$explorerNetwork/tx/$hash',
+        'https://stellar.expert/explorer/$explorerNetwork/tx/${hash.trim().toLowerCase()}',
       );
 
   /// Abre una URL de Stellar Expert en el navegador externo.
   /// Devuelve `false` si el dispositivo no pudo abrirla.
-  static Future<bool> openInExplorer(Uri url) =>
-      launchUrl(url, mode: LaunchMode.externalApplication);
+  static Future<bool> openInExplorer(Uri url) async {
+    try {
+      return await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Valida la dirección pública y la abre directamente en Stellar Expert (navegador externo).
+  static Future<bool> openAccountInExplorer(String? address) async {
+    if (!isValidAddress(address)) return false;
+    return openInExplorer(accountUrl(address!));
+  }
+
+  /// Valida el hash de transacción (descartando hashes sintéticos de relayer) y lo abre en Stellar Expert.
+  static Future<bool> openTxInExplorer(String? hash) async {
+    if (!isValidTxHash(hash)) return false;
+    return openInExplorer(transactionUrl(hash!));
+  }
 }

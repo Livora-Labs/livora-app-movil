@@ -82,4 +82,17 @@ void main() {
       expect(Stellar.short('GABC'), 'GABC');
     });
   });
+
+  group('Stellar open helpers validation', () {
+    test('openAccountInExplorer retorna false con dirección inválida', () async {
+      expect(await Stellar.openAccountInExplorer('0xInvalidEVM'), isFalse);
+      expect(await Stellar.openAccountInExplorer(null), isFalse);
+    });
+
+    test('openTxInExplorer retorna false con hash inválido o sintético', () async {
+      expect(await Stellar.openTxInExplorer('relayer18f3c2a1b9d4e7f0'), isFalse);
+      expect(await Stellar.openTxInExplorer('short-hash'), isFalse);
+      expect(await Stellar.openTxInExplorer(null), isFalse);
+    });
+  });
 }

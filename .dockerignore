@@ -1,0 +1,14 @@
+.dart_tool
+.flutter-plugins
+.flutter-plugins-dependencies
+build
+.idea
+.vscode
+.git
+android/.gradle
+android/local.properties
+ios/Pods
+ios/.symlinks
+*.apk
+*.aab
+*.log

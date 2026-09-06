@@ -37,8 +37,8 @@ const _roleOptions = [
     'Recibe lotes, pesa materiales, consolida y vende a empresas.',
   ),
   _RoleOption(
-    Roles.almacen,
-    'Gestiona el inventario de tu tienda y recibe EcoTokens como pago.',
+    Roles.tienda,
+    'Gestiona cobros POS y canjes con EcoTokens para tu comercio aliado.',
   ),
 ];
 
@@ -50,6 +50,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _role = Roles.hogar;
   bool _obscure = true;
   bool _busy = false;
+  bool _acceptedTerms = false;
+  bool _marketingAccepted = false;
 
   /// Replica la validación del `RegisterDto` del backend para que el usuario
   /// vea el error antes de enviar el formulario y no reciba un 400 al final.
@@ -81,14 +83,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_acceptedTerms) {
+      showAppSnack(
+        context,
+        'Debes aceptar los Términos y Condiciones y la Política de Privacidad para registrarte.',
+        error: true,
+      );
+      return;
+    }
+
     final email = _emailController.text.trim();
     setState(() => _busy = true);
     try {
-      final email = _emailController.text.trim();
       await context.read<SessionController>().register(
             email: email,
             password: _passwordController.text,
             role: _role,
+            termsVersion: '2.0.0',
+            privacyVersion: '2.0.0',
+            marketingAccepted: _marketingAccepted,
           );
       if (mounted) {
         // El registro solo dispara el envío del OTP: la cuenta y el token
@@ -183,63 +196,84 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ? 'Las contraseñas no coinciden'
                               : null,
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 16),
+                    // Checkbox obligatorio: T&C y Privacidad (Ley N.° 29733 / Indecopi)
+                    CheckboxListTile(
+                      value: _acceptedTerms,
+                      onChanged: (val) => setState(() => _acceptedTerms = val ?? false),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                      activeColor: LivoraColors.forest,
+                      title: Text.rich(
+                        TextSpan(
+                          text: 'Acepto los ',
+                          style: const TextStyle(fontSize: 12, color: LivoraColors.ink),
+                          children: [
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final url = Uri.parse('https://livora.org/terminos');
+                                  if (await canLaunchUrl(url)) {
+                                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                child: const Text(
+                                  'Términos y Condiciones',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: LivoraColors.forest,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const TextSpan(text: ' y la '),
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final url = Uri.parse('https://livora.org/privacidad');
+                                  if (await canLaunchUrl(url)) {
+                                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                child: const Text(
+                                  'Política de Privacidad',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: LivoraColors.forest,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const TextSpan(text: ' de Livora. (Obligatorio)'),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Checkbox opcional: Publicidad y Marketing
+                    CheckboxListTile(
+                      value: _marketingAccepted,
+                      onChanged: (val) => setState(() => _marketingAccepted = val ?? false),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                      activeColor: LivoraColors.forest,
+                      title: const Text(
+                        'Autorizo el envío de publicidad y promociones sobre tiendas asociadas y beneficios comerciales (Opcional).',
+                        style: TextStyle(fontSize: 12, color: LivoraColors.ink),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     BusyButton(
                       label: 'Crear cuenta',
                       busy: _busy,
                       onPressed: _register,
-                    ),
-                    const SizedBox(height: 16),
-                    Text.rich(
-                      TextSpan(
-                        text: 'Al registrarte, aceptas nuestros ',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        children: [
-                          WidgetSpan(
-                            alignment: PlaceholderAlignment.middle,
-                            child: GestureDetector(
-                              onTap: () async {
-                                final url = Uri.parse('https://livora.org/terminos');
-                                if (await canLaunchUrl(url)) {
-                                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                                }
-                              },
-                              child: const Text(
-                                'Términos de Uso',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: LivoraColors.forest,
-                                  fontWeight: FontWeight.bold,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const TextSpan(text: ' y nuestra '),
-                          WidgetSpan(
-                            alignment: PlaceholderAlignment.middle,
-                            child: GestureDetector(
-                              onTap: () async {
-                                final url = Uri.parse('https://livora.org/privacidad');
-                                if (await canLaunchUrl(url)) {
-                                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                                }
-                              },
-                              child: const Text(
-                                'Política de Privacidad',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: LivoraColors.forest,
-                                  fontWeight: FontWeight.bold,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const TextSpan(text: '.'),
-                        ],
-                      ),
-                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
                   ],

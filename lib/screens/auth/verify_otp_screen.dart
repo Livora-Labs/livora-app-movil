@@ -78,7 +78,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
     setState(() => _busy = true);
 
     try {
-      await context.read<SessionController>().resendOtp(email: widget.email);
+      await context.read<SessionController>().resendOtp(widget.email);
       _startCooldown();
       if (mounted) showAppSnack(context, 'Se ha enviado un nuevo código de verificación.');
     } on ApiException catch (error) {

@@ -7,10 +7,15 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../widgets/carbon_impact_modal.dart';
 import '../../widgets/common.dart';
 import '../common/profile.dart';
+import '../common/wallet_transactions_screen.dart';
 import 'create_request_screen.dart';
+import 'auction_bids_screen.dart';
 import 'request_detail_screen.dart';
+import 'recycled_breakdown_screen.dart';
+import 'collection_history_screen.dart';
 
 class HogarDashboard extends StatefulWidget {
   const HogarDashboard({super.key});
@@ -20,6 +25,7 @@ class HogarDashboard extends StatefulWidget {
 }
 
 class _HogarDashboardState extends State<HogarDashboard> {
+  final ScrollController _scrollController = ScrollController();
   Map<String, dynamic>? _dashboardData;
   bool _loadingDashboard = true;
   List<CollectionRequest>? _requests;
@@ -31,6 +37,12 @@ class _HogarDashboardState extends State<HogarDashboard> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final api = context.read<LivoraApi>();
     try {
@@ -39,9 +51,25 @@ class _HogarDashboardState extends State<HogarDashboard> {
         api.collectionRequests(),
       ]);
       if (!mounted) return;
+      final reqList = results[1] as List<CollectionRequest>?;
+      CollectionRequest? active;
+      if (reqList != null) {
+        for (final request in reqList) {
+          if (request.status == 'PENDING' ||
+              request.status == 'ACCEPTED' ||
+              request.status == 'AUCTION_OPEN' ||
+              request.status == 'ASSIGNED' ||
+              request.status == 'IN_ROUTE') {
+            active = request;
+            break;
+          }
+        }
+      }
+      context.read<SessionController>().updateActiveRequest(active);
+
       setState(() {
-        _dashboardData = results[0];
-        _requests = results[1];
+        _dashboardData = results[0] as Map<String, dynamic>?;
+        _requests = reqList;
         _loadingDashboard = false;
         _error = null;
       });
@@ -55,12 +83,14 @@ class _HogarDashboardState extends State<HogarDashboard> {
     }
   }
 
-  /// El backend solo permite una solicitud activa por hogar (PENDING o
-  /// ACCEPTED). La detectamos aquí para no dejar que el usuario llene el
-  /// formulario y se coma el error al final.
+  /// El backend solo permite una solicitud activa por hogar (PENDING, ACCEPTED, etc.).
   CollectionRequest? get _activeRequest {
     for (final request in _requests ?? const <CollectionRequest>[]) {
-      if (request.status == 'PENDING' || request.status == 'ACCEPTED') {
+      if (request.status == 'PENDING' ||
+          request.status == 'ACCEPTED' ||
+          request.status == 'AUCTION_OPEN' ||
+          request.status == 'ASSIGNED' ||
+          request.status == 'IN_ROUTE') {
         return request;
       }
     }
@@ -68,13 +98,19 @@ class _HogarDashboardState extends State<HogarDashboard> {
   }
 
   Future<void> _openCreate() async {
-    final active = _activeRequest;
+    final session = context.read<SessionController>();
+    final active = session.activeRequest ?? _activeRequest;
     if (active != null) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeInOut,
+        );
+      }
       showAppSnack(
         context,
-        'Ya tienes una solicitud ${requestStatusLabel(active.status).toLowerCase()}. '
-        'Complétala o cancélala para crear otra.',
-        error: true,
+        'Ya cuentas con una solicitud activa. Revisa los detalles en la tarjeta superior.',
       );
       return;
     }
@@ -87,32 +123,26 @@ class _HogarDashboardState extends State<HogarDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<SessionController>().user;
+    final session = context.watch<SessionController>();
+    final user = session.user;
+    final active = session.activeRequest ?? _activeRequest;
     final requests = _requests;
 
     return Scaffold(
       appBar: livoraAppBar(context, 'Hola, ${Roles.label(user?.role ?? '')}'),
-      // Se ve apagado cuando hay una solicitud activa, pero sigue respondiendo
-      // al toque para explicar por qué no se puede crear otra.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreate,
-        backgroundColor: _activeRequest != null
-            ? LivoraColors.ink.withValues(alpha: 0.25)
-            : null,
-        foregroundColor: _activeRequest != null ? Colors.white : null,
-        icon: Icon(
-          _activeRequest != null ? Icons.hourglass_bottom : Icons.recycling,
-        ),
-        label: Text(
-          _activeRequest != null
-              ? 'Solicitud en curso'
-              : 'Solicitar recolección',
-        ),
-      ),
+      // Si ya existe una solicitud activa, se remueve el FAB para evitar duplicados y solapamientos
+      floatingActionButton: active != null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _openCreate,
+              icon: const Icon(Icons.recycling),
+              label: const Text('Solicitar recolección'),
+            ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
           children: [
             if (_error != null)
               Card(
@@ -128,20 +158,21 @@ class _HogarDashboardState extends State<HogarDashboard> {
                   ),
                 ),
               ),
-            // Tarjeta de PIN de Verificación
-            if (_loadingDashboard)
-              const Card(
-                margin: EdgeInsets.only(bottom: 16),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: SizedBox(
-                    height: 100,
-                    child: Center(child: _Skeleton()),
-                  ),
-                ),
-              )
-            else
-              _PinVerificationCard(activeRequest: _dashboardData?['activeRequest']),
+
+            // Tarjeta Héroe de Solicitud en Curso (si existe)
+            if (active != null)
+              _HeroActiveRequestCard(
+                request: active,
+                onTapDetail: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RequestDetailScreen(requestId: active.id),
+                    ),
+                  );
+                  _load();
+                },
+              ),
 
             if (_loadingDashboard) ...[
               GridView.count(
@@ -152,47 +183,96 @@ class _HogarDashboardState extends State<HogarDashboard> {
                 crossAxisSpacing: 10,
                 childAspectRatio: 1.4,
                 children: const [
-                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
-                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
-                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
-                  Card(child: Padding(padding: const EdgeInsets.all(12), child: _Skeleton())),
+                  Card(child: Padding(padding: EdgeInsets.all(12), child: _Skeleton(height: 16, borderRadius: 8))),
+                  Card(child: Padding(padding: EdgeInsets.all(12), child: _Skeleton(height: 16, borderRadius: 8))),
+                  Card(child: Padding(padding: EdgeInsets.all(12), child: _Skeleton(height: 16, borderRadius: 8))),
+                  Card(child: Padding(padding: EdgeInsets.all(12), child: _Skeleton(height: 16, borderRadius: 8))),
                 ],
               ),
               const SizedBox(height: 16),
             ] else if (_dashboardData != null) ...[
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.4,
-                children: [
-                  StatCard(
-                    icon: Icons.recycling,
-                    label: 'Kg reciclados',
-                    value: fmtNumber(_dashboardData!['esgMetrics']?['totalKgRecycled'] ?? 0.0),
-                    color: LivoraColors.green,
-                  ),
-                  StatCard(
-                    icon: Icons.toll,
-                    label: 'Saldo EcoTokens',
-                    value: '${_dashboardData!['wallet']?['balance'] ?? "0.00"} ECO',
-                    color: LivoraColors.blue,
-                  ),
-                  StatCard(
-                    icon: Icons.eco_outlined,
-                    label: 'CO₂ Ahorrado',
-                    value: '${fmtNumber(_dashboardData!['esgMetrics']?['co2SavedKg'] ?? 0.0)} kg',
-                    color: LivoraColors.amber,
-                  ),
-                  StatCard(
-                    icon: Icons.list_alt,
-                    label: 'Recolecciones',
-                    value: '${_dashboardData!['esgMetrics']?['totalCollections'] ?? 0}',
-                    color: LivoraColors.cyan,
-                  ),
-                ],
+              Builder(
+                builder: (context) {
+                  final esg = _dashboardData!['esgMetrics'];
+                  final kgRecycled = (esg?['totalKgRecycled'] as num?)?.toDouble() ?? 0.0;
+                  final co2Saved = (esg?['co2SavedKg'] as num?)?.toDouble() ?? 0.0;
+                  final collections = (esg?['totalCollections'] as num?)?.toInt() ?? 0;
+                  final tokenBal = _dashboardData!['wallet']?['balance']?.toString() ?? "0.00";
+                  final treesSaved = (co2Saved / 21.7).toStringAsFixed(1);
+
+                  return GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 1.35,
+                    children: [
+                      StatCard(
+                        icon: Icons.recycling,
+                        label: 'Kg reciclados',
+                        value: fmtNumber(kgRecycled),
+                        unit: 'kg',
+                        color: LivoraColors.green,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RecycledBreakdownScreen(
+                                totalKg: kgRecycled,
+                                requests: _requests ?? [],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      StatCard(
+                        icon: Icons.toll,
+                        label: 'Saldo EcoTokens',
+                        value: tokenBal,
+                        unit: 'ECO',
+                        subtitle: '≈ S/ $tokenBal PEN',
+                        color: LivoraColors.blue,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const WalletTransactionsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      StatCard(
+                        icon: Icons.eco_outlined,
+                        label: 'Kg de CO₂ Ahorrado',
+                        value: fmtNumber(co2Saved),
+                        subtitle: '≈ $treesSaved árboles salvados',
+                        color: LivoraColors.amber,
+                        onTap: () {
+                          CarbonImpactModal.show(
+                            context,
+                            co2SavedKg: co2Saved,
+                          );
+                        },
+                      ),
+                      StatCard(
+                        icon: Icons.list_alt,
+                        label: 'Recolecciones',
+                        value: '$collections',
+                        subtitle: 'Ver historial',
+                        color: LivoraColors.cyan,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CollectionHistoryScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 16),
               if ((_dashboardData!['esgMetrics']?['totalCollections'] ?? 0) == 0)
@@ -298,8 +378,8 @@ class _RequestCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 fmtDate(request.createdAt) +
-                    (request.collectorEmail != null
-                        ? ' · Recolector: ${request.collectorEmail}'
+                    (request.collectorName != null || request.collectorEmail != null
+                        ? ' · Recolector: ${sanitizedPersonName(request.collectorName, request.collectorEmail)}'
                         : ''),
                 style: TextStyle(
                   fontSize: 12,
@@ -314,67 +394,250 @@ class _RequestCard extends StatelessWidget {
   }
 }
 
-class _PinVerificationCard extends StatelessWidget {
-  const _PinVerificationCard({required this.activeRequest});
+class _HeroActiveRequestCard extends StatelessWidget {
+  const _HeroActiveRequestCard({
+    required this.request,
+    required this.onTapDetail,
+  });
 
-  final Map<String, dynamic>? activeRequest;
+  final CollectionRequest request;
+  final VoidCallback onTapDetail;
 
   @override
   Widget build(BuildContext context) {
-    final hasActive = activeRequest != null;
-    final pin = hasActive ? activeRequest!['pin'] as String? ?? '---' : '---';
+    final isAuction = request.assignmentMode == 'AUCTION';
+    final isAssigned = request.status == 'ACCEPTED' ||
+        request.status == 'ASSIGNED' ||
+        request.status == 'IN_ROUTE' ||
+        request.collectorName != null ||
+        request.collectorEmail != null;
+
+    final (badgeLabel, badgeColor, badgeIcon) = switch (request.status) {
+      'ACCEPTED' || 'ASSIGNED' || 'IN_ROUTE' => (
+          'Recolector en camino',
+          LivoraColors.green,
+          Icons.delivery_dining,
+        ),
+      'AUCTION_OPEN' => (
+          'Subasta · ${request.bids.length} ${request.bids.length == 1 ? 'oferta' : 'ofertas'}',
+          Colors.indigo,
+          Icons.gavel,
+        ),
+      _ => isAuction
+          ? (
+              'Subasta abierta · ${request.bids.length} ${request.bids.length == 1 ? 'oferta' : 'ofertas'}',
+              Colors.indigo,
+              Icons.gavel,
+            )
+          : (
+              'Buscando acopio',
+              LivoraColors.amber,
+              Icons.search,
+            ),
+    };
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      color: hasActive ? LivoraColors.blue.withValues(alpha: 0.1) : LivoraColors.paper,
+      color: LivoraColors.paper,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         side: BorderSide(
-          color: hasActive ? LivoraColors.blue : Colors.transparent,
+          color: isAssigned
+              ? LivoraColors.green.withValues(alpha: 0.6)
+              : LivoraColors.forest.withValues(alpha: 0.3),
           width: 1.5,
         ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Cabecera con Estado en Tiempo Real
             Row(
               children: [
-                Icon(
-                  Icons.key_rounded,
-                  color: hasActive ? LivoraColors.blue : LivoraColors.ink.withValues(alpha: 0.6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: badgeColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(badgeIcon, size: 14, color: badgeColor),
+                      const SizedBox(width: 5),
+                      Text(
+                        badgeLabel,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: badgeColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 10),
-                const Text(
-                  'PIN DE VERIFICACIÓN',
+                const Spacer(),
+                Text(
+                  fmtDate(request.createdAt),
                   style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                    letterSpacing: 0.8,
-                    color: LivoraColors.deep,
+                    fontSize: 11,
+                    color: LivoraColors.ink.withValues(alpha: 0.6),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+
+            // Resumen de Materiales y Ganancia Estimada
             Text(
-              pin,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 4,
-                color: hasActive ? LivoraColors.blue : LivoraColors.ink.withValues(alpha: 0.4),
+              materialsSummary(request.itemsEstimated),
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: LivoraColors.deep,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
-              hasActive
-                  ? 'Dicta este PIN al recolector al entregar tus materiales.'
-                  : 'Sin recolección activa. Se generará automáticamente al solicitar un recojo.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11.5,
-                color: LivoraColors.ink.withValues(alpha: 0.7),
+              request.hogarEstimatedEarningsPEN > 0
+                  ? 'Ganancia est.: ≈ S/ ${request.hogarEstimatedEarningsPEN.toStringAsFixed(2)} PEN (40%)'
+                  : 'Ganancia: 40% a liquidar en pesaje',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: LivoraColors.forest,
+              ),
+            ),
+            if (isAssigned &&
+                (request.collectorName != null || request.collectorEmail != null)) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Recolector: ${sanitizedPersonName(request.collectorName, request.collectorEmail)}',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: LivoraColors.ink.withValues(alpha: 0.75),
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+
+            // Regla de Seguridad del PIN:
+            // Ocultar PIN mientras la orden esté en PENDING / sin recolector.
+            // Mostrar OTP Box únicamente cuando pase a ASSIGNED / IN_ROUTE / ACCEPTED con recolector.
+            if (isAssigned) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: LivoraColors.blue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: LivoraColors.blue.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.key_rounded, size: 16, color: LivoraColors.blue),
+                        SizedBox(width: 6),
+                        Text(
+                          'PIN DE ENTREGA',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: LivoraColors.deep,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    OtpPinBox(
+                      pin: request.verificationPin ?? '----',
+                      isActive: true,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Dicta este PIN al recolector únicamente al entregar y pesar tus materiales.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: LivoraColors.ink.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: LivoraColors.ink.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 16, color: LivoraColors.slate),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isAuction
+                            ? 'Esperando ofertas de centros de acopio. Elige una oferta para que se asigne un recolector.'
+                            : 'Esperando asignación de recolector. El PIN de entrega se activará cuando un recolector tome tu pedido.',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: LivoraColors.slate,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+
+            if (isAuction) ...[
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.indigo,
+                  side: const BorderSide(color: Colors.indigo),
+                  minimumSize: const Size(double.infinity, 42),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AuctionBidsScreen(request: request),
+                  ),
+                ),
+                icon: const Icon(Icons.gavel, size: 16),
+                label: Text(
+                  'Comparar ofertas de acopio (${request.bids.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Botón de Acción
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: LivoraColors.deep,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: onTapDetail,
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: const Text(
+                'Ver detalles o cancelar',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -385,9 +648,8 @@ class _PinVerificationCard extends StatelessWidget {
 }
 
 class _Skeleton extends StatefulWidget {
-  const _Skeleton({this.width, this.height, this.borderRadius});
+  const _Skeleton({this.height, this.borderRadius});
 
-  final double? width;
   final double? height;
   final double? borderRadius;
 
@@ -423,7 +685,7 @@ class _SkeletonState extends State<_Skeleton> with SingleTickerProviderStateMixi
         return Opacity(
           opacity: _animation.value,
           child: Container(
-            width: widget.width ?? double.infinity,
+            width: double.infinity,
             height: widget.height ?? 20,
             decoration: BoxDecoration(
               color: Colors.grey[300],

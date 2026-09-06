@@ -1,0 +1,23 @@
+# ==============================================================================
+# Dockerfile.ci - Pipeline de Compilación CI/CD para Livora Mobile (Flutter / Android)
+# ==============================================================================
+FROM ghcr.io/cirrusci/flutter:latest
+
+WORKDIR /app
+
+# Pre-aceptar licencias de Android SDK y diagnóstico de entorno
+RUN yes | flutter doctor --android-licenses || true && \
+    flutter doctor -v
+
+# Cachear dependencias de Pub
+COPY pubspec.yaml pubspec.lock ./
+RUN flutter pub get
+
+# Copiar código fuente
+COPY . .
+
+# Análisis estático y pruebas automatizadas
+RUN flutter test
+
+# Comando de compilación por defecto para Release APK
+CMD ["flutter", "build", "apk", "--release"]

@@ -9,7 +9,7 @@ import '../core/api_client.dart';
 ///
 /// El servidor mete al socket en sus salas automáticamente según el rol que
 /// lee de PostgreSQL: `user:<id>` para todos, más `collectors:active` para
-/// RECOLECTOR, `center:<id>` para CENTRO_ACOPIO/ALMACEN y `store:<id>` para
+/// RECOLECTOR, `center:<id>` para CENTRO_ACOPIO y `store:<id>` para
 /// TIENDA. El cliente no emite ningún `join`.
 class RealtimeEvents {
   const RealtimeEvents._();
@@ -22,6 +22,9 @@ class RealtimeEvents {
 
   /// Un lote terminó de procesarse. Llega a la sala `center:<id>`.
   static const batchCompleted = 'batch:completed';
+
+  /// Un canje POS fue completado por un usuario. Llega a la sala `store:<id>`.
+  static const redemptionCompleted = 'redemption:completed';
 }
 
 /// Conexión en tiempo real con el backend (Socket.IO sobre el mismo host de
@@ -94,6 +97,8 @@ class LivoraRealtime extends ChangeNotifier {
         (data) => _emit(RealtimeEvents.collectionCreated, data));
     socket.on(RealtimeEvents.batchCompleted,
         (data) => _emit(RealtimeEvents.batchCompleted, data));
+    socket.on(RealtimeEvents.redemptionCompleted,
+        (data) => _emit(RealtimeEvents.redemptionCompleted, data));
 
     // El token vive 1 h; al reconectar hay que mandar el vigente, no el que
     // se usó en el primer handshake, o el servidor rechazaría la reconexión.

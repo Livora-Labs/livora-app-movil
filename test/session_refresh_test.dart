@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:livora_labs/core/api_client.dart';
@@ -44,7 +45,10 @@ void main() {
 
   late List<String> calls;
 
-  setUp(() => calls = []);
+  setUp(() {
+    calls = [];
+    FlutterSecureStorage.setMockInitialValues({});
+  });
 
   /// Registra cada petición como "METHOD /path (token)".
   void record(http.Request request) {
@@ -83,16 +87,52 @@ void main() {
       'POST /auth/refresh (token-viejo)',
       'GET /notifications (token-nuevo)',
     ]);
-    // La sesión nueva queda persistida, con el refresh token rotado.
     expect(api.authToken, 'token-nuevo');
-    expect(session.refreshToken, 'refresh-nuevo');
-    expect(prefs.getString('livora_token'), 'token-nuevo');
-    expect(prefs.getString('livora_refresh_token'), 'refresh-nuevo');
+    expect(await const FlutterSecureStorage().read(key: 'livora_token'), 'token-nuevo');
+    expect(await const FlutterSecureStorage().read(key: 'livora_refresh_token'), 'refresh-nuevo');
     expect(session.isAuthenticated, isTrue);
   });
 
-  test('si el refresh token ya no sirve, cierra la sesión sin reintentar en bucle',
-      () async {
+  test('múltiples peticiones concurrentes con 401 disparan 1 sola llamada a /auth/refresh y reintentan todas', () async {
+    SharedPreferences.setMockInitialValues(
+      storedSession(expiresAt: DateTime.now().add(const Duration(hours: 1))),
+    );
+    final prefs = await SharedPreferences.getInstance();
+
+    final client = MockClient((request) async {
+      record(request);
+      if (request.url.path == '/auth/refresh') {
+        await Future.delayed(const Duration(milliseconds: 30));
+        return http.Response(refreshPayload(), 200);
+      }
+      final token = request.headers['Authorization'];
+      if (token == 'Bearer token-nuevo') {
+        return http.Response('{"ok":true}', 200);
+      }
+      return http.Response(_unauthorized, 401);
+    });
+
+    final api = ApiClient(prefs, client: client);
+    final session = SessionController(api, prefs);
+    await session.restore();
+
+    final results = await Future.wait([
+      api.get('/notifications'),
+      api.get('/households/me/metrics'),
+      api.get('/collection-requests'),
+    ]);
+
+    expect(results, [
+      {'ok': true},
+      {'ok': true},
+      {'ok': true},
+    ]);
+
+    final refreshCalls = calls.where((c) => c.contains('/auth/refresh')).toList();
+    expect(refreshCalls.length, 1);
+  });
+
+  test('si el refresh token ya no sirve, cierra la sesión sin reintentar en bucle', () async {
     SharedPreferences.setMockInitialValues(
       storedSession(expiresAt: DateTime.now().add(const Duration(hours: 1))),
     );
@@ -114,7 +154,6 @@ void main() {
       ),
     );
 
-    // Sin reentradas: la original, el refresh fallido, y nada más.
     expect(calls, [
       'GET /notifications (token-viejo)',
       'POST /auth/refresh (token-viejo)',
@@ -124,8 +163,7 @@ void main() {
     expect(prefs.getString('livora_refresh_token'), isNull);
   });
 
-  test('al restaurar con el token vencido renueva antes de mostrar la app',
-      () async {
+  test('al restaurar con el token vencido renueva antes de mostrar la app', () async {
     SharedPreferences.setMockInitialValues(
       storedSession(
         expiresAt: DateTime.now().subtract(const Duration(minutes: 5)),
@@ -162,8 +200,30 @@ void main() {
 
     await expectLater(api.get('/notifications'), throwsA(isA<ApiException>()));
 
-    // Sin token no hay nada que renovar: una sola petición.
     expect(calls, ['GET /notifications (null)']);
     expect(session.isAuthenticated, isFalse);
+  });
+
+  test('logout invoca onLogout y purga SharedPreferences', () async {
+    SharedPreferences.setMockInitialValues(
+      storedSession(expiresAt: DateTime.now().add(const Duration(hours: 1))),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    final api = ApiClient(prefs);
+    final session = SessionController(api, prefs);
+    await session.restore();
+
+    bool logoutCallbackCalled = false;
+    session.onLogout = () {
+      logoutCallbackCalled = true;
+    };
+
+    await session.logout();
+
+    expect(logoutCallbackCalled, isTrue);
+    expect(session.isAuthenticated, isFalse);
+    expect(api.authToken, isNull);
+    expect(prefs.getString('livora_token'), isNull);
+    expect(prefs.getString('livora_user'), isNull);
   });
 }

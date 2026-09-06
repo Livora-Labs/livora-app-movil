@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../core/app_theme.dart';
 import '../core/formats.dart';
@@ -58,8 +57,9 @@ class _MaterialsEditorState extends State<MaterialsEditor> {
   void _notify() {
     final result = <String, double>{};
     for (final entry in _entries) {
-      if (entry.kg > 0) {
-        result[entry.material] = (result[entry.material] ?? 0) + entry.kg;
+      if (entry.kg >= 0.5) {
+        final rounded = double.parse(entry.kg.toStringAsFixed(2));
+        result[entry.material] = (result[entry.material] ?? 0) + rounded;
       }
     }
     widget.onChanged(result);
@@ -85,7 +85,7 @@ class _MaterialsEditorState extends State<MaterialsEditor> {
                 Expanded(
                   flex: 5,
                   child: DropdownButtonFormField<String>(
-                    initialValue: entry.material,
+                    value: entry.material,
                     decoration: livoraInput('Material'),
                     items: [
                       for (final material in _optionsFor(entry))
@@ -107,14 +107,12 @@ class _MaterialsEditorState extends State<MaterialsEditor> {
                   child: TextFormField(
                     controller: entry.controller,
                     decoration: livoraInput('Kg'),
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'[0-9.,]'),
-                      ),
-                    ],
+                    inputFormatters: kDecimalInputFormatters,
+                    validator: (v) => validateWeightKg(v, min: 0.5),
                     onChanged: (_) => _notify(),
                   ),
                 ),

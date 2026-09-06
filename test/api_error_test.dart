@@ -44,16 +44,52 @@ void main() {
     });
 
     test('soporta el formato estándar de NestJS', () {
-      expect(apiErrorMessage({'message': 'Forbidden'}, 403), 'Forbidden');
+      expect(apiErrorMessage({'message': 'Forbidden'}, 403), 'No tienes permisos para realizar esta acción.');
       expect(apiErrorMessage({'message': ['a', 'b']}, 400), 'a\nb');
     });
 
-    test('cae al mensaje genérico si el cuerpo no aporta nada', () {
-      expect(apiErrorMessage(null, 500), 'Error del servidor (HTTP 500)');
-      expect(apiErrorMessage({'error': {}}, 502), 'Error del servidor (HTTP 502)');
+    test('soporta RFC 7807 (detail y title)', () {
+      expect(
+        apiErrorMessage({'title': 'Conflict', 'detail': 'El recurso ya existe', 'status': 409}, 409),
+        'El recurso ya existe',
+      );
+    });
+
+    test('sanitiza excepciones tecnicas como Prisma, Postgres o TypeErrors', () {
+      expect(
+        apiErrorMessage({'message': 'PrismaClientKnownRequestError: P2002 Unique constraint failed'}, 500),
+        'Ocurrió un problema en nuestros servidores. Estamos trabajando para solucionarlo.',
+      );
+      expect(
+        apiErrorMessage({'error': {'message': 'PostgresError: relation users does not exist'}}, 500),
+        'Ocurrió un problema en nuestros servidores. Estamos trabajando para solucionarlo.',
+      );
+    });
+
+    test('sanitiza y remueve IPs, puertos y trazas de código', () {
+      expect(
+        apiErrorMessage({'message': 'Failed connecting to 10.0.2.2:3000 at Controller.get (app.ts:42)'}, 500),
+        'Ocurrió un problema en nuestros servidores. Estamos trabajando para solucionarlo.',
+      );
+      expect(
+        apiErrorMessage({'message': 'Error al contactar http://52.200.2.107:3000'}, 400),
+        'No pudimos conectar con el servicio. Verifica tu conexión a internet e inténtalo de nuevo.',
+      );
+    });
+
+    test('cae al mensaje amigable estandarizado para red, timeout, 500 y 429', () {
+      expect(apiErrorMessage(null, 0), 'No pudimos conectar con el servicio. Verifica tu conexión a internet e inténtalo de nuevo.');
+      expect(apiErrorMessage(null, 408), 'La conexión tardó más de lo esperado. Por favor, reintenta.');
+      expect(apiErrorMessage(null, 500), 'Ocurrió un problema en nuestros servidores. Estamos trabajando para solucionarlo.');
+      expect(apiErrorMessage({'error': {}}, 502), 'El servicio no está disponible temporalmente. Inténtalo más tarde.');
+      expect(apiErrorMessage(null, 429), 'Demasiados intentos. Por favor, espera un momento antes de reintentar.');
       expect(
         apiErrorMessage({'error': {'details': []}}, 400),
-        'Error del servidor (HTTP 400)',
+        'Solicitud incorrecta. Por favor, verifica los datos enviados.',
+      );
+      expect(
+        apiErrorMessage(null, 418),
+        'Ocurrió un problema inesperado. Por favor, inténtalo de nuevo.',
       );
     });
   });

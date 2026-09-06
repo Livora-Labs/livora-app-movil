@@ -4,9 +4,12 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
+import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
+import '../hogar/create_request_screen.dart';
+import '../hogar/request_detail_screen.dart';
 import 'profile.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -85,16 +88,53 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } else if (items == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (items.isEmpty) {
-      body = const EmptyState(
-        icon: Icons.notifications_none,
-        title: 'Sin notificaciones',
-        message: 'Aquí verás avisos sobre tus recolecciones, lotes y pagos.',
+      final session = context.watch<SessionController>();
+      final user = session.user;
+      final hasActive = session.hasActiveRequest;
+      final activeReq = session.activeRequest;
+
+      body = EmptyState(
+        icon: Icons.notifications_none_outlined,
+        title: 'Bandeja al día',
+        message: 'Aquí verás avisos automáticos sobre tus solicitudes, lotes y pagos.',
+        actions: user?.role == Roles.hogar
+            ? [
+                FilledButton.icon(
+                  onPressed: () {
+                    if (hasActive && activeReq != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RequestDetailScreen(requestId: activeReq.id),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CreateRequestScreen(),
+                        ),
+                      );
+                    }
+                  },
+                  icon: Icon(
+                    hasActive ? Icons.assignment_outlined : Icons.recycling,
+                  ),
+                  label: Text(
+                    hasActive
+                        ? 'Ver solicitud en curso'
+                        : 'Solicitar recolección',
+                  ),
+                ),
+              ]
+            : null,
       );
     } else {
       body = ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final item = items[index];
           final (icon, color) = _styleFor(item.type);
