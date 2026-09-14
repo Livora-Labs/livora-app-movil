@@ -15,20 +15,33 @@
 - **Rate limiting:** 100 req/60 s por IP global; **auth 5 req/60 s** por endpoint (register/login/verify/resend), refresh 10/60 s. Excederlo → **HTTP 429**; manejar con backoff.
 - **Health check:** `GET /health`.
 
-### Formato de error (¡importante, tiene 3 campos!)
+### Formato de error — RFC-7807 (¡CAMBIÓ!)
+Los errores ahora salen como **Problem Details** (`Content-Type: application/problem+json`), NO como `{ error: { code, message } }`. Estructura:
 - Errores normales:
   ```json
-  { "error": { "code": "UNAUTHORIZED", "message": "Credenciales inválidas" } }
+  {
+    "type": "https://api.livora.org/errors/unauthorized",
+    "title": "Unauthorized",
+    "status": 401,
+    "detail": "Credenciales inválidas",
+    "instance": "/auth/login"
+  }
   ```
-- **Errores de validación** (400): el `message` es genérico y el motivo real está en **`details`** (array):
+  → El mensaje legible para el usuario está en **`detail`**.
+- **Errores de validación** (400): `detail` es genérico y el motivo real está en **`invalid_params`** (array de `{ name, reason }`):
   ```json
-  { "error": {
-      "code": "BAD_REQUEST",
-      "message": "Error de validación en los parámetros de entrada",
-      "details": ["La contraseña debe contener al menos una mayúscula, ..."]
-  } }
+  {
+    "type": "https://api.livora.org/errors/bad_request",
+    "title": "Bad Request",
+    "status": 400,
+    "detail": "...",
+    "instance": "/auth/register",
+    "invalid_params": [
+      { "name": "password", "reason": "La contraseña debe contener al menos una mayúscula, ..." }
+    ]
+  }
   ```
-  → La app debe leer `error.details` para mostrar el motivo real.
+  → Para validación, la app debe leer **`invalid_params`** (antes era `error.details`).
 - ⚠️ El `ValidationPipe` global usa `forbidNonWhitelisted: true`: **cualquier campo de más en el body devuelve 400**. Enviar solo los campos documentados.
 
 ---
@@ -45,8 +58,8 @@ POST /auth/register
 ```json
 { "message": "Código de verificación enviado al correo electrónico", "email": "hogar1@livora.com" }
 ```
-- `role` ∈ `HOGAR` · `RECOLECTOR` · `CENTRO_ACOPIO` · `TIENDA` (en web: `CENTRO_ACOPIO`, `EMPRESA_B2B`, `ADMIN`).
-- ⚠️ **Política de contraseña (esto es lo que más frustra en el alta):** mínimo 8 caracteres **y además** al menos **una mayúscula, una minúscula, un número y un símbolo**. Ej. válido: `Password123!`. Si falla, el motivo llega en `error.details`.
+- `role` ∈ `HOGAR` · `RECOLECTOR` · `CENTRO_ACOPIO` (también `ALMACEN`, `TIENDA`, `EMPRESA_B2B`, `ADMIN`).
+- ⚠️ **Política de contraseña (esto es lo que más frustra en el alta):** mínimo 8 caracteres **y además** al menos **una mayúscula, una minúscula, un número y un símbolo**. Ej. válido: `Password123!`. Si falla, el motivo llega en `invalid_params`.
 
 **Paso 2 — Verificar OTP** → **HTTP 200**, aquí sí viene el token **y el objeto `user`**:
 ```
@@ -152,7 +165,7 @@ El JWT se valida contra `SUPABASE_JWT_SECRET`. Sin token → el server desconect
 |---|---|---|
 | Todos | `user:<userId>` | eventos directos al usuario |
 | RECOLECTOR | `collectors:active` | `collection:created` |
-| CENTRO_ACOPIO | `center:<userId>` | `batch:completed` |
+| CENTRO_ACOPIO / ALMACEN | `center:<userId>` | `batch:completed` |
 | TIENDA | `store:<userId>` | `redemption:completed`, `settlement:paid` |
 
 > 🔧 **Corregido (2 bugs):** (1) el gateway validaba el JWT con `jwt.verify` HS256, pero Supabase emite **ES256** → la verificación fallaba siempre y **cortaba toda conexión** (con o sin token). Ahora usa `supabase.auth.getUser(token)` como el guard HTTP. (2) el rol se leía del JWT (`role: "authenticated"`); ahora se resuelve desde PostgreSQL. **Ya funciona** — mete `socket_io_client`, escucha `connected` + los eventos de sala; no más polling.
@@ -286,7 +299,7 @@ Flujo en la app: subir el archivo → tomar `url` → mandarla como `photoUrl` /
 - [ ] Registro en 2 pasos + política de contraseña completa (may/min/número/símbolo).
 - [ ] Guardar `accessToken` + `refreshToken`; renovar con `POST /auth/refresh` (usar `expiresIn` o ante 401).
 - [ ] Leer `user` del login/verify (rol + wallet); opcional `GET /users/me`.
-- [ ] Parsear errores: motivo real en `error.details`; no enviar campos de más (400).
+- [ ] Parsear errores RFC-7807: mensaje en `detail`, validación en `invalid_params`; no enviar campos de más (400).
 - [ ] Wallet formato Stellar `G…`; enlaces a Stellar Expert testnet.
 - [ ] WebSockets: `socket_io_client` con `auth.token`, escuchar `connected` + eventos de sala (sin `join`). ✅ listo en backend.
 - [ ] Subir archivos con `POST /uploads` y usar la `url` en `photoUrl`/`documentUrl`/`receiptUrl`. ✅ listo en backend.

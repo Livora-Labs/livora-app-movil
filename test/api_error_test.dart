@@ -48,6 +48,45 @@ void main() {
       expect(apiErrorMessage({'message': ['a', 'b']}, 400), 'a\nb');
     });
 
+    test('RFC 7807: usa invalid_params, no el detail genérico', () {
+      // Respuesta real de POST /auth/register con contraseña débil.
+      final body = jsonDecode('''
+      {"type":"https://api.livora.org/errors/bad_request","title":"Bad Request",
+       "status":400,"detail":"Error de validación en los parámetros de entrada",
+       "instance":"/auth/register",
+       "invalid_params":[{"name":"La","reason":"La contraseña debe contener al menos una mayúscula, una minúscula, un número y un símbolo especial"}]}
+      ''');
+      expect(
+        apiErrorMessage(body, 400),
+        'La contraseña debe contener al menos una mayúscula, una minúscula, '
+        'un número y un símbolo especial',
+      );
+    });
+
+    test('RFC 7807: junta varios invalid_params en líneas', () {
+      final body = {
+        'type': 'https://api.livora.org/errors/bad_request',
+        'detail': 'Error de validación en los parámetros de entrada',
+        'invalid_params': [
+          {'name': 'El', 'reason': 'El correo electrónico no es válido'},
+          {'name': 'x', 'reason': 'La latitud es obligatoria'},
+        ],
+      };
+      expect(
+        apiErrorMessage(body, 400),
+        'El correo electrónico no es válido\nLa latitud es obligatoria',
+      );
+    });
+
+    test('RFC 7807: cae a detail si invalid_params viene vacío', () {
+      final body = {
+        'type': 'https://api.livora.org/errors/unauthorized',
+        'detail': 'Credenciales inválidas',
+        'invalid_params': <dynamic>[],
+      };
+      expect(apiErrorMessage(body, 401), 'Credenciales inválidas');
+    });
+
     test('soporta RFC 7807 (detail y title)', () {
       expect(
         apiErrorMessage({'title': 'Conflict', 'detail': 'El recurso ya existe', 'status': 409}, 409),
@@ -95,6 +134,21 @@ void main() {
   });
 
   group('apiErrorCode', () {
+    test('RFC 7807: deriva el código del type', () {
+      expect(
+        apiErrorCode({'type': 'https://api.livora.org/errors/unauthorized'}),
+        'UNAUTHORIZED',
+      );
+      expect(
+        apiErrorCode({'type': 'https://api.livora.org/errors/bad_request'}),
+        'BAD_REQUEST',
+      );
+    });
+
+    test('ignora el type genérico about:blank', () {
+      expect(apiErrorCode({'type': 'about:blank'}), isNull);
+    });
+
     test('extrae el code del backend', () {
       final body = jsonDecode(
         '{"error":{"code":"UNAUTHORIZED","message":"Credenciales inválidas"}}',

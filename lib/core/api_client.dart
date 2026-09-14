@@ -391,6 +391,13 @@ String? apiErrorCode(dynamic body) {
       final code = error['code'];
       if (code is String && code.isNotEmpty) return code;
     }
+    // RFC 7807: el código viaja en `type` como URI
+    // (https://api.livora.org/errors/unauthorized → UNAUTHORIZED).
+    final type = body['type'];
+    if (type is String && type.trim().isNotEmpty && type != 'about:blank') {
+      final slug = type.split('/').last.trim();
+      if (slug.isNotEmpty) return slug.toUpperCase();
+    }
   }
   return null;
 }
@@ -505,6 +512,25 @@ String apiErrorMessage(dynamic body, int status) {
     if (error is String && error.trim().isNotEmpty) {
       final cleaned = cleanMessage(error);
       if (cleaned != null) return cleaned;
+    }
+
+    // RFC 7807, errores de validación: `detail` es siempre el genérico
+    // ("Error de validación en los parámetros de entrada") y el motivo real
+    // viene en `invalid_params`, así que tiene prioridad.
+    //
+    // Solo se usa `reason`: el backend rellena `name` partiendo el mensaje por
+    // espacios, así que trae basura ("La", "property") en vez del campo.
+    final invalidParams = body['invalid_params'];
+    if (invalidParams is List) {
+      final reasons = invalidParams
+          .whereType<Map>()
+          .map((param) => '${param['reason'] ?? ''}'.trim())
+          .where((reason) => reason.isNotEmpty)
+          .toList();
+      if (reasons.isNotEmpty) {
+        final cleaned = cleanMessage(reasons.join('\n'));
+        if (cleaned != null) return cleaned;
+      }
     }
 
     // RFC 7807: details / detail / title
