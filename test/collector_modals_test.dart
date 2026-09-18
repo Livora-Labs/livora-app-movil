@@ -37,7 +37,7 @@ void main() {
 
     // Verificaciones de contenido
     expect(find.text('Solicitud #REQ-1234'), findsOneWidget);
-    expect(find.text('Subasta ⚖️'), findsOneWidget);
+    expect(find.text('Subasta'), findsOneWidget);
     expect(find.text('Familia Perez'), findsOneWidget);
     expect(find.text('Av. Larco 1234, Miraflores, Lima'), findsOneWidget);
     expect(find.text('Planta Recicladora Sur'), findsOneWidget);
@@ -87,7 +87,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Directa ⚡'), findsOneWidget);
+    expect(find.text('Directa'), findsOneWidget);
     expect(find.text('Saldo insuficiente · Recargar vía Izipay'), findsOneWidget);
 
     await tester.tap(find.text('Saldo insuficiente · Recargar vía Izipay'));
