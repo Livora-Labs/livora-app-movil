@@ -5,9 +5,7 @@ class EnvConfig {
 
   static String get apiBaseUrl {
     if (_envUrl.isNotEmpty) return _envUrl;
-    return kReleaseMode
-        ? 'https://api.grupolivoralabs.com'
-        : 'http://10.0.2.2:3000';
+    return 'https://api.grupolivoralabs.com';
   }
 
   static const String sentryDsn = String.fromEnvironment(

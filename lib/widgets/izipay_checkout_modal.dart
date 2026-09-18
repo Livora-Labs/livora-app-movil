@@ -72,11 +72,13 @@ class _IzipayCheckoutModalState extends State<IzipayCheckoutModal> {
             if (mounted) setState(() => _loading = false);
           },
           onWebResourceError: (WebResourceError error) {
-            if (mounted) {
-              setState(() {
-                _loading = false;
-                _errorMessage = 'Error de conexión: ${error.description}';
-              });
+            if (error.isForMainFrame ?? true) {
+              if (mounted) {
+                setState(() {
+                  _loading = false;
+                  _errorMessage = 'Error de conexión: ${error.description}';
+                });
+              }
             }
           },
           onNavigationRequest: (NavigationRequest request) {
