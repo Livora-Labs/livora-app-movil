@@ -6,7 +6,7 @@ class EnvConfig {
   static String get apiBaseUrl {
     if (_envUrl.isNotEmpty) return _envUrl;
     return kReleaseMode
-        ? 'https://stellar.52.200.2.107.sslip.io'
+        ? 'https://api.grupolivoralabs.com'
         : 'http://10.0.2.2:3000';
   }
 
