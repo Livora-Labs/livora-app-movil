@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:livora_labs/core/api_client.dart';
 import 'package:livora_labs/core/session.dart';
+import 'package:livora_labs/models/models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Sesión guardada como la deja un login previo.
@@ -224,6 +225,58 @@ void main() {
     expect(session.isAuthenticated, isFalse);
     expect(api.authToken, isNull);
     expect(prefs.getString('livora_token'), isNull);
+    expect(prefs.getString('livora_user'), isNull);
+  });
+
+  test('restore migra livora_user de SharedPreferences a FlutterSecureStorage y purga SharedPreferences', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      storedSession(expiresAt: DateTime.now().add(const Duration(hours: 1))),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    final api = ApiClient(prefs);
+    final session = SessionController(api, prefs);
+
+    // Antes de restore: está en SharedPreferences
+    expect(prefs.getString('livora_user'), isNotNull);
+    expect(await const FlutterSecureStorage().read(key: 'livora_user'), isNull);
+
+    await session.restore();
+
+    // Después de restore: migrado a FlutterSecureStorage y eliminado de SharedPreferences
+    expect(prefs.getString('livora_user'), isNull);
+    final secureUser = await const FlutterSecureStorage().read(key: 'livora_user');
+    expect(secureUser, isNotNull);
+    expect(session.user?.email, 'hogar@livora.com');
+  });
+
+  test('updateUser persiste cambios en FlutterSecureStorage y actualiza memoria', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(
+      storedSession(expiresAt: DateTime.now().add(const Duration(hours: 1))),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    final api = ApiClient(prefs);
+    final session = SessionController(api, prefs);
+    await session.restore();
+
+    final updatedUser = AuthUser(
+      id: session.user!.id,
+      email: session.user!.email,
+      role: session.user!.role,
+      name: 'Usuario Actualizado',
+      phone: '+51987654321',
+      address: 'Av. Las Flores 123',
+      latitude: -12.046374,
+      longitude: -77.042793,
+    );
+
+    await session.updateUser(updatedUser);
+
+    expect(session.user?.name, 'Usuario Actualizado');
+    expect(session.user?.phone, '+51987654321');
+    final secureRaw = await const FlutterSecureStorage().read(key: 'livora_user');
+    expect(secureRaw, contains('Usuario Actualizado'));
     expect(prefs.getString('livora_user'), isNull);
   });
 }

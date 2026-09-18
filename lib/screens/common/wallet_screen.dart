@@ -9,7 +9,7 @@ import '../../core/session.dart';
 import '../../core/stellar.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
-import '../../widgets/niubiz_checkout_modal.dart';
+import '../../widgets/izipay_checkout_modal.dart';
 import '../../widgets/web3_confirm_modal.dart';
 import 'profile.dart';
 import 'qr_scanner_view.dart';
@@ -171,7 +171,7 @@ class _WalletScreenState extends State<WalletScreen> {
     }
   }
 
-  Future<void> _showNiubizRechargeDialog() async {
+  Future<void> _showIzipayRechargeDialog() async {
     double amount = 20.0;
     final controller = TextEditingController(text: '20');
 
@@ -181,9 +181,9 @@ class _WalletScreenState extends State<WalletScreen> {
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Row(
             children: [
-              Icon(Icons.credit_card, color: LivoraColors.blue),
+              Icon(Icons.credit_card, color: LivoraColors.forest),
               SizedBox(width: 8),
-              Text('Recarga Niubiz'),
+              Text('Recarga Izipay'),
             ],
           ),
           content: Column(
@@ -191,12 +191,14 @@ class _WalletScreenState extends State<WalletScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Conversión fija: S/ 1.00 PEN = 1.00 EcoToken',
+                'Conversión fija: S/ 1.00 PEN = 1.00 EcoToken\nMonto mínimo: S/ 10.00 PEN',
                 style: TextStyle(fontSize: 12, color: LivoraColors.slate),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
                 children: [10, 20, 50, 100].map((preset) {
                   final isSelected = amount == preset.toDouble();
                   return ChoiceChip(
@@ -204,6 +206,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     selected: isSelected,
                     onSelected: (sel) {
                       if (sel) {
+                        HapticFeedback.selectionClick();
                         setDialogState(() {
                           amount = preset.toDouble();
                           controller.text = '$preset';
@@ -229,7 +232,7 @@ class _WalletScreenState extends State<WalletScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: Colors.green.shade50,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -240,7 +243,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       '${amount.toStringAsFixed(2)} EcoTokens',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: LivoraColors.blue,
+                        color: LivoraColors.forest,
                       ),
                     ),
                   ],
@@ -248,7 +251,7 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Al confirmar, autorizas a Livora a emitir tokens en Stellar respaldados 1:1 en fondos Soles custodiados.',
+                'Al confirmar, se abrirá la pasarela segura Izipay. Tras la confirmación del pago, tus EcoTokens se acreditarán de inmediato en tu saldo disponible.',
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ],
@@ -259,9 +262,19 @@ class _WalletScreenState extends State<WalletScreen> {
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: LivoraColors.blue),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Pagar con Niubiz'),
+              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+              onPressed: () {
+                if (amount < 10.0) {
+                  showAppSnack(context, 'El monto mínimo de recarga es S/ 10.00 PEN', error: true);
+                  return;
+                }
+                if (amount > 500.0) {
+                  showAppSnack(context, 'El monto máximo por recarga es S/ 500.00 PEN', error: true);
+                  return;
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Pagar con Izipay'),
             ),
           ],
         ),
@@ -275,15 +288,15 @@ class _WalletScreenState extends State<WalletScreen> {
       final session = await context.read<LivoraApi>().createPaymentSession(amount: amount);
       if (!mounted) return;
 
-      final purchaseNumber = session['purchaseNumber']?.toString();
-      if (purchaseNumber == null || purchaseNumber.isEmpty) {
-        showAppSnack(context, 'No se pudo generar la orden de pago', error: true);
+      final orderId = session['orderId']?.toString() ?? session['purchaseNumber']?.toString();
+      if (orderId == null || orderId.isEmpty) {
+        showAppSnack(context, 'No se pudo generar la orden de pago en Izipay', error: true);
         return;
       }
 
-      final success = await NiubizCheckoutModal.show(
+      final success = await IzipayCheckoutModal.show(
         context,
-        purchaseNumber: purchaseNumber,
+        orderId: orderId,
         amount: amount,
       );
 
@@ -293,7 +306,7 @@ class _WalletScreenState extends State<WalletScreen> {
     } on ApiException catch (error) {
       if (mounted) showAppSnack(context, error.message, error: true);
     } catch (e) {
-      if (mounted) showAppSnack(context, 'Error al conectar con la pasarela de pagos', error: true);
+      if (mounted) showAppSnack(context, 'Error al conectar con la pasarela Izipay', error: true);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -309,7 +322,7 @@ class _WalletScreenState extends State<WalletScreen> {
       body: RefreshIndicator(
         onRefresh: _loadBalance,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
             Container(
               padding: const EdgeInsets.all(20),
@@ -333,7 +346,12 @@ class _WalletScreenState extends State<WalletScreen> {
                       ),
                       IconButton(
                         tooltip: 'Actualizar',
-                        onPressed: _loadingBalance ? null : _loadBalance,
+                        onPressed: _loadingBalance
+                            ? null
+                            : () {
+                                HapticFeedback.lightImpact();
+                                _loadBalance();
+                              },
                         icon: const Icon(Icons.refresh, color: Colors.white),
                       ),
                     ],
@@ -449,21 +467,21 @@ class _WalletScreenState extends State<WalletScreen> {
                 ],
               ),
             ),
-            if (user?.role == Roles.hogar || user?.role == Roles.recolector) ...[
+            if (user?.role == Roles.recolector || user?.role == Roles.tienda) ...[
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: LivoraColors.blue,
+                  backgroundColor: LivoraColors.forest,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: _showNiubizRechargeDialog,
+                onPressed: _showIzipayRechargeDialog,
                 icon: const Icon(Icons.credit_card_rounded),
                 label: const Text(
-                  'Recargar Saldo / Comprar EcoTokens',
+                  'Recargar Saldo / Comprar EcoTokens (Izipay)',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),

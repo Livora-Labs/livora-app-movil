@@ -516,9 +516,165 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                         const SizedBox(height: 14),
                       ],
 
+                      // Tarjeta de Credencial y Estado del Recolector Asignado
+                      if (request.collectorId != null &&
+                          ['ACCEPTED', 'EN_ROUTE', 'ARRIVED'].contains(request.status)) ...[
+                        Card(
+                          color: request.status == 'ARRIVED'
+                              ? LivoraColors.forest.withValues(alpha: 0.08)
+                              : Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: request.status == 'ARRIVED'
+                                  ? LivoraColors.forest
+                                  : LivoraColors.forest.withValues(alpha: 0.2),
+                              width: request.status == 'ARRIVED' ? 2 : 1,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    // Foto de Perfil del Recolector
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(28),
+                                      child: request.collectorPhotoUrl != null &&
+                                              request.collectorPhotoUrl!.isNotEmpty
+                                          ? CachedNetworkImage(
+                                              imageUrl: request.collectorPhotoUrl!,
+                                              width: 56,
+                                              height: 56,
+                                              fit: BoxFit.cover,
+                                              placeholder: (c, u) => Container(
+                                                width: 56,
+                                                height: 56,
+                                                color: LivoraColors.forest.withValues(alpha: 0.1),
+                                                child: const Icon(Icons.person, color: LivoraColors.forest),
+                                              ),
+                                              errorWidget: (c, u, e) => Container(
+                                                width: 56,
+                                                height: 56,
+                                                color: LivoraColors.forest.withValues(alpha: 0.1),
+                                                child: const Icon(Icons.person, color: LivoraColors.forest),
+                                              ),
+                                            )
+                                          : Container(
+                                              width: 56,
+                                              height: 56,
+                                              decoration: BoxDecoration(
+                                                color: LivoraColors.forest.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(28),
+                                              ),
+                                              child: const Icon(Icons.person, color: LivoraColors.forest, size: 28),
+                                            ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  request.collectorName ?? 'Recolector Certificado',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 15,
+                                                    color: LivoraColors.deep,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Icon(Icons.verified, color: LivoraColors.blue, size: 16),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 16),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                request.collectorReputation.toStringAsFixed(1),
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: LivoraColors.deep,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                request.collectorPhone != null
+                                                    ? 'Tel: ${request.collectorPhone}'
+                                                    : 'Recolector registrado',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: LivoraColors.ink.withValues(alpha: 0.7),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // Banner de Estado de Trayecto
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: request.status == 'ARRIVED'
+                                        ? LivoraColors.forest.withValues(alpha: 0.15)
+                                        : LivoraColors.blue.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        request.status == 'ARRIVED'
+                                            ? Icons.door_front_door_outlined
+                                            : Icons.directions_bike_outlined,
+                                        color: request.status == 'ARRIVED'
+                                            ? LivoraColors.forest
+                                            : LivoraColors.blue,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          request.status == 'ARRIVED'
+                                              ? '¡El recolector está en tu puerta! Acércate con tus materiales.'
+                                              : request.status == 'EN_ROUTE'
+                                                  ? 'El recolector ha iniciado el trayecto hacia tu dirección.'
+                                                  : 'Recolector asignado y preparando recolección.',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: request.status == 'ARRIVED'
+                                                ? LivoraColors.forest
+                                                : LivoraColors.blue,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
                       // PIN de Verificación en Cajas OTP
-                      if (request.status == 'PENDING' ||
-                          request.status == 'ACCEPTED') ...[
+                      if (['PENDING', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED'].contains(request.status)) ...[
                         Card(
                           color: LivoraColors.blue.withValues(alpha: 0.06),
                           shape: RoundedRectangleBorder(

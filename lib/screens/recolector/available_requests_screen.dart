@@ -26,7 +26,7 @@ import '../../widgets/livora_map_tile_layer.dart';
 import '../../widgets/view_toggle_segmented_button.dart';
 import '../../widgets/collector_request_marker.dart';
 import '../../widgets/livora_shimmer.dart';
-import '../../widgets/livora_empty_state.dart';
+import '../../widgets/view_state_scaffold.dart';
 import '../common/profile.dart';
 import '../common/wallet_screen.dart';
 import 'kyc_screen.dart';
@@ -163,7 +163,11 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
 
       final activeStops = openBatches
           .expand((b) => b.requests)
-          .where((r) => r.status == 'ACCEPTED' || r.status == 'IN_ROUTE')
+          .where((r) =>
+              r.status == 'ACCEPTED' ||
+              r.status == 'IN_ROUTE' ||
+              r.status == 'EN_ROUTE' ||
+              r.status == 'ARRIVED')
           .toList();
 
       setState(() {
@@ -255,7 +259,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Recarga saldo al instante mediante Niubiz con tarjeta de débito/crédito (1 PEN = 1 ECO).',
+              'Recarga saldo al instante mediante Izipay con tarjeta de débito/crédito (1 PEN = 1 ECO).',
               style: TextStyle(fontSize: 11.5, color: LivoraColors.slate),
             ),
           ],
@@ -269,7 +273,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
             child: const Text('Cancelar'),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: LivoraColors.blue),
+            style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
             onPressed: () {
               HapticFeedback.lightImpact();
               Navigator.pop(dialogContext);
@@ -279,7 +283,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
               ).then((_) => _load());
             },
             icon: const Icon(Icons.credit_card, size: 18),
-            label: const Text('Recargar vía Niubiz'),
+            label: const Text('Recargar vía Izipay'),
           ),
         ],
       ),
@@ -670,66 +674,68 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
             ),
             const SizedBox(height: 10),
 
-            if (_error != null)
-              EmptyState(
-                icon: Icons.cloud_off,
-                title: 'No se pudieron cargar las solicitudes',
-                message: _error,
-              )
-            else if (requests == null)
-              const LivoraShimmerList(
-                itemCount: 4,
-                padding: EdgeInsets.zero,
-              )
-            else if (_viewMode == MapListViewMode.map) ...[
+            if (_viewMode == MapListViewMode.map && requests != null && requests.isNotEmpty) ...[
               _buildRadarMap(requests, kycStatus),
-            ] else if (requests.isEmpty)
-              const LivoraEmptyState(
-                icon: Icons.travel_explore_rounded,
-                title: 'No hay solicitudes pendientes',
-                message:
+            ] else
+              ViewStateScaffold(
+                isLoading: requests == null,
+                hasError: _error != null,
+                errorMessage: _error,
+                isEmpty: requests != null && requests.isEmpty,
+                onRetry: _load,
+                emptyIcon: Icons.travel_explore_rounded,
+                emptyTitle: 'No hay solicitudes pendientes',
+                emptyMessage:
                     'Desliza hacia abajo para actualizar o amplía el radio del radar.',
-                padding: EdgeInsets.fromLTRB(24, 24, 24, 40),
-              )
-            else ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8, left: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                emptyActionLabel: 'Actualizar Radar',
+                onEmptyAction: _load,
+                skeleton: const LivoraShimmerList(
+                  itemCount: 4,
+                  padding: EdgeInsets.zero,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Disponibles en el área (${requests.length})',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: LivoraColors.deep,
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8, left: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Disponibles en el área (${requests?.length ?? 0})',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: LivoraColors.deep,
+                            ),
+                          ),
+                          const Text(
+                            'Toca para ver detalle',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: LivoraColors.forest,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Text(
-                      'Toca para ver detalle',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: LivoraColors.forest,
-                        fontWeight: FontWeight.w600,
+                    for (final request in requests ?? <CollectionRequest>[])
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _AvailableCard(
+                          request: request,
+                          walletBalance: _walletEcoBalance,
+                          kycStatus: kycStatus,
+                          accepting: _acceptingId == request.id,
+                          onDetail: () => _openDetail(request, kycStatus),
+                          onAccept: () => _accept(request),
+                          onRechargeNeeded: () => _showInsufficientEscrowDialog(request),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
-              for (final request in requests)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _AvailableCard(
-                    request: request,
-                    walletBalance: _walletEcoBalance,
-                    kycStatus: kycStatus,
-                    accepting: _acceptingId == request.id,
-                    onDetail: () => _openDetail(request, kycStatus),
-                    onAccept: () => _accept(request),
-                    onRechargeNeeded: () => _showInsufficientEscrowDialog(request),
-                  ),
-                ),
-            ],
           ],
         ),
       ),
@@ -1338,7 +1344,7 @@ class _AvailableCard extends StatelessWidget {
         },
         icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
         label: const Text(
-          'Saldo insuficiente (Recargar por Niubiz)',
+          'Saldo insuficiente (Recargar por Izipay)',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       );

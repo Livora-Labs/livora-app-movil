@@ -75,8 +75,8 @@ class _WalletTransactionsScreenState extends State<WalletTransactionsScreen> {
   String _txTypeLabel(String type) => switch (type) {
         'RECOMPENSA_RECICLAJE' => 'Recompensa por Reciclaje',
         'PAGO_TIENDA' => 'Canje en Tienda Aliada',
-        'TRANSFERENCIA_EXTERNA' => 'Transferencia Stellar P2P',
-        'RECARGA_NIUBIZ' => 'Recarga Saldo Niubiz',
+        'TRANSFERENCIA_EXTERNA' => 'Transferencia Digital Directa',
+        'RECARGA_IZIPAY' => 'Recarga de Saldo',
         _ => type.replaceAll('_', ' '),
       };
 
@@ -333,13 +333,13 @@ class _WalletTransactionsScreenState extends State<WalletTransactionsScreen> {
                                   child: const Row(
                                     children: [
                                       Icon(
-                                        Icons.open_in_new,
+                                        Icons.receipt_long_outlined,
                                         size: 11,
                                         color: LivoraColors.blue,
                                       ),
                                       SizedBox(width: 4),
                                       Text(
-                                        'Ver en Stellar',
+                                        'Ver comprobante',
                                         style: TextStyle(
                                           fontSize: 10.5,
                                           fontWeight: FontWeight.w700,

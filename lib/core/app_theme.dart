@@ -92,7 +92,7 @@ class LivoraTheme {
           fontWeight: FontWeight.w800,
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -105,7 +105,7 @@ class LivoraTheme {
         style: FilledButton.styleFrom(
           backgroundColor: LivoraColors.forest,
           foregroundColor: Colors.white,
-          minimumSize: const Size(64, 48),
+          minimumSize: const Size(64, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -116,7 +116,7 @@ class LivoraTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: LivoraColors.forest,
           side: const BorderSide(color: LivoraColors.forest),
-          minimumSize: const Size(64, 48),
+          minimumSize: const Size(64, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),

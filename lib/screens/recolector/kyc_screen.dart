@@ -33,6 +33,17 @@ class _KycScreenState extends State<KycScreen> {
   String? _documentUrl;
   bool _uploading = false;
   double _uploadProgress = 0.0;
+
+  // Foto de perfil / Selfie obligatoria del recolector (FSM 13)
+  String? _selfiePath;
+  String? _selfieUrl;
+  bool _uploadingSelfie = false;
+  double _uploadProgressSelfie = 0.0;
+
+  final _docNumberCtrl = TextEditingController();
+  final _plateCtrl = TextEditingController();
+  String _transportType = 'MOTO_CARGA';
+
   bool _sending = false;
 
   KycApplication? _application;
@@ -42,13 +53,20 @@ class _KycScreenState extends State<KycScreen> {
 
   bool get _isPdf => (_fileName ?? '').toLowerCase().endsWith('.pdf');
 
-  /// Solo mostramos el formulario si nunca se envió o si fue rechazada.
+  /// Solo mostramos el formulario si nunca se envió, si fue observada o si fue rechazada.
   bool get _canSubmit => _application?.canSubmit ?? false;
 
   @override
   void initState() {
     super.initState();
     _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _docNumberCtrl.dispose();
+    _plateCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadStatus() async {
@@ -228,6 +246,84 @@ class _KycScreenState extends State<KycScreen> {
     });
   }
 
+  void _clearSelfie() {
+    setState(() {
+      _selfiePath = null;
+      _selfieUrl = null;
+      _uploadProgressSelfie = 0.0;
+    });
+  }
+
+  Future<void> _pickSelfie() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      await _uploadSelfie(picked.path);
+    } on PlatformException catch (_) {
+      if (mounted) {
+        showAppSnack(
+          context,
+          'No se pudo acceder a la cámara frontal para la selfie.',
+          error: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showAppSnack(context, 'Error al capturar la fotografía de perfil', error: true);
+      }
+    }
+  }
+
+  Future<void> _uploadSelfie(String path) async {
+    final api = context.read<LivoraApi>();
+    setState(() {
+      _selfiePath = path;
+      _selfieUrl = null;
+      _uploadingSelfie = true;
+      _uploadProgressSelfie = 0.2;
+    });
+
+    Timer? progressTimer;
+    progressTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+      if (!mounted || !_uploadingSelfie) {
+        timer.cancel();
+        return;
+      }
+      if (_uploadProgressSelfie < 0.85) {
+        setState(() => _uploadProgressSelfie += 0.15);
+      }
+    });
+
+    try {
+      final url = await api.uploadFile(
+        filePath: path,
+        purpose: 'kyc_selfie',
+      );
+      if (mounted) {
+        setState(() {
+          _selfieUrl = url;
+          _uploadProgressSelfie = 1.0;
+        });
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() {
+          _selfiePath = null;
+          _selfieUrl = null;
+        });
+        showAppSnack(context, error.message, error: true);
+      }
+    } finally {
+      progressTimer.cancel();
+      if (mounted) setState(() => _uploadingSelfie = false);
+    }
+  }
+
   Future<void> _openPdfPreview() async {
     if (_filePath != null) {
       final uri = Uri.file(_filePath!);
@@ -247,11 +343,40 @@ class _KycScreenState extends State<KycScreen> {
   }
 
   Future<void> _submit() async {
-    final documentUrl = _documentUrl;
-    if (documentUrl == null) return;
+    if (_selfieUrl == null) {
+      showAppSnack(
+        context,
+        'Debes tomarte una foto de perfil obligatoria para que los hogares puedan identificarte al llegar.',
+        error: true,
+      );
+      return;
+    }
+    if (_documentUrl == null) {
+      showAppSnack(
+        context,
+        'Debes adjuntar tu documento de identidad (DNI o Carné de Extranjería).',
+        error: true,
+      );
+      return;
+    }
+    if (_docNumberCtrl.text.trim().isEmpty) {
+      showAppSnack(
+        context,
+        'Ingresa el número de tu documento de identidad.',
+        error: true,
+      );
+      return;
+    }
+
     setState(() => _sending = true);
     try {
-      await context.read<LivoraApi>().submitKycApplication(documentUrl);
+      await context.read<LivoraApi>().submitKycApplication(
+            _documentUrl!,
+            selfieUrl: _selfieUrl,
+            documentNumber: _docNumberCtrl.text.trim(),
+            transportType: _transportType,
+            vehiclePlate: _plateCtrl.text.trim().isNotEmpty ? _plateCtrl.text.trim() : null,
+          );
       if (!mounted) return;
       context.read<SessionController>().updateKycStatus(KycStatus.pending);
       await showDialog<void>(
@@ -264,7 +389,7 @@ class _KycScreenState extends State<KycScreen> {
           ),
           title: const Text('Solicitud Enviada para Revisión'),
           content: const Text(
-            'Tu documento ha sido cargado con éxito. El equipo de administración revisará tu identidad para activar el sello de Recolector Verificado.',
+            'Tu selfie de perfil y documento de identidad han sido cargados con éxito. El equipo de administración revisará tus credenciales para habilitar tus recolecciones en calle.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13),
           ),
@@ -279,6 +404,7 @@ class _KycScreenState extends State<KycScreen> {
       );
       if (mounted) {
         _clearDocument();
+        _clearSelfie();
         await _loadStatus();
       }
     } on ApiException catch (error) {
@@ -326,7 +452,36 @@ class _KycScreenState extends State<KycScreen> {
                 const SizedBox(height: 16),
 
                 if (_canSubmit) ...[
-                  const SectionTitle(text: 'Carga de Documento'),
+                  const SectionTitle(text: '1. Fotografía de Perfil (Selfie)'),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Obligatorio. Se mostrará en la credencial virtual del hogar cuando estés en camino y al llegar a su puerta.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: LivoraColors.ink.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SelfieUploadCard(
+                    selfiePath: _selfiePath,
+                    selfieUrl: _selfieUrl,
+                    uploading: _uploadingSelfie,
+                    uploadProgress: _uploadProgressSelfie,
+                    onTakeSelfie: _pickSelfie,
+                    onDeleteSelfie: _clearSelfie,
+                  ),
+                  const SizedBox(height: 20),
+
+                  const SectionTitle(text: '2. Documento de Identidad Oficial'),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Sube una fotografía nítida o escaneo PDF de tu DNI o Carné de Extranjería.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: LivoraColors.ink.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
 
                   // ZONA DE SELECCIÓN Y CARGA (DocumentUploadZone)
                   if (_filePath == null)
@@ -377,14 +532,60 @@ class _KycScreenState extends State<KycScreen> {
                     ),
                   ],
 
+                  const SizedBox(height: 20),
+                  const SectionTitle(text: '3. Datos de Operación y Transporte'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _docNumberCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Número de DNI o Carné de Extranjería',
+                      hintText: 'Ej. 72849102',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: _transportType,
+                    decoration: InputDecoration(
+                      labelText: 'Medio de Transporte / Recolección',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'MOTO_CARGA', child: Text('Motocarga / Mototaxi')),
+                      DropdownMenuItem(value: 'TRICICLO', child: Text('Triciclo a pedal')),
+                      DropdownMenuItem(value: 'BICICLETA', child: Text('Bicicleta con remolque')),
+                      DropdownMenuItem(value: 'CAMIONETA', child: Text('Camioneta / Furgoneta')),
+                      DropdownMenuItem(value: 'A_PIE', child: Text('A pie con carrito manual')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setState(() => _transportType = val);
+                    },
+                  ),
+                  if (_transportType == 'MOTO_CARGA' || _transportType == 'CAMIONETA') ...[
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _plateCtrl,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        labelText: 'Placa del Vehículo',
+                        hintText: 'Ej. 4521-7B o ABC-123',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
 
                   // CTA PRINCIPAL
                   BusyButton(
-                    label: app.isRejected ? 'Reenviar para revisión' : 'Enviar para revisión',
+                    label: (app.isRejected || app.isObserved) ? 'Reenviar para revisión' : 'Enviar para revisión',
                     icon: Icons.send_rounded,
                     busy: _sending,
-                    onPressed: (_documentUrl == null || _uploading) ? null : _submit,
+                    onPressed: (_documentUrl == null || _selfieUrl == null || _uploading || _uploadingSelfie) ? null : _submit,
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -413,12 +614,13 @@ class KycStatusStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 0: Sin verificar, 1: En revisión, 2: Verificado
+    // 0: Sin verificar, 1: En revisión / Observado, 2: Verificado
     int activeStep = 0;
-    if (status == 'PENDING') activeStep = 1;
+    if (status == 'PENDING' || status == 'OBSERVED') activeStep = 1;
     if (status == 'APPROVED') activeStep = 2;
 
     final isRejected = status == 'REJECTED';
+    final isObserved = status == 'OBSERVED';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -441,16 +643,21 @@ class KycStatusStepper extends StatelessWidget {
               Expanded(
                 child: Container(
                   height: 2.5,
-                  color: activeStep >= 1 ? LivoraColors.forest : LivoraColors.border,
+                  color: isObserved
+                      ? const Color(0xFFD97706)
+                      : (activeStep >= 1 ? LivoraColors.forest : LivoraColors.border),
                 ),
               ),
               _StepCircle(
                 number: '2',
-                label: isRejected ? 'Rechazado' : 'En revisión',
+                label: isRejected
+                    ? 'Rechazado'
+                    : (isObserved ? 'Observado' : 'En revisión'),
                 isActive: activeStep >= 1 || isRejected,
                 isCurrent: activeStep == 1,
                 isCompleted: activeStep > 1,
                 isError: isRejected,
+                isWarning: isObserved,
               ),
               Expanded(
                 child: Container(
@@ -481,6 +688,7 @@ class _StepCircle extends StatelessWidget {
     required this.isCurrent,
     required this.isCompleted,
     this.isError = false,
+    this.isWarning = false,
   });
 
   final String number;
@@ -489,6 +697,7 @@ class _StepCircle extends StatelessWidget {
   final bool isCurrent;
   final bool isCompleted;
   final bool isError;
+  final bool isWarning;
 
   @override
   Widget build(BuildContext context) {
@@ -500,6 +709,10 @@ class _StepCircle extends StatelessWidget {
       bg = const Color(0xFFFDE8E8);
       border = const Color(0xFFC53030);
       text = const Color(0xFFC53030);
+    } else if (isWarning) {
+      bg = const Color(0xFFFEF3C7);
+      border = const Color(0xFFD97706);
+      text = const Color(0xFFD97706);
     } else if (isCompleted) {
       bg = LivoraColors.green;
       border = LivoraColors.green;
@@ -525,14 +738,16 @@ class _StepCircle extends StatelessWidget {
                 ? const Icon(Icons.check, size: 16, color: Colors.white)
                 : isError
                     ? const Icon(Icons.close, size: 16, color: Color(0xFFC53030))
-                    : Text(
-                        number,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.bold,
-                          color: text,
-                        ),
-                      ),
+                    : isWarning
+                        ? const Icon(Icons.priority_high, size: 16, color: Color(0xFFD97706))
+                        : Text(
+                            number,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: text,
+                            ),
+                          ),
           ),
         ),
         const SizedBox(height: 6),
@@ -814,25 +1029,35 @@ class _StatusCard extends StatelessWidget {
         Icons.verified_rounded,
         LivoraColors.green,
         'Identidad Verificada',
-        'Tu documento fue validado por la administración. Ya operas con credenciales oficiales de Recolector Verificado.',
+        'Tu documentación fue validada por la administración. Ya operas con credenciales oficiales de Recolector Verificado.',
       ),
       'PENDING' => (
         Icons.hourglass_top_rounded,
         const Color(0xFFB7791F),
-        'Documento en Revisión',
-        'Un administrador está validando tu documento. El plazo estimado de revisión es de 24 a 48 horas.',
+        'Documentación en Revisión',
+        'Un administrador está validando tu fotografía de perfil y documento de identidad. El plazo estimado de respuesta es de 24 a 48 horas.',
+      ),
+      'OBSERVED' => (
+        Icons.warning_amber_rounded,
+        const Color(0xFFD97706),
+        'Solicitud con Observaciones (${application.retryCount}/3)',
+        (application.rejectionReason != null && application.rejectionReason!.isNotEmpty)
+            ? 'Observaciones del auditor:\n"${application.rejectionReason}"\n\nPor favor corrige los datos o documentos señalados y vuelve a enviar.'
+            : 'Tu documentación presentó observaciones técnicas (borrosa, incompleta o discrepante). Corrige y reenvía.',
       ),
       'REJECTED' => (
         Icons.cancel_rounded,
         const Color(0xFF8C3A3A),
-        'Documento Rechazado',
-        'No fue posible validar el documento presentado. Por favor, sube uno nuevo que sea legible y con bordes completos.',
+        'Solicitud Rechazada (${application.retryCount}/3)',
+        (application.rejectionReason != null && application.rejectionReason!.isNotEmpty)
+            ? 'Motivo del rechazo:\n"${application.rejectionReason}"'
+            : 'No fue posible validar la documentación presentada. Si aún cuentas con intentos disponibles, puedes volver a postular.',
       ),
       _ => (
         Icons.badge_outlined,
         LivoraColors.forest,
         'Identidad Sin Verificar',
-        'Sube una fotografía nítida o un documento PDF de tu documento de identidad para operar y ganar la confianza de los hogares.',
+        'Sube tu foto de perfil (selfie) y tu documento de identidad para operar con seguridad y ganar la confianza de los hogares.',
       ),
     };
 
@@ -878,6 +1103,141 @@ class _StatusCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Tarjeta de captura y previsualización de selfie/foto de perfil
+class _SelfieUploadCard extends StatelessWidget {
+  const _SelfieUploadCard({
+    required this.selfiePath,
+    required this.selfieUrl,
+    required this.uploading,
+    required this.uploadProgress,
+    required this.onTakeSelfie,
+    required this.onDeleteSelfie,
+  });
+
+  final String? selfiePath;
+  final String? selfieUrl;
+  final bool uploading;
+  final double uploadProgress;
+  final VoidCallback onTakeSelfie;
+  final VoidCallback onDeleteSelfie;
+
+  @override
+  Widget build(BuildContext context) {
+    if (selfiePath == null) {
+      return InkWell(
+        onTap: uploading ? null : onTakeSelfie,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+          decoration: BoxDecoration(
+            color: LivoraColors.forest.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: LivoraColors.forest.withValues(alpha: 0.35),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: LivoraColors.forest.withValues(alpha: 0.12),
+                child: const Icon(Icons.face_retouching_natural_rounded, color: LivoraColors.forest, size: 28),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tomar Foto de Perfil (Selfie)',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: LivoraColors.deep),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Abre la cámara frontal. Se mostrará a los hogares al llegar.',
+                      style: TextStyle(fontSize: 11.5, color: LivoraColors.ink),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.camera_alt_outlined, color: LivoraColors.forest),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: LivoraColors.border),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                ClipOval(
+                  child: Image.file(
+                    File(selfiePath!),
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Selfie de Perfil Capturada',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: LivoraColors.deep),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        uploading
+                            ? 'Subiendo... ${(uploadProgress * 100).toInt()}%'
+                            : (selfieUrl != null ? 'Foto cargada correctamente' : 'Preparando subida...'),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: selfieUrl != null ? LivoraColors.green : LivoraColors.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Tomar de nuevo',
+                  icon: const Icon(Icons.refresh_rounded, color: LivoraColors.forest, size: 20),
+                  onPressed: uploading ? null : onTakeSelfie,
+                ),
+                IconButton(
+                  tooltip: 'Eliminar foto',
+                  icon: const Icon(Icons.delete_outline, color: Color(0xFFC53030), size: 20),
+                  onPressed: uploading ? null : onDeleteSelfie,
+                ),
+              ],
+            ),
+          ),
+          if (uploading)
+            LinearProgressIndicator(
+              value: uploadProgress.clamp(0.0, 1.0),
+              backgroundColor: LivoraColors.border,
+              color: LivoraColors.forest,
+              minHeight: 3,
+            ),
+        ],
       ),
     );
   }

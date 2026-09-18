@@ -170,6 +170,9 @@ String batchStatusLabel(String status) => switch (status) {
       'DISPUTED' => 'En Disputa',
       'PROCESSING' => 'Procesando',
       'RECEIVED' => 'Recibido',
+      'PARTIALLY_ACCEPTED' => 'Aceptado Parcial',
+      'REROUTED' => 'Redirigido',
+      'REJECTED' => 'Rechazado',
       'CONSOLIDATED' => 'Consolidado',
       _ => status,
     };
@@ -181,6 +184,9 @@ Color batchStatusColor(String status) => switch (status) {
       'DISPUTED' => Colors.purple,
       'PROCESSING' => const Color(0xFFB7791F),
       'RECEIVED' => LivoraColors.green,
+      'PARTIALLY_ACCEPTED' => const Color(0xFFD97706),
+      'REROUTED' => const Color(0xFF2563EB),
+      'REJECTED' => const Color(0xFFDC2626),
       'CONSOLIDATED' => LivoraColors.deep,
       _ => LivoraColors.ink,
     };

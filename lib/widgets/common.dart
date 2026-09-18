@@ -358,7 +358,7 @@ class InfoRow extends StatelessWidget {
   }
 }
 
-/// Botón principal con estado de carga.
+/// Botón principal con estado de carga, altura táctil ergonómica de 52dp y respuesta háptica.
 class BusyButton extends StatelessWidget {
   const BusyButton({
     super.key,
@@ -376,7 +376,17 @@ class BusyButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: busy ? null : onPressed,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(64, 52),
+      ),
+      onPressed: busy
+          ? null
+          : (onPressed == null
+              ? null
+              : () {
+                  HapticFeedback.mediumImpact();
+                  onPressed!();
+                }),
       child: busy
           ? const SizedBox(
               width: 22,
@@ -484,12 +494,18 @@ Future<bool> confirmDialog(
       content: Text(message),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context, false),
+          onPressed: () {
+            HapticFeedback.selectionClick();
+            Navigator.pop(context, false);
+          },
           child: Text(cancelLabel),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+          onPressed: () {
+            HapticFeedback.mediumImpact();
+            Navigator.pop(context, true);
+          },
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
           child: Text(confirmLabel),
         ),
       ],

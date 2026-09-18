@@ -61,12 +61,11 @@ Future<void> main() async {
       final realtime = LivoraRealtime(api);
       session.onLogout = () => realtime.disconnect();
 
-      try {
-        await Firebase.initializeApp();
+      Firebase.initializeApp().then((_) {
         FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-      } catch (e) {
+      }).catchError((e) {
         debugPrint('FCM no inicializado en entorno local: $e');
-      }
+      });
 
       runApp(LivoraApp(
         api: api,
@@ -106,6 +105,7 @@ class LivoraApp extends StatelessWidget {
           title: 'Livora Labs',
           debugShowCheckedModeBanner: false,
           theme: LivoraTheme.light(),
+          themeMode: ThemeMode.light,
           locale: const Locale('es'),
           supportedLocales: const [Locale('es'), Locale('en')],
           localizationsDelegates: const [

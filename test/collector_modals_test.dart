@@ -88,9 +88,9 @@ void main() {
     );
 
     expect(find.text('Directa ⚡'), findsOneWidget);
-    expect(find.text('Saldo insuficiente · Recargar vía Niubiz'), findsOneWidget);
+    expect(find.text('Saldo insuficiente · Recargar vía Izipay'), findsOneWidget);
 
-    await tester.tap(find.text('Saldo insuficiente · Recargar vía Niubiz'));
+    await tester.tap(find.text('Saldo insuficiente · Recargar vía Izipay'));
     await tester.pump();
     expect(rechargeRequested, isTrue);
   });

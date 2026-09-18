@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
 
 /// Modal de confirmación legal y delegación de firma para transacciones Web3
 /// en la blockchain Stellar / Soroban (Ley N° 29733 / Indecopi).

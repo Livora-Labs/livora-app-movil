@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/api_client.dart';
@@ -9,6 +8,7 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../core/legal_texts.dart';
 import '../../core/stellar.dart';
+import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/location_service.dart';
 import '../../widgets/common.dart';
@@ -16,6 +16,7 @@ import '../acopio/center_auctions_screen.dart';
 import '../acopio/center_prices_screen.dart';
 import '../auth/login_screen.dart';
 import '../tienda/store_profile_screen.dart';
+import 'complaints_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -130,6 +131,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         marketingAccepted: _marketingAccepted,
       );
       if (mounted) {
+        final currentUser = context.read<SessionController>().user;
+        if (currentUser != null) {
+          final updatedUser = AuthUser(
+            id: currentUser.id,
+            email: currentUser.email,
+            role: currentUser.role,
+            walletAddress: currentUser.walletAddress,
+            name: _nameController.text.trim(),
+            phone: _phoneController.text.trim(),
+            address: _addressController.text.trim(),
+            latitude: _latitude,
+            longitude: _longitude,
+            marketingAccepted: _marketingAccepted,
+          );
+          await context.read<SessionController>().updateUser(updatedUser);
+        }
+        if (!mounted) return;
         showAppSnack(context, 'Perfil actualizado con éxito');
         _loadProfile();
       }
@@ -985,17 +1003,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: TextStyle(fontSize: 11, color: Colors.grey),
                             ),
                             trailing: const Icon(Icons.chevron_right),
-                            onTap: () async {
-                              final api = context.read<LivoraApi>();
-                              final webBaseUrl = api.client.baseUrl.replaceAll('/api', '');
-                              final url = Uri.parse('$webBaseUrl/libro-de-reclamaciones');
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(url, mode: LaunchMode.externalApplication);
-                              } else {
-                                if (context.mounted) {
-                                  showAppSnack(context, 'No se pudo abrir el Libro de Reclamaciones', error: true);
-                                }
-                              }
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (context) => const ComplaintsScreen(),
+                                ),
+                              );
                             },
                           ),
                         ],

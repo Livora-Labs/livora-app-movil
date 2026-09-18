@@ -152,6 +152,36 @@ class LivoraApi {
     return CollectionRequest.fromJson(raw as Map<String, dynamic>);
   }
 
+  Future<CollectionRequest> startRoute(String id) async {
+    final raw = await client.post('/collection-requests/$id/start-route');
+    return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
+  Future<CollectionRequest> reachDestination(String id) async {
+    final raw = await client.post('/collection-requests/$id/reach-destination');
+    return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
+  Future<CollectionRequest> reportNoShow(String id) async {
+    final raw = await client.post('/collection-requests/$id/no-show');
+    return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
+  Future<CollectionRequest> rejectOnSite(
+    String id,
+    String reason, [
+    List<String>? photoUrls,
+  ]) async {
+    final raw = await client.post(
+      '/collection-requests/$id/reject-on-site',
+      body: {
+        'reason': reason,
+        if (photoUrls != null && photoUrls.isNotEmpty) 'photoUrls': photoUrls,
+      },
+    );
+    return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
   // --- Subastas y Tarifas Dinámicas ---
 
   Future<Map<String, dynamic>> submitBid(
@@ -266,12 +296,48 @@ class LivoraApi {
     return KycApplication.fromJson(raw as Map<String, dynamic>);
   }
 
+  Future<Batch> rerouteBatch(
+    String batchId,
+    String newCenterId, {
+    String? reason,
+    String? proofPhotoUrl,
+  }) async {
+    final raw = await client.post(
+      '/batches/$batchId/reroute',
+      body: {
+        'newCenterId': newCenterId,
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+        if (proofPhotoUrl != null && proofPhotoUrl.isNotEmpty)
+          'proofPhotoUrl': proofPhotoUrl,
+      },
+    );
+    return Batch.fromJson(raw as Map<String, dynamic>);
+  }
+
   /// Envía la solicitud de verificación KYC del recolector con la URL del
-  /// documento ya subido a `/uploads` (`purpose: kyc`).
-  Future<void> submitKycApplication(String documentUrl) async {
+  /// documento y la selfie/foto de perfil obligatoria.
+  Future<void> submitKycApplication(
+    String documentUrl, {
+    String? selfieUrl,
+    String? documentUrlBack,
+    String? documentNumber,
+    String? transportType,
+    String? vehiclePlate,
+  }) async {
     await client.post(
       '/collectors/kyc-applications',
-      body: {'documentUrl': documentUrl},
+      body: {
+        'documentUrl': documentUrl,
+        if (selfieUrl != null && selfieUrl.isNotEmpty) 'selfieUrl': selfieUrl,
+        if (documentUrlBack != null && documentUrlBack.isNotEmpty)
+          'documentUrlBack': documentUrlBack,
+        if (documentNumber != null && documentNumber.isNotEmpty)
+          'documentNumber': documentNumber,
+        if (transportType != null && transportType.isNotEmpty)
+          'transportType': transportType,
+        if (vehiclePlate != null && vehiclePlate.isNotEmpty)
+          'vehiclePlate': vehiclePlate,
+      },
     );
   }
 
@@ -558,26 +624,14 @@ class LivoraApi {
     return raw as Map<String, dynamic>;
   }
 
-  // ---------------------------------------------------------------- Niubiz Payments
+  // ---------------------------------------------------------------- Izipay Payments
 
-  /// Crea una sesión de recarga Niubiz para rol HOGAR o RECOLECTOR.
+  /// Crea una sesión de recarga Izipay (Krypton V4) para rol RECOLECTOR o TIENDA.
   Future<Map<String, dynamic>> createPaymentSession({
     required double amount,
   }) async {
-    final raw = await client.post('/payments/niubiz/session', body: {
+    final raw = await client.post('/payments/izipay/session', body: {
       'amount': amount,
-    });
-    return raw as Map<String, dynamic>;
-  }
-
-  /// Confirma el pago enviando el transactionToken emitido por Niubiz.
-  Future<Map<String, dynamic>> confirmPayment({
-    required String purchaseNumber,
-    required String transactionToken,
-  }) async {
-    final raw = await client.post('/payments/niubiz/confirm', body: {
-      'purchaseNumber': purchaseNumber,
-      'transactionToken': transactionToken,
     });
     return raw as Map<String, dynamic>;
   }
@@ -648,6 +702,46 @@ class LivoraApi {
     final raw = await client.post('/users/me/device-tokens', body: {
       'token': token,
       'platform': platform,
+    });
+    return raw as Map<String, dynamic>;
+  }
+
+  /// Envía una reclamación al Libro de Reclamaciones Virtual (Ley 29571 / Ley 32495).
+  Future<Map<String, dynamic>> createComplaint({
+    required String documentType,
+    required String documentNumber,
+    required String fullName,
+    required String address,
+    required String phone,
+    required String email,
+    bool isMinor = false,
+    String? representativeName,
+    String? representativeDoc,
+    required String goodType,
+    required String goodDescription,
+    double? amount,
+    required String claimType,
+    required String claimDetail,
+    required String consumerRequest,
+  }) async {
+    final raw = await client.post('/complaints', body: {
+      'documentType': documentType,
+      'documentNumber': documentNumber,
+      'fullName': fullName,
+      'address': address,
+      'phone': phone,
+      'email': email,
+      'isMinor': isMinor,
+      if (representativeName != null && representativeName.isNotEmpty)
+        'representativeName': representativeName,
+      if (representativeDoc != null && representativeDoc.isNotEmpty)
+        'representativeDoc': representativeDoc,
+      'goodType': goodType,
+      'goodDescription': goodDescription,
+      if (amount != null) 'amount': amount,
+      'claimType': claimType,
+      'claimDetail': claimDetail,
+      'consumerRequest': consumerRequest,
     });
     return raw as Map<String, dynamic>;
   }

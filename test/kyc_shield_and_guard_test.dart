@@ -204,7 +204,7 @@ void main() {
     });
 
     testWidgets(
-        'Si está verificado (approved) pero saldo insuficiente, CTA muestra Recarga Niubiz',
+        'Si está verificado (approved) pero saldo insuficiente, CTA muestra Recarga Izipay',
         (WidgetTester tester) async {
       bool rechargeTriggered = false;
 
@@ -222,9 +222,9 @@ void main() {
         ),
       );
 
-      expect(find.text('Saldo insuficiente · Recargar vía Niubiz'), findsOneWidget);
+      expect(find.text('Saldo insuficiente · Recargar vía Izipay'), findsOneWidget);
 
-      await tester.tap(find.text('Saldo insuficiente · Recargar vía Niubiz'));
+      await tester.tap(find.text('Saldo insuficiente · Recargar vía Izipay'));
       await tester.pump();
 
       expect(rechargeTriggered, isTrue);

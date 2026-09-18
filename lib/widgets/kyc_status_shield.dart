@@ -33,6 +33,11 @@ class KycStatusShield extends StatelessWidget {
           Icons.hourglass_top_rounded,
           'Verificación en revisión (24-48h)',
         ),
+      KycStatus.observed => (
+          const Color(0xFFD97706),
+          Icons.warning_amber_rounded,
+          'Verificación observada · Toca para corregir',
+        ),
       KycStatus.approved => (
           LivoraColors.forest,
           Icons.verified_user_rounded,

@@ -137,7 +137,7 @@ class InsufficientEscrowBottomSheet extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             const Text(
-              'Saldo insuficiente para la garantía. Recarga EcoTokens mediante Niubiz para continuar.',
+              'Saldo insuficiente para la garantía. Recarga EcoTokens mediante Izipay para continuar.',
               style: TextStyle(
                 fontSize: 13,
                 height: 1.4,
@@ -173,7 +173,7 @@ class InsufficientEscrowBottomSheet extends StatelessWidget {
               },
               icon: const Icon(Icons.credit_card_rounded, size: 20),
               label: const Text(
-                'Recargar vía Niubiz',
+                'Recargar vía Izipay',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),

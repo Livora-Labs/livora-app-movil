@@ -99,11 +99,37 @@ class SessionController extends ChangeNotifier {
     );
   }
 
+  /// Actualiza los datos de usuario en memoria y en Secure Storage de forma segura.
+  Future<void> updateUser(AuthUser updatedUser) async {
+    _user = updatedUser;
+    await _secureStorage.write(key: _userKey, value: jsonEncode(_user!.toJson()));
+    await _prefs.remove(_userKey);
+    notifyListeners();
+  }
+
   /// Restaura la sesión guardada al abrir la app de forma segura.
   Future<void> restore() async {
-    final token = await _secureStorage.read(key: _tokenKey) ??
-        _prefs.getString(_tokenKey);
-    final rawUser = _prefs.getString(_userKey);
+    // 1. Restaurar o migrar access token
+    var token = await _secureStorage.read(key: _tokenKey);
+    if (token == null) {
+      token = _prefs.getString(_tokenKey);
+      if (token != null) {
+        await _secureStorage.write(key: _tokenKey, value: token);
+        await _prefs.remove(_tokenKey);
+      }
+    }
+
+    // 2. Restaurar o migrar perfil de usuario con PII y coordenadas GPS
+    var rawUser = await _secureStorage.read(key: _userKey);
+    if (rawUser == null) {
+      rawUser = _prefs.getString(_userKey);
+      if (rawUser != null) {
+        // Migración transparente desde SharedPreferences hacia Secure Storage
+        await _secureStorage.write(key: _userKey, value: rawUser);
+        await _prefs.remove(_userKey);
+      }
+    }
+
     if (token == null || rawUser == null) return;
     try {
       _api.authToken = token;
@@ -112,8 +138,18 @@ class SessionController extends ChangeNotifier {
         await logout();
         return;
       }
-      _refreshToken = await _secureStorage.read(key: _refreshTokenKey) ??
-          _prefs.getString(_refreshTokenKey);
+
+      // 3. Restaurar o migrar refresh token
+      var refreshToken = await _secureStorage.read(key: _refreshTokenKey);
+      if (refreshToken == null) {
+        refreshToken = _prefs.getString(_refreshTokenKey);
+        if (refreshToken != null) {
+          await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
+          await _prefs.remove(_refreshTokenKey);
+        }
+      }
+      _refreshToken = refreshToken;
+
       final expiresAt = _prefs.getString(_expiresAtKey);
       _expiresAt = expiresAt == null ? null : DateTime.tryParse(expiresAt);
       final kycRaw = _prefs.getString(_kycStatusKey);
@@ -238,7 +274,10 @@ class SessionController extends ChangeNotifier {
     await _secureStorage.write(key: _tokenKey, value: token);
     await _prefs.remove(_tokenKey);
 
-    await _prefs.setString(_userKey, jsonEncode(_user!.toJson()));
+    // Guardar datos PII y GPS cifrados por hardware bajo Ley N° 29733
+    await _secureStorage.write(key: _userKey, value: jsonEncode(_user!.toJson()));
+    await _prefs.remove(_userKey);
+
     if (_refreshToken != null) {
       await _secureStorage.write(key: _refreshTokenKey, value: _refreshToken!);
       await _prefs.remove(_refreshTokenKey);
@@ -275,6 +314,7 @@ class SessionController extends ChangeNotifier {
 
     await _secureStorage.delete(key: _tokenKey);
     await _secureStorage.delete(key: _refreshTokenKey);
+    await _secureStorage.delete(key: _userKey);
     await _prefs.remove(_tokenKey);
     await _prefs.remove(_refreshTokenKey);
     await _prefs.remove(_expiresAtKey);

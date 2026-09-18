@@ -349,13 +349,13 @@ class _MaterialKardexBottomSheetState
       ),
     );
 
+    final weightDelta = double.tryParse(weightController.text.replaceAll(',', '.')) ?? 0.0;
     weightController.dispose();
 
     if (registered == true && mounted) {
       showAppSnack(context, 'Merma registrada con éxito.');
       setState(() {
-        _stock = (_stock - (double.tryParse(weightController.text.replaceAll(',', '.')) ?? 0))
-            .clamp(0, double.infinity);
+        _stock = (_stock - weightDelta).clamp(0, double.infinity);
       });
       _fetchKardex();
     }

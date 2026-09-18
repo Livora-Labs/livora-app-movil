@@ -163,6 +163,9 @@ class CollectionRequest {
     this.householdName,
     this.householdPhone,
     this.collectorEmail,
+    this.collectorPhone,
+    this.collectorPhotoUrl,
+    this.collectorReputation = 5.0,
     this.distanceMeters,
     this.collectorName,
     this.txHash,
@@ -170,6 +173,7 @@ class CollectionRequest {
     this.rating,
     this.feedback,
     this.createdAt,
+    this.arrivedAt,
   });
 
   factory CollectionRequest.fromJson(Map<String, dynamic> json) {
@@ -222,6 +226,12 @@ class CollectionRequest {
           : (json['householdPhone'] as String? ?? json['phone'] as String?),
       collectorEmail:
           collector is Map ? collector['email'] as String? : null,
+      collectorPhone:
+          collector is Map ? collector['phone'] as String? : null,
+      collectorPhotoUrl:
+          collector is Map ? collector['profilePhotoUrl'] as String? : null,
+      collectorReputation:
+          collector is Map ? _toDouble(collector['reputationScore'] ?? 5.0) : 5.0,
       distanceMeters: json['distance'] == null
           ? null
           : _toDouble(json['distance']),
@@ -235,6 +245,7 @@ class CollectionRequest {
       rating: json['rating'] as int?,
       feedback: json['feedback'] as String?,
       createdAt: _toDate(json['createdAt']),
+      arrivedAt: _toDate(json['arrivedAt']),
     );
   }
 
@@ -250,6 +261,10 @@ class CollectionRequest {
   final String? householdId;
   final String? collectorId;
   final String? collectorName;
+  final String? collectorEmail;
+  final String? collectorPhone;
+  final String? collectorPhotoUrl;
+  final double collectorReputation;
   final String? assignedCenterId;
   final String? assignedCenterName;
   final String? assignedCenterEmail;
@@ -261,13 +276,13 @@ class CollectionRequest {
   final String? householdAddress;
   final String? householdName;
   final String? householdPhone;
-  final String? collectorEmail;
   final double? distanceMeters;
   final String? txHash;
   final List<AcopioBid> bids;
   final int? rating;
   final String? feedback;
   final DateTime? createdAt;
+  final DateTime? arrivedAt;
 
   double get totalEstimatedKg =>
       itemsEstimated.values.fold(0, (sum, kg) => sum + kg);
@@ -528,6 +543,7 @@ class B2bCompany {
 enum KycStatus {
   unverified,
   pending,
+  observed,
   approved,
   rejected;
 
@@ -538,6 +554,8 @@ enum KycStatus {
         return KycStatus.approved;
       case 'PENDING':
         return KycStatus.pending;
+      case 'OBSERVED':
+        return KycStatus.observed;
       case 'REJECTED':
         return KycStatus.rejected;
       case 'NOT_SUBMITTED':
@@ -549,6 +567,7 @@ enum KycStatus {
   String toBackendString() => switch (this) {
         KycStatus.unverified => 'NOT_SUBMITTED',
         KycStatus.pending => 'PENDING',
+        KycStatus.observed => 'OBSERVED',
         KycStatus.approved => 'APPROVED',
         KycStatus.rejected => 'REJECTED',
       };
@@ -556,6 +575,7 @@ enum KycStatus {
   String get label => switch (this) {
         KycStatus.unverified => 'Sin verificar',
         KycStatus.pending => 'En revisión',
+        KycStatus.observed => 'Observado',
         KycStatus.approved => 'Verificado',
         KycStatus.rejected => 'Rechazado',
       };
@@ -569,6 +589,12 @@ class KycApplication {
   KycApplication({
     required this.status,
     this.documentUrl,
+    this.selfieUrl,
+    this.rejectionReason,
+    this.retryCount = 0,
+    this.documentNumber,
+    this.transportType,
+    this.vehiclePlate,
     this.createdAt,
     this.updatedAt,
   });
@@ -576,22 +602,36 @@ class KycApplication {
   factory KycApplication.fromJson(Map<String, dynamic> json) => KycApplication(
         status: json['status'] as String? ?? 'NOT_SUBMITTED',
         documentUrl: json['documentUrl'] as String?,
+        selfieUrl: json['selfieUrl'] as String?,
+        rejectionReason: json['rejectionReason'] as String?,
+        retryCount: (json['retryCount'] as num?)?.toInt() ?? 0,
+        documentNumber: json['documentNumber'] as String?,
+        transportType: json['transportType'] as String?,
+        vehiclePlate: json['vehiclePlate'] as String?,
         createdAt: _toDate(json['createdAt']),
         updatedAt: _toDate(json['updatedAt']),
       );
 
   final String status;
   final String? documentUrl;
+  final String? selfieUrl;
+  final String? rejectionReason;
+  final int retryCount;
+  final String? documentNumber;
+  final String? transportType;
+  final String? vehiclePlate;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
   KycStatus get kycStatus => KycStatus.fromString(status);
   bool get isSubmitted => status != 'NOT_SUBMITTED';
+  bool get isPending => status == 'PENDING';
+  bool get isObserved => status == 'OBSERVED';
   bool get isApproved => status == 'APPROVED';
   bool get isRejected => status == 'REJECTED';
 
-  /// Solo se puede (re)enviar si nunca se envió o si fue rechazada.
-  bool get canSubmit => !isSubmitted || isRejected;
+  /// Solo se puede (re)enviar si nunca se envió, o si fue observada o rechazada.
+  bool get canSubmit => !isSubmitted || isObserved || (isRejected && retryCount < 3);
 }
 
 /// Métricas del hogar.
@@ -640,7 +680,7 @@ class CollectorReputation {
   final String badge;
 }
 
-/// Transacción de Billetera (Recompensas por reciclaje, canjes en tiendas, recargas Niubiz).
+/// Transacción de Billetera (Recompensas por reciclaje, canjes en tiendas, recargas Izipay).
 class WalletTransaction {
   WalletTransaction({
     required this.id,

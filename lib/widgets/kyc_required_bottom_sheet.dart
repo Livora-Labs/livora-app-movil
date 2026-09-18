@@ -48,6 +48,14 @@ class KycRequiredBottomSheet extends StatelessWidget {
           'Tus documentos fueron recibidos y nuestro equipo los está auditando (tiempo estimado: 24 a 48 horas hábiles). Tan pronto sean aprobados podrás aceptar solicitudes activas.',
           'Ver Estado de Documentos',
         );
+      case KycStatus.observed:
+        return (
+          Icons.warning_amber_rounded,
+          const Color(0xFFD97706),
+          'Verificación con Observaciones',
+          'Tu documentación presentó observaciones técnicas por parte del auditor. Corrige los datos o documentos señalados y reenvía tu solicitud.',
+          'Corregir Observaciones',
+        );
       case KycStatus.rejected:
         return (
           Icons.gpp_bad_rounded,

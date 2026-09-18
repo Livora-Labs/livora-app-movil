@@ -561,6 +561,11 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
             const Color(0xFFD97706),
             Icons.hourglass_top_rounded,
           ),
+        KycStatus.observed => (
+            'Verificación Observada - Corregir',
+            const Color(0xFFD97706),
+            Icons.warning_amber_rounded,
+          ),
         KycStatus.rejected => (
             'Reintentar Verificación',
             const Color(0xFFC0392B),
@@ -628,7 +633,7 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
         },
         icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
         label: const Text(
-          'Saldo insuficiente · Recargar vía Niubiz',
+          'Saldo insuficiente · Recargar vía Izipay',
           style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
         ),
       );

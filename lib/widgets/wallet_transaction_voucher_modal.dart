@@ -61,7 +61,7 @@ class WalletTransactionVoucherModal extends StatelessWidget {
         'RECOMPENSA_RECICLAJE' => 'Recompensa por Reciclaje',
         'PAGO_TIENDA' => 'Canje en Tienda Aliada',
         'TRANSFERENCIA_EXTERNA' => 'Transferencia Stellar P2P',
-        'RECARGA_NIUBIZ' => 'Recarga Saldo Niubiz',
+        'RECARGA_IZIPAY' => 'Recarga Saldo Izipay',
         'GARANTIA_ESCROW' => 'Retención de Garantía Escrow',
         _ => type.replaceAll('_', ' '),
       };
@@ -303,7 +303,7 @@ class WalletTransactionVoucherModal extends StatelessWidget {
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Operación procesada mediante balance contable interno o pasarela Niubiz.',
+                                  'Operación procesada mediante balance contable interno o pasarela Izipay.',
                                   style: TextStyle(color: Colors.white70, fontSize: 11.5),
                                 ),
                               ),

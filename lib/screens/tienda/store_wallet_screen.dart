@@ -12,6 +12,7 @@ import '../../widgets/cash_out_modal.dart';
 import '../../widgets/common.dart';
 import '../../widgets/store_settlement_detail_modal.dart';
 import '../common/profile.dart';
+import '../common/wallet_screen.dart';
 import 'store_history_screen.dart';
 import 'store_profile_screen.dart';
 
@@ -167,7 +168,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                     style: TextStyle(color: Colors.white70, fontSize: 11.5),
                   ),
 
-                  // Dirección Pública Web3
+                  // Identificador de Cuenta Digital
                   if (address != null) ...[
                     const SizedBox(height: 16),
                     InkWell(
@@ -175,7 +176,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                         await HapticFeedback.lightImpact();
                         await Clipboard.setData(ClipboardData(text: address));
                         if (context.mounted) {
-                          showAppSnack(context, 'Dirección de comercio copiada');
+                          showAppSnack(context, 'Código de cuenta copiado');
                         }
                       },
                       child: Container(
@@ -214,21 +215,21 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                         ),
                         onPressed: () async {
                           if (!Stellar.isValidAddress(address)) {
-                            showAppSnack(context, 'Dirección pública inválida', error: true);
+                            showAppSnack(context, 'Identificador de cuenta inválido', error: true);
                             return;
                           }
                           final opened = await Stellar.openAccountInExplorer(address);
                           if (!opened && context.mounted) {
                             showAppSnack(
                               context,
-                              'No se pudo abrir el explorador de transacciones',
+                              'No se pudo abrir el comprobante digital',
                               error: true,
                             );
                           }
                         },
                         icon: const Icon(Icons.receipt_long_outlined, size: 15),
                         label: const Text(
-                          'Ver registros blockchain en Stellar Expert',
+                          'Consultar comprobante digital de cuenta',
                           style: TextStyle(fontSize: 11.5),
                         ),
                       ),
@@ -237,7 +238,29 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
+
+            // BOTÓN DE RECARGA CON IZIPAY PARA COMERCIOS
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: LivoraColors.forest,
+                side: const BorderSide(color: LivoraColors.forest, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WalletScreen()),
+                ).then((_) => _loadAll());
+              },
+              icon: const Icon(Icons.add_card_rounded, size: 20),
+              label: const Text(
+                'Recargar EcoTokens con Izipay',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // CONTENEDOR PRINCIPAL: SOLICITAR LIQUIDACIÓN A CCI BANCARIO
             Card(

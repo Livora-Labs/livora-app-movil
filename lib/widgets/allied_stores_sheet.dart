@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/app_theme.dart';
+import '../core/api_client.dart';
 import '../screens/common/qr_scanner_view.dart';
+import '../screens/common/transaction_receipt_screen.dart';
 import '../services/livora_api.dart';
+import '../widgets/common.dart';
+import '../widgets/web3_confirm_modal.dart';
 
 /// BottomSheet que muestra los comercios aliados cercanos y permite iniciar
 /// el flujo de canje de EcoTokens vía QR.
@@ -220,12 +224,55 @@ class _AlliedStoresSheetState extends State<AlliedStoresSheet> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                Navigator.push(
+                final scannedCode = await Navigator.push<String>(
                   context,
                   MaterialPageRoute(builder: (_) => const QRScannerView()),
                 );
+                if (scannedCode == null || scannedCode.isEmpty || !context.mounted) return;
+
+                try {
+                  final details = await context.read<LivoraApi>().redemptionDetails(scannedCode);
+                  if (!context.mounted) return;
+
+                  final storeName = details['store']?['name']?.toString() ?? details['store']?['businessName']?.toString() ?? 'Comercio Aliado';
+                  final tokenAmount = double.tryParse(details['tokenAmount']?.toString() ?? details['amountEcoTokens']?.toString() ?? '0') ?? 0.0;
+                  final storeAddress = details['store']?['walletAddress']?.toString();
+                  final concept = details['concept']?.toString() ?? details['description']?.toString() ?? 'Canje en Comercio';
+
+                  final confirmed = await showWeb3ConfirmModal(
+                    context,
+                    tokenAmount: tokenAmount,
+                    destinationName: storeName,
+                    destinationAddress: storeAddress,
+                    actionDescription: 'Canje de EcoTokens en Comercio Aliado',
+                    concept: concept,
+                  );
+
+                  if (!confirmed || !context.mounted) return;
+
+                  final result = await context.read<LivoraApi>().confirmRedemption(scannedCode);
+                  if (!context.mounted) return;
+
+                  final txHash = result['transactionId']?.toString() ?? result['txHash']?.toString() ?? '—';
+                  await Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TransactionReceiptScreen(
+                        tokenAmount: tokenAmount,
+                        storeName: storeName,
+                        storeAddress: storeAddress,
+                        concept: concept,
+                        txHash: txHash,
+                      ),
+                    ),
+                  );
+                } on ApiException catch (error) {
+                  if (context.mounted) showAppSnack(context, error.message, error: true);
+                } catch (_) {
+                  if (context.mounted) showAppSnack(context, 'Error al procesar el canje', error: true);
+                }
               },
               icon: const Icon(Icons.qr_code_scanner),
               label: const Text(

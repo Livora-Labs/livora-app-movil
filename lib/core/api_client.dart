@@ -140,7 +140,7 @@ class ApiClient {
     http.Response response;
     try {
       final streamed = await _client.send(request).timeout(
-            const Duration(seconds: 120),
+            const Duration(seconds: 45),
           );
       response = await http.Response.fromStream(streamed);
     } on TimeoutException {
@@ -264,9 +264,9 @@ class ApiClient {
 
     http.Response response;
     try {
-      // Margen amplio: algunos entornos tardan en "despertar" tras inactividad.
+      // Timeout estándar para operaciones móviles interactivas (15 segundos)
       final streamed = await _client.send(request).timeout(
-            const Duration(seconds: 60),
+            const Duration(seconds: 15),
           );
       response = await http.Response.fromStream(streamed);
     } on TimeoutException {

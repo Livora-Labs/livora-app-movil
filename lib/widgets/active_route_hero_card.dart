@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/api_client.dart';
 import '../core/app_theme.dart';
 import '../core/formats.dart';
 import '../models/models.dart';
+import '../services/livora_api.dart';
 import 'common.dart';
 import 'verification_otp_modal.dart';
 
 /// Tarjeta Héroe multiparada desacoplada y anclada en la parte superior (Sticky Header)
-/// del radar para pedidos activos en ruta (ACCEPTED / IN_ROUTE).
+/// del radar para pedidos activos en ruta (ACCEPTED / EN_ROUTE / ARRIVED).
 ///
 /// Implementa ordenamiento inteligente por cercanía GPS, selector secuencial de paradas
-/// (Parada X de Y) y botones de acción directa: Navegar (Maps/Waze), Llamar y Validar PIN.
+/// (Parada X de Y) y botones de acción directa: Navegar (Maps/Waze), Llamar,
+/// Iniciar Ruta, Notificar Llegada, Validar PIN, Reportar Inasistencia y Rechazo en Sitio.
 class ActiveRouteHeroCard extends StatefulWidget {
   const ActiveRouteHeroCard({
     super.key,
@@ -33,6 +37,7 @@ class ActiveRouteHeroCard extends StatefulWidget {
 
 class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
   int _currentIndex = 0;
+  bool _busy = false;
 
   List<CollectionRequest> get _sortedRequests {
     final list = List<CollectionRequest>.from(widget.requests);
@@ -114,6 +119,151 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
     }
   }
 
+  Future<void> _startRoute(CollectionRequest request) async {
+    HapticFeedback.lightImpact();
+    setState(() => _busy = true);
+    try {
+      await context.read<LivoraApi>().startRoute(request.id);
+      if (mounted) {
+        showAppSnack(context, 'Ruta iniciada hacia el hogar');
+        widget.onVerificationCompleted();
+      }
+    } on ApiException catch (e) {
+      if (mounted) showAppSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reachDestination(CollectionRequest request) async {
+    HapticFeedback.lightImpact();
+    setState(() => _busy = true);
+    try {
+      await context.read<LivoraApi>().reachDestination(request.id);
+      if (mounted) {
+        showAppSnack(context, 'Llegada notificada al hogar. Solicita el PIN de verificación.');
+        widget.onVerificationCompleted();
+      }
+    } on ApiException catch (e) {
+      if (mounted) showAppSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reportNoShow(CollectionRequest request) async {
+    final arrivedAt = request.arrivedAt;
+    if (arrivedAt != null) {
+      final elapsedMinutes = DateTime.now().difference(arrivedAt).inMinutes;
+      if (elapsedMinutes < 10) {
+        final remaining = 10 - elapsedMinutes;
+        showAppSnack(
+          context,
+          'Debes esperar 10 minutos reglamentarios frente al domicilio (faltan $remaining min).',
+          error: true,
+        );
+        return;
+      }
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reportar Inasistencia del Hogar'),
+        content: const Text(
+          'Se cancelará la recolección por inasistencia. Se liberará tu garantía de depósito, recibirás 2.0 EcoTokens de compensación por traslado y se penalizará la reputación del hogar.\n\n¿Deseas confirmar el reporte?',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFC53030)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar Inasistencia'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await context.read<LivoraApi>().reportNoShow(request.id);
+      if (mounted) {
+        showAppSnack(context, 'Inasistencia reportada. Garantía liberada y compensación acreditada.');
+        widget.onVerificationCompleted();
+      }
+    } on ApiException catch (e) {
+      if (mounted) showAppSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _rejectOnSite(CollectionRequest request) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rechazar Recolección en Sitio'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Indica el motivo técnico del rechazo (ej. materiales contaminados, orgánicos mezclados o peso discrepante):',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                hintText: 'Describe el estado de los materiales...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFC53030)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Rechazar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    final reason = reasonCtrl.text.trim();
+    if (reason.isEmpty) {
+      showAppSnack(context, 'Debes ingresar un motivo del rechazo en sitio.', error: true);
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      await context.read<LivoraApi>().rejectOnSite(request.id, reason);
+      if (mounted) {
+        showAppSnack(context, 'Recolección rechazada en sitio. Garantía liberada.');
+        widget.onVerificationCompleted();
+      }
+    } on ApiException catch (e) {
+      if (mounted) showAppSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _openOtpModal(CollectionRequest request) async {
     HapticFeedback.lightImpact();
     final verified = await VerificationOtpModal.show(context, request: request);
@@ -162,35 +312,59 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header: Badge EN RUTA + Carrusel Selector de Paradas
+          // Header: Badge de Estado de Ruta + Carrusel Selector de Paradas
           Row(
             children: [
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: LivoraColors.forest.withValues(alpha: 0.12),
+                  color: (current.status == 'ARRIVED'
+                          ? LivoraColors.green
+                          : (current.status == 'EN_ROUTE'
+                              ? LivoraColors.forest
+                              : LivoraColors.blue))
+                      .withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: LivoraColors.forest.withValues(alpha: 0.3),
+                    color: (current.status == 'ARRIVED'
+                            ? LivoraColors.green
+                            : (current.status == 'EN_ROUTE'
+                                ? LivoraColors.forest
+                                : LivoraColors.blue))
+                        .withValues(alpha: 0.3),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.directions_bike_rounded,
+                      current.status == 'ARRIVED'
+                          ? Icons.pin_drop_rounded
+                          : (current.status == 'EN_ROUTE'
+                              ? Icons.directions_bike_rounded
+                              : Icons.schedule_rounded),
                       size: 15,
-                      color: LivoraColors.forest,
+                      color: current.status == 'ARRIVED'
+                          ? LivoraColors.green
+                          : (current.status == 'EN_ROUTE'
+                              ? LivoraColors.forest
+                              : LivoraColors.blue),
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
-                      'EN RUTA',
+                      current.status == 'ARRIVED'
+                          ? 'EN PUERTA'
+                          : (current.status == 'EN_ROUTE' ? 'EN RUTA' : 'ASIGNADA'),
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.6,
-                        color: LivoraColors.forest,
+                        color: current.status == 'ARRIVED'
+                            ? LivoraColors.green
+                            : (current.status == 'EN_ROUTE'
+                                ? LivoraColors.forest
+                                : LivoraColors.blue),
                       ),
                     ),
                   ],
@@ -317,7 +491,7 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
           ),
           const SizedBox(height: 14),
 
-          // Acciones Directas: Navegar | Llamar | Validar Entrega
+          // Acciones de Navegación y Contacto Directo
           Row(
             children: [
               Expanded(
@@ -371,30 +545,81 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    backgroundColor: LivoraColors.forest,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onPressed: () => _openOtpModal(current),
-                  icon: const Icon(Icons.pin_outlined, size: 16),
-                  label: const Text(
-                    'Validar Entrega',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
+          const SizedBox(height: 10),
+
+          // Progresión de Ruta y Contingencias según FSM 2
+          if (current.status == 'ACCEPTED')
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: LivoraColors.forest,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _busy ? null : () => _startRoute(current),
+              icon: const Icon(Icons.directions_bike_rounded, size: 18),
+              label: const Text(
+                'Iniciar Ruta al Domicilio',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            )
+          else if (current.status == 'EN_ROUTE')
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: LivoraColors.blue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _busy ? null : () => _reachDestination(current),
+              icon: const Icon(Icons.pin_drop_rounded, size: 18),
+              label: const Text(
+                'Llegué al Domicilio',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            )
+          else if (current.status == 'ARRIVED') ...[
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: LivoraColors.green,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _busy ? null : () => _openOtpModal(current),
+              icon: const Icon(Icons.pin_outlined, size: 18),
+              label: const Text(
+                'Validar PIN del Hogar',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFC53030),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _busy ? null : () => _reportNoShow(current),
+                    icon: const Icon(Icons.timer_off_outlined, size: 15),
+                    label: const Text('Inasistencia (10 min)', style: TextStyle(fontSize: 11)),
+                  ),
+                ),
+                Expanded(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFC53030),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _busy ? null : () => _rejectOnSite(current),
+                    icon: const Icon(Icons.block_outlined, size: 15),
+                    label: const Text('Rechazar en Sitio', style: TextStyle(fontSize: 11)),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

@@ -224,7 +224,7 @@ lib/
 │   ├── hogar/             # Vistas para Hogares (Dashboard, Creación de solicitud con GPS, Detalle)
 │   ├── recolector/        # Vistas para Recolectores (Radar de solicitudes, Mi lote en ruta, KYC)
 │   ├── shell/             # Shell principal con IndexedStack y navegación por rol
-│   └── tienda/            # Vistas para Tiendas/Almacenes (Cobro QR, Historial, Inventario)
+│   └── tienda/            # Vistas para Tiendas (Comercios Aliados: Cobro QR, Historial, Billetera)
 ├── services/              # Clientes de API, WebSockets, GPS y resiliencia offline
 │   ├── livora_api.dart             # Métodos tipados para todos los endpoints del backend
 │   ├── livora_realtime.dart        # Cliente Socket.IO reactivo y suscripción a salas de rol
