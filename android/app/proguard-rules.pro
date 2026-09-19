@@ -25,3 +25,8 @@
 # Generic Kotlin & Coroutines
 -dontwarn kotlin.**
 -dontwarn kotlinx.**
+
+# Play Core (deferred components): el motor de Flutter referencia estas clases
+# aunque la app no use deferred components. Sin esto R8 falla en release con
+# "Missing class com.google.android.play.core.*".
+-dontwarn com.google.android.play.core.**
