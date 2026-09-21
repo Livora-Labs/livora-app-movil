@@ -167,7 +167,7 @@ void main() {
       );
 
       expect(find.text('Verificar Identidad para Aceptar'), findsOneWidget);
-      expect(find.text('Aceptar recolección (10.0 ECO)'), findsNothing);
+      expect(find.text('Aceptar recolección (10.0 LIVO)'), findsNothing);
 
       await tester.tap(find.text('Verificar Identidad para Aceptar'));
       await tester.pump();
@@ -195,9 +195,9 @@ void main() {
         ),
       );
 
-      expect(find.text('Aceptar recolección (10.0 ECO)'), findsOneWidget);
+      expect(find.text('Aceptar recolección (10.0 LIVO)'), findsOneWidget);
 
-      await tester.tap(find.text('Aceptar recolección (10.0 ECO)'));
+      await tester.tap(find.text('Aceptar recolección (10.0 LIVO)'));
       await tester.pump();
 
       expect(accepted, isTrue);

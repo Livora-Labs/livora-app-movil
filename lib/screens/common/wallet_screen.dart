@@ -67,7 +67,7 @@ class _WalletScreenState extends State<WalletScreen> {
       tokenAmount: amount,
       destinationName: 'Billetera Externa',
       destinationAddress: toAddress,
-      actionDescription: 'Transferencia Directa de EcoTokens',
+      actionDescription: 'Transferencia Directa de LIVOs',
       concept: 'Transferencia P2P',
     );
     if (!confirmed || !mounted) return;
@@ -141,7 +141,7 @@ class _WalletScreenState extends State<WalletScreen> {
         tokenAmount: tokenAmount,
         destinationName: storeName,
         destinationAddress: storeAddress,
-        actionDescription: 'Canje de EcoTokens en Comercio Aliado',
+        actionDescription: 'Canje de LIVOs en Comercio Aliado',
         concept: concept,
       );
 
@@ -191,7 +191,7 @@ class _WalletScreenState extends State<WalletScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Conversión fija: S/ 1.00 PEN = 1.00 EcoToken\nMonto mínimo: S/ 10.00 PEN',
+                'Conversión fija: S/ 1.00 PEN = 1.00 LIVO\nMonto mínimo: S/ 10.00 PEN',
                 style: TextStyle(fontSize: 12, color: LivoraColors.slate),
               ),
               const SizedBox(height: 12),
@@ -240,7 +240,7 @@ class _WalletScreenState extends State<WalletScreen> {
                   children: [
                     const Text('Recibirás:', style: TextStyle(fontSize: 12)),
                     Text(
-                      '${amount.toStringAsFixed(2)} EcoTokens',
+                      '${amount.toStringAsFixed(2)} LIVOs',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: LivoraColors.forest,
@@ -251,7 +251,7 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Al confirmar, se abrirá la pasarela segura Izipay. Tras la confirmación del pago, tus EcoTokens se acreditarán de inmediato en tu saldo disponible.',
+                'Al confirmar, se abrirá la pasarela segura Izipay. Tras la confirmación del pago, tus LIVOs se acreditarán de inmediato en tu saldo disponible.',
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ],
@@ -337,7 +337,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     children: [
                       const Expanded(
                         child: Text(
-                          'Saldo EcoTokens',
+                          'Saldo de LIVOs',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -393,7 +393,7 @@ class _WalletScreenState extends State<WalletScreen> {
                   ),
                   const SizedBox(height: 2),
                   const Text(
-                    'ECO · Billetera de Incentivos (1 ECO = S/ 1.00)',
+                    'LIVO · Billetera de Incentivos (1 LIVO = S/ 1.00)',
                     style: TextStyle(color: Colors.white70, fontSize: 11.5),
                   ),
                   if (address != null) ...[
@@ -481,7 +481,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 onPressed: _showIzipayRechargeDialog,
                 icon: const Icon(Icons.credit_card_rounded),
                 label: const Text(
-                  'Recargar Saldo / Comprar EcoTokens (Izipay)',
+                  'Recargar Saldo / Comprar LIVOs (Izipay)',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -553,7 +553,7 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const SectionTitle(text: 'Transferir EcoTokens'),
+            const SectionTitle(text: 'Transferir LIVOs'),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -624,7 +624,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           decimal: true,
                         ),
                         inputFormatters: kDecimalInputFormatters,
-                        validator: (value) => validateAmount(value, min: 0.10, unit: 'ECO'),
+                        validator: (value) => validateAmount(value, min: 0.10, unit: 'LIVO'),
                       ),
                       const SizedBox(height: 16),
                       BusyButton(
@@ -641,7 +641,7 @@ class _WalletScreenState extends State<WalletScreen> {
             const SizedBox(height: 12),
             Text(
               'Las transferencias usan el Relayer de Livora: no pagas gas. '
-              'Los EcoTokens se ganan reciclando y pueden canjearse en tiendas aliadas.',
+              'Los LIVOs se ganan reciclando y pueden canjearse en tiendas aliadas.',
               style: TextStyle(
                 fontSize: 12,
                 color: LivoraColors.ink.withValues(alpha: 0.7),

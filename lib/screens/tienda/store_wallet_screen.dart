@@ -164,7 +164,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    '1.00 EcoToken (ECO) = S/ 1.00 Soles (PEN)',
+                    '1.00 LIVO = S/ 1.00 Soles (PEN)',
                     style: TextStyle(color: Colors.white70, fontSize: 11.5),
                   ),
 
@@ -180,26 +180,39 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                         }
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(10),
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           children: [
+                            const Icon(Icons.qr_code_rounded, color: Colors.white, size: 20),
+                            const SizedBox(width: 10),
                             Expanded(
-                              child: Text(
-                                address,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11.5,
-                                  fontFamily: 'monospace',
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Dirección de Billetera Digital',
+                                    style: TextStyle(color: Colors.white70, fontSize: 10.5),
+                                  ),
+                                  Text(
+                                    address.length > 20
+                                        ? '${address.substring(0, 10)}...${address.substring(address.length - 8)}'
+                                        : address,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'monospace',
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.copy_rounded, color: Colors.white, size: 15),
+                            const Icon(Icons.copy_rounded, color: Colors.white70, size: 18),
                           ],
                         ),
                       ),
@@ -256,7 +269,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
               },
               icon: const Icon(Icons.add_card_rounded, size: 20),
               label: const Text(
-                'Recargar EcoTokens con Izipay',
+                'Recargar LIVOs con Izipay',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
               ),
             ),
@@ -326,7 +339,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      'Convierte tus EcoTokens en Soles (PEN) sin costo de comisión de retiro. '
+                      'Convierte tus LIVOs en Soles (PEN) sin costo de comisión de retiro. '
                       'Los fondos serán transferidos a tu cuenta CCI registrada.',
                       style: TextStyle(fontSize: 12, color: LivoraColors.ink, height: 1.3),
                     ),
@@ -394,7 +407,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
                       ),
                     ),
                     title: Text(
-                      'Liquidación - $amount ECO',
+                      'Liquidación - $amount LIVO',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
                     ),
                     subtitle: Text(

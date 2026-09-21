@@ -127,7 +127,7 @@ Future<void> showProfileSheet(BuildContext context) {
                 _CopyTile(
                   label: 'Billetera (${Stellar.networkLabel})',
                   value: user.walletAddress!,
-                  hint: 'Compártela para recibir EcoTokens.',
+                  hint: 'Compártela para recibir LIVOs.',
                   explorerUrl: Stellar.isValidAddress(user.walletAddress)
                       ? Stellar.accountUrl(user.walletAddress!)
                       : null,

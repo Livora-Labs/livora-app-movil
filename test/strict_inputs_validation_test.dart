@@ -73,8 +73,8 @@ void main() {
       expect(validateAmount(null), 'Ingresa el monto');
       expect(validateAmount('0'), 'El monto debe ser mayor a 0');
       expect(validateAmount('0.00'), 'El monto debe ser mayor a 0');
-      expect(validateAmount('0.05'), 'El monto mínimo es 0.10 ECO');
-      expect(validateAmount('0.09'), 'El monto mínimo es 0.10 ECO');
+      expect(validateAmount('0.05'), 'El monto mínimo es 0.10 LIVO');
+      expect(validateAmount('0.09'), 'El monto mínimo es 0.10 LIVO');
 
       // Valores válidos
       expect(validateAmount('0.10'), isNull);

@@ -171,7 +171,7 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
       builder: (ctx) => AlertDialog(
         title: const Text('Reportar Inasistencia del Hogar'),
         content: const Text(
-          'Se cancelará la recolección por inasistencia. Se liberará tu garantía de depósito, recibirás 2.0 EcoTokens de compensación por traslado y se penalizará la reputación del hogar.\n\n¿Deseas confirmar el reporte?',
+          'Se cancelará la recolección por inasistencia. Se liberará tu garantía de depósito, recibirás 2.0 LIVOs de compensación por traslado y se penalizará la reputación del hogar.\n\n¿Deseas confirmar el reporte?',
           style: TextStyle(fontSize: 13),
         ),
         actions: [
@@ -484,7 +484,7 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
               ),
               StatusChip(
                 label:
-                    'Garantía: ${current.requiredEscrow.toStringAsFixed(1)} ECO',
+                    'Garantía: ${current.requiredEscrow.toStringAsFixed(1)} LIVO',
                 color: LivoraColors.blue,
               ),
             ],

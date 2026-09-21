@@ -150,7 +150,7 @@ class _IzipayCheckoutModalState extends State<IzipayCheckoutModal> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         content: Text(
-          'Se ha registrado tu pago de S/ ${widget.amount.toStringAsFixed(2)} PEN.\nTus EcoTokens se reflejarán en tu saldo disponible en unos instantes.',
+          'Se ha registrado tu pago de S/ ${widget.amount.toStringAsFixed(2)} PEN.\nTus LIVOs se reflejarán en tu saldo disponible en unos instantes.',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 13.5),
         ),

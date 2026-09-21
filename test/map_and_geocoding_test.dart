@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -116,8 +116,8 @@ void main() {
         ),
       );
 
-      // Margen del recolector = 50% de 20.0 = 10.0 ECO
-      expect(find.text("+10.0 ECO"), findsOneWidget);
+      // Margen del recolector = 50% de 20.0 = 10.0 LIVO
+      expect(find.text("+10.0 LIVO"), findsOneWidget);
       expect(find.byIcon(Icons.local_drink_rounded), findsOneWidget);
 
       await tester.tap(find.byType(CollectorRequestMarker));

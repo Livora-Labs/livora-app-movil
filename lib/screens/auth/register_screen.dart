@@ -26,7 +26,7 @@ class _RoleOption {
 const _roleOptions = [
   _RoleOption(
     Roles.hogar,
-    'Solicita recolecciones en casa y gana EcoTokens por reciclar.',
+    'Solicita recolecciones en casa y gana LIVOs por reciclar.',
   ),
   _RoleOption(
     Roles.recolector,
@@ -38,7 +38,7 @@ const _roleOptions = [
   ),
   _RoleOption(
     Roles.tienda,
-    'Gestiona cobros POS y canjes con EcoTokens para tu comercio aliado.',
+    'Gestiona cobros POS y canjes con LIVOs para tu comercio aliado.',
   ),
 ];
 

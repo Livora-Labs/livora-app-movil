@@ -14,7 +14,7 @@ import '../../widgets/store_category_marker.dart';
 import 'qr_scanner_view.dart';
 
 /// Catálogo interactivo completo de comercios aliados donde el Hogar
-/// puede canjear sus EcoTokens por productos, descuentos y beneficios.
+/// puede canjear sus LIVOs por productos, descuentos y beneficios.
 class StoresCatalogScreen extends StatefulWidget {
   const StoresCatalogScreen({super.key});
 
@@ -275,7 +275,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
                               final name = store['name']?.toString() ?? store['businessName']?.toString() ?? 'Comercio Aliado';
                               final category = store['category']?.toString() ?? 'General';
                               final address = store['address']?.toString() ?? 'Lima, Perú';
-                              final perk = store['description']?.toString() ?? 'Canje de productos con saldo EcoTokens';
+                              final perk = store['description']?.toString() ?? 'Canje de productos con saldo LIVOs';
                               final icon = _iconForCategory(category);
                               final dist = _distanceMeters(store);
 
@@ -534,7 +534,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
     final name = store['name']?.toString() ?? store['businessName']?.toString() ?? 'Comercio Aliado';
     final category = store['category']?.toString() ?? 'General';
     final address = store['address']?.toString() ?? 'Lima, Perú';
-    final perk = store['description']?.toString() ?? 'Canje de productos con saldo EcoTokens';
+    final perk = store['description']?.toString() ?? 'Canje de productos con saldo LIVOs';
     final icon = _iconForCategory(category);
     final dist = _distanceMeters(store);
 

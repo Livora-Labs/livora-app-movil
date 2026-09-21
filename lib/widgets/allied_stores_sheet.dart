@@ -107,7 +107,7 @@ class _AlliedStoresSheetState extends State<AlliedStoresSheet> {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Canjea tus EcoTokens (1 ECO = S/ 1.00 PEN)',
+                        'Canjea tus LIVOs (1 LIVO = S/ 1.00 PEN)',
                         style: TextStyle(
                           fontSize: 12,
                           color: LivoraColors.slate,
@@ -246,7 +246,7 @@ class _AlliedStoresSheetState extends State<AlliedStoresSheet> {
                     tokenAmount: tokenAmount,
                     destinationName: storeName,
                     destinationAddress: storeAddress,
-                    actionDescription: 'Canje de EcoTokens en Comercio Aliado',
+                    actionDescription: 'Canje de LIVOs en Comercio Aliado',
                     concept: concept,
                   );
 

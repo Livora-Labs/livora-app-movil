@@ -100,7 +100,7 @@ class TransactionReceiptScreen extends StatelessWidget {
                         child: Column(
                           children: [
                             Text(
-                              '-${tokenAmount.toStringAsFixed(2)} ECO',
+                              '-${tokenAmount.toStringAsFixed(2)} LIVO',
                               style: const TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w900,
@@ -247,7 +247,7 @@ class TransactionReceiptScreen extends StatelessWidget {
                     Expanded(
                       child: Text(
                         'Transacción custodial inmutable firmada en Stellar Blockchain. '
-                        'Los EcoTokens han sido transferidos al comercio asociado como medio de canje '
+                        'Los LIVOs han sido transferidos al comercio asociado como medio de canje '
                         'no reembolsable por dinero en efectivo (T&C Livora / Ley 29571).',
                         style: TextStyle(
                           fontSize: 10.5,

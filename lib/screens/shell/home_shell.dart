@@ -31,6 +31,11 @@ class _TabSpec {
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
+  /// Permite a cualquier pantalla hija o modal cambiar la pestaña activa del shell
+  static void switchTab(BuildContext context, int index) {
+    context.findAncestorStateOfType<_HomeShellState>()?.setTabIndex(index);
+  }
+
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
@@ -39,6 +44,12 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   StreamSubscription<RemoteMessage>? _fcmSubscription;
 
+  void setTabIndex(int index) {
+    if (mounted) {
+      setState(() => _index = index);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,7 +57,10 @@ class _HomeShellState extends State<HomeShell> {
     // Al entrar a la zona autenticada abrimos el socket; se cierra al salir
     // (logout) porque el shell se desmonta.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<LivoraRealtime>().connect();
+      if (mounted) {
+        context.read<LivoraRealtime>().connect();
+        context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+      }
     });
   }
 
@@ -62,10 +76,7 @@ class _HomeShellState extends State<HomeShell> {
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission(
         alert: true,
-        announcement: false,
         badge: true,
-        carPlay: false,
-        criticalAlert: false,
         provisional: false,
         sound: true,
       );
@@ -88,20 +99,23 @@ class _HomeShellState extends State<HomeShell> {
       
       _fcmSubscription?.cancel();
       _fcmSubscription = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        if (mounted && message.notification != null) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text(message.notification!.title ?? 'Notificación'),
-              content: Text(message.notification!.body ?? ''),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cerrar'),
-                ),
-              ],
-            ),
-          );
+        if (mounted) {
+          context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+          if (message.notification != null) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text(message.notification!.title ?? 'Notificación'),
+                content: Text(message.notification!.body ?? ''),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cerrar'),
+                  ),
+                ],
+              ),
+            );
+          }
         }
       });
     } catch (e) {
@@ -133,7 +147,7 @@ class _HomeShellState extends State<HomeShell> {
             Icons.travel_explore_outlined,
             AvailableRequestsScreen(),
           ),
-          _TabSpec('Mi lote', Icons.inventory_2_outlined, MyBatchScreen()),
+          _TabSpec('Mis lotes', Icons.inventory_2_outlined, MyBatchScreen()),
           wallet,
           alerts,
         ],
@@ -159,9 +173,11 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<SessionController>().user;
+    final session = context.watch<SessionController>();
+    final user = session.user;
     if (user == null) return const SizedBox.shrink();
 
+    final hasUnread = session.hasUnreadNotifications;
     final tabs = _tabsFor(user.role);
     final index = _index < tabs.length ? _index : 0;
 
@@ -175,7 +191,16 @@ class _HomeShellState extends State<HomeShell> {
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: [
           for (final tab in tabs)
-            NavigationDestination(icon: Icon(tab.icon), label: tab.label),
+            NavigationDestination(
+              icon: (tab.label == 'Alertas' && hasUnread)
+                  ? Badge(
+                      backgroundColor: Colors.red,
+                      smallSize: 8,
+                      child: Icon(tab.icon),
+                    )
+                  : Icon(tab.icon),
+              label: tab.label,
+            ),
         ],
       ),
     );

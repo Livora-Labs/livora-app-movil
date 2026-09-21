@@ -116,7 +116,7 @@ class _CashOutModalState extends State<CashOutModal> {
         Navigator.pop(context, true);
         showAppSnack(
           context,
-          'Solicitud de liquidación por ${amount.toStringAsFixed(2)} ECO enviada correctamente',
+          'Solicitud de liquidación por ${amount.toStringAsFixed(2)} LIVO enviada correctamente',
         );
       }
     } on ApiException catch (e) {
@@ -188,7 +188,7 @@ class _CashOutModalState extends State<CashOutModal> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Transfiere tus EcoTokens acumulados a tu cuenta bancaria nacional en Soles (PEN).',
+              'Transfiere tus LIVOs acumulados a tu cuenta bancaria nacional en Soles (PEN).',
               style: TextStyle(fontSize: 12.5, color: LivoraColors.ink),
             ),
             const SizedBox(height: 18),
@@ -325,7 +325,7 @@ class _CashOutModalState extends State<CashOutModal> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Disponible: ${widget.availableBalance.toStringAsFixed(2)} ECO',
+                          'Disponible: ${widget.availableBalance.toStringAsFixed(2)} LIVO',
                           style: const TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
@@ -347,7 +347,7 @@ class _CashOutModalState extends State<CashOutModal> {
                     TextFormField(
                       controller: _amountController,
                       decoration: livoraInput(
-                        'Tokens a liquidar',
+                        'LIVOs a liquidar',
                         icon: Icons.toll_outlined,
                         hint: '0.00',
                       ),
@@ -361,7 +361,7 @@ class _CashOutModalState extends State<CashOutModal> {
                           return 'Ingresa un monto mayor a 0';
                         }
                         if (val < 0.10) {
-                          return 'El monto mínimo de liquidación es 0.10 ECO';
+                          return 'El monto mínimo de liquidación es 0.10 LIVO';
                         }
                         if (val > widget.availableBalance) {
                           return 'El monto supera tu saldo disponible';
@@ -387,8 +387,8 @@ class _CashOutModalState extends State<CashOutModal> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Monto en EcoTokens:', style: TextStyle(fontSize: 12.5, color: LivoraColors.ink)),
-                        Text('${amount.toStringAsFixed(2)} ECO',
+                        const Text('Monto en LIVOs:', style: TextStyle(fontSize: 12.5, color: LivoraColors.ink)),
+                        Text('${amount.toStringAsFixed(2)} LIVO',
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                       ],
                     ),
@@ -397,7 +397,7 @@ class _CashOutModalState extends State<CashOutModal> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Tasa de conversión:', style: TextStyle(fontSize: 12.5, color: LivoraColors.ink)),
-                        Text('1.00 ECO = S/ 1.00 PEN',
+                        Text('1.00 LIVO = S/ 1.00 PEN',
                             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: LivoraColors.forest)),
                       ],
                     ),

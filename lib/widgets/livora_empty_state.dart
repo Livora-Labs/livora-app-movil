@@ -26,10 +26,10 @@ class LivoraEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+      child: Padding(
         padding: padding,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
@@ -75,7 +75,7 @@ class LivoraEmptyState extends StatelessWidget {
                   HapticFeedback.lightImpact();
                   onAction!();
                 },
-                icon: const Icon(Icons.add_rounded, size: 20),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 20),
                 label: Text(actionLabel!),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: LivoraColors.forest,

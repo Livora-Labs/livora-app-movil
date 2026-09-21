@@ -29,10 +29,10 @@ void main() {
 
     // Verificar contenido del modal
     expect(find.text('Confirmar Transacción Blockchain'), findsOneWidget);
-    expect(find.text('25.00 ECO'), findsOneWidget);
+    expect(find.text('25.00 LIVO'), findsOneWidget);
     expect(find.text('Tienda Verde Miraflores'), findsOneWidget);
     expect(find.text('Compra de Productos Eco-Amigables'), findsOneWidget);
-    expect(find.text('0.00 ECO (Cubierto por Livora)'), findsOneWidget);
+    expect(find.text('0.00 LIVO (Cubierto por Livora)'), findsOneWidget);
     expect(
       find.text(
         'Al confirmar, autorizas a Livora a firmar la transacción en la blockchain Stellar. Esta acción es irreversible.',

@@ -140,8 +140,11 @@ class BatchDetailModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<SessionController>();
-    final userRole = session.user?.role;
+    SessionController? session;
+    try {
+      session = context.watch<SessionController>();
+    } catch (_) {}
+    final userRole = session?.user?.role;
     final isAcopio = userRole == Roles.centroAcopio;
     final isRecolector = userRole == Roles.recolector;
 

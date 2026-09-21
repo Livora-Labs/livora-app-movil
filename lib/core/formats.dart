@@ -54,7 +54,7 @@ String? validatePositiveWeight(String? value) {
 }
 
 /// Validador estricto para montos mayores a 0:
-String? validatePositiveAmount(String? value, {String unit = 'ECO'}) {
+String? validatePositiveAmount(String? value, {String unit = 'LIVO'}) {
   return validateAmount(value, min: 0.01, unit: unit);
 }
 
@@ -77,9 +77,9 @@ String? validateWeightKg(String? value, {double min = 0.5}) {
   return null;
 }
 
-/// Validador estandarizado para montos en ECO / PEN:
+/// Validador estandarizado para montos en LIVO / PEN:
 /// Exige formato numérico positivo, mínimo operativo (0.10 por defecto) y bloquea 0 o 0.00.
-String? validateAmount(String? value, {double min = 0.10, String unit = 'ECO'}) {
+String? validateAmount(String? value, {double min = 0.10, String unit = 'LIVO'}) {
   if (value == null || value.trim().isEmpty) {
     return 'Ingresa el monto';
   }

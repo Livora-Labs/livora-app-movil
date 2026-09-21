@@ -78,7 +78,7 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
   Future<void> _generateQr() async {
     final amount = _currentAmount;
     if (amount < 0.10) {
-      showAppSnack(context, 'El monto mínimo de cobro es 0.10 ECO', error: true);
+      showAppSnack(context, 'El monto mínimo de cobro es 0.10 LIVO', error: true);
       return;
     }
 
@@ -127,7 +127,7 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
     final isCtaEnabled = amount >= 0.10 && !_busy;
 
     return Scaffold(
-      appBar: livoraAppBar(context, 'Cobrar EcoTokens'),
+      appBar: livoraAppBar(context, 'Cobrar LIVOs'),
       body: SafeArea(
         child: Column(
           children: [
@@ -181,7 +181,7 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
                     ),
 
                     const SizedBox(height: 4),
-                    // Equivalencia exacta en EcoTokens
+                    // Equivalencia exacta en LIVOs
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
@@ -202,7 +202,7 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
                           const Icon(Icons.toll_rounded, size: 16, color: LivoraColors.green),
                           const SizedBox(width: 6),
                           Text(
-                            '${amount.toStringAsFixed(2)} ECO',
+                            '${amount.toStringAsFixed(2)} LIVO',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -211,7 +211,7 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '(1.00 ECO = S/ 1.00 PEN)',
+                            '(1.00 LIVO = S/ 1.00 PEN)',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: LivoraColors.ink.withValues(alpha: 0.7),
@@ -225,7 +225,7 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
                       const Padding(
                         padding: EdgeInsets.only(top: 8),
                         child: Text(
-                          'El monto mínimo de cobro es 0.10 ECO',
+                          'El monto mínimo de cobro es 0.10 LIVO',
                           style: TextStyle(
                             color: Color(0xFFC0392B),
                             fontSize: 12,

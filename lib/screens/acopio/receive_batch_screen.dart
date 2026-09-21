@@ -282,7 +282,7 @@ class _ReceiveBatchScreenState extends State<ReceiveBatchScreen> {
               const SizedBox(height: 8),
               Text(
                 'Ajusta los pesos según la báscula. Con estos valores se '
-                'liquidarán los EcoTokens de hogares y recolector.',
+                'liquidarán los LIVOs de hogares y recolector.',
                 style: TextStyle(
                   fontSize: 12,
                   color: LivoraColors.ink.withValues(alpha: 0.7),

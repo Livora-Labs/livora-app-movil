@@ -868,7 +868,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Configura tu RUC, razón social, dirección y cuenta bancaria interbancaria (CCI) para recibir transferencias de moneda local por tus EcoTokens liquidadores.',
+                              'Configura tu RUC, razón social, dirección y cuenta bancaria interbancaria (CCI) para recibir transferencias de moneda local por tus LIVOs liquidadores.',
                               style: TextStyle(fontSize: 12.5, color: Colors.grey),
                             ),
                             const SizedBox(height: 16),

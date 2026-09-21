@@ -1,11 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_theme.dart';
 import '../models/models.dart';
 
 /// Marcador personalizado de alta interactividad para solicitudes de recolección
-/// en el mapa radar con badge de ganancia neta en EcoTokens e ícono de material.
+/// en el mapa radar con badge de ganancia neta en LIVOs e ícono de material.
 class CollectorRequestMarker extends StatelessWidget {
   const CollectorRequestMarker({
     super.key,
@@ -42,7 +42,7 @@ class CollectorRequestMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reward = request.collectorMarginPEN;
-    final rewardText = '+${reward.toStringAsFixed(1)} ECO';
+    final rewardText = '+${reward.toStringAsFixed(1)} LIVO';
 
     return GestureDetector(
       onTap: () {

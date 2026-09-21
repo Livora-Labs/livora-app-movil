@@ -172,7 +172,7 @@ class _StoreHistoryScreenState extends State<StoreHistoryScreen>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '+${item['tokenAmount']} ECO',
+                  '+${item['tokenAmount']} LIVO',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     color: LivoraColors.forest,
@@ -199,7 +199,7 @@ class _StoreHistoryScreenState extends State<StoreHistoryScreen>
       emptyState: LivoraEmptyState(
         icon: Icons.account_balance_wallet_outlined,
         title: 'Sin liquidaciones solicitadas',
-        message: 'Presiona "Liquidar a FIAT" para transferir tus tokens acumulados a tu cuenta bancaria.',
+        message: 'Presiona "Liquidar a FIAT" para transferir tus LIVOs acumulados a tu cuenta bancaria.',
         actionLabel: 'Liquidar a FIAT',
         onAction: _openCashOutModal,
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 80),
@@ -236,7 +236,7 @@ class _StoreHistoryScreenState extends State<StoreHistoryScreen>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '${item['tokenAmount']} ECO',
+                  '${item['tokenAmount']} LIVO',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 12.5,

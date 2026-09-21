@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class EnvConfig {
   static const String _envUrl = String.fromEnvironment('API_BASE_URL');
 

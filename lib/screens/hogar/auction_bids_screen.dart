@@ -330,7 +330,7 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
                                           ),
                                         ),
                                         Text(
-                                          'Abono directo en EcoTokens',
+                                          'Abono directo en LIVOs',
                                           style: TextStyle(fontSize: 10.5, color: LivoraColors.slate),
                                         ),
                                       ],

@@ -228,9 +228,9 @@ class _HogarDashboardState extends State<HogarDashboard> {
                       ),
                       StatCard(
                         icon: Icons.toll,
-                        label: 'Saldo EcoTokens',
+                        label: 'Saldo de LIVOs',
                         value: tokenBal,
-                        unit: 'ECO',
+                        unit: 'LIVO',
                         subtitle: '≈ S/ $tokenBal PEN',
                         color: LivoraColors.blue,
                         onTap: () {
@@ -313,7 +313,7 @@ class _HogarDashboardState extends State<HogarDashboard> {
                 icon: Icons.volunteer_activism_outlined,
                 title: 'Aún no tienes solicitudes',
                 message:
-                    'Crea tu primera solicitud de recolección y empieza a ganar EcoTokens.',
+                    'Crea tu primera solicitud de recolección y empieza a ganar LIVOs.',
               )
             else if (requests != null)
               for (final request in requests)
@@ -406,6 +406,8 @@ class _HeroActiveRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAuction = request.assignmentMode == 'AUCTION';
+    final isCenterAssigned = request.assignedCenterId != null ||
+        request.assignedCenterName != null;
     final isAssigned = request.status == 'ACCEPTED' ||
         request.status == 'ASSIGNED' ||
         request.status == 'IN_ROUTE' ||
@@ -423,17 +425,29 @@ class _HeroActiveRequestCard extends StatelessWidget {
           Colors.indigo,
           Icons.gavel,
         ),
-      _ => isAuction
+      _ => isAssigned
           ? (
-              'Subasta abierta · ${request.bids.length} ${request.bids.length == 1 ? 'oferta' : 'ofertas'}',
-              Colors.indigo,
-              Icons.gavel,
+              'Recolector en camino',
+              LivoraColors.green,
+              Icons.delivery_dining,
             )
-          : (
-              'Buscando acopio',
-              LivoraColors.amber,
-              Icons.search,
-            ),
+          : isCenterAssigned
+              ? (
+                  'Acopio asignado · Esperando recolector',
+                  LivoraColors.forest,
+                  Icons.store_rounded,
+                )
+              : isAuction
+                  ? (
+                      'Subasta abierta · ${request.bids.length} ${request.bids.length == 1 ? 'oferta' : 'ofertas'}',
+                      Colors.indigo,
+                      Icons.gavel,
+                    )
+                  : (
+                      'Buscando acopio',
+                      LivoraColors.amber,
+                      Icons.search,
+                    ),
     };
 
     return Card(
@@ -444,7 +458,9 @@ class _HeroActiveRequestCard extends StatelessWidget {
         side: BorderSide(
           color: isAssigned
               ? LivoraColors.green.withValues(alpha: 0.6)
-              : LivoraColors.forest.withValues(alpha: 0.3),
+              : isCenterAssigned
+                  ? LivoraColors.forest.withValues(alpha: 0.6)
+                  : LivoraColors.forest.withValues(alpha: 0.3),
           width: 1.5,
         ),
       ),
@@ -519,6 +535,47 @@ class _HeroActiveRequestCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11.5,
                   color: LivoraColors.ink.withValues(alpha: 0.75),
+                ),
+              ),
+            ],
+            if (isCenterAssigned && !isAssigned) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: LivoraColors.forest.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: LivoraColors.forest.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warehouse_rounded, size: 18, color: LivoraColors.forest),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            request.assignedCenterName != null
+                                ? 'Acopio: ${request.assignedCenterName}'
+                                : 'Centro de Acopio asignado',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: LivoraColors.forest,
+                            ),
+                          ),
+                          const Text(
+                            'Tarifario confirmado · Visible en el radar de recolectores',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: LivoraColors.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

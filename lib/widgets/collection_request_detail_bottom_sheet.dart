@@ -497,7 +497,7 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
                               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: LivoraColors.deep),
                             ),
                             Text(
-                              '${request.requiredEscrow.toStringAsFixed(2)} ECO',
+                              '${request.requiredEscrow.toStringAsFixed(2)} LIVO',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
@@ -615,7 +615,7 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
         },
         icon: const Icon(Icons.check_circle_outline, size: 20),
         label: Text(
-          'Aceptar recolección (${request.requiredEscrow.toStringAsFixed(1)} ECO)',
+          'Aceptar recolección (${request.requiredEscrow.toStringAsFixed(1)} LIVO)',
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       );

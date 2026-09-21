@@ -372,7 +372,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                       controller: _amountController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
-                        labelText: 'Monto Reclamado (Opcional - S/. o ECO)',
+                        labelText: 'Monto Reclamado (Opcional - S/. o LIVO)',
                         border: OutlineInputBorder(),
                       ),
                     ),

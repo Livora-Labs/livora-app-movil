@@ -239,7 +239,7 @@ class _StoreQrModalState extends State<StoreQrModal> {
                 Icon(Icons.qr_code_2_rounded, color: LivoraColors.forest, size: 24),
                 SizedBox(width: 8),
                 Text(
-                  'Cobro en EcoTokens POS',
+                  'Cobro en LIVOs POS',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -306,7 +306,7 @@ class _StoreQrModalState extends State<StoreQrModal> {
           ),
         ),
         Text(
-          '≈ ${_amount.toStringAsFixed(2)} ECO (Tasa 1:1)',
+          '≈ ${_amount.toStringAsFixed(2)} LIVO (Tasa 1:1)',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
@@ -432,7 +432,7 @@ class _StoreQrModalState extends State<StoreQrModal> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Los tokens han sido acreditados a tu billetera comercial.',
+          'Los LIVOs han sido acreditados a tu billetera comercial.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
@@ -475,7 +475,7 @@ class _StoreQrModalState extends State<StoreQrModal> {
                     style: TextStyle(fontSize: 13, color: LivoraColors.ink),
                   ),
                   Text(
-                    '+${_amount.toStringAsFixed(2)} ECO',
+                    '+${_amount.toStringAsFixed(2)} LIVO',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,

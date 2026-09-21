@@ -51,6 +51,28 @@ class SessionController extends ChangeNotifier {
   /// `true` cuando existe una orden en curso ('PENDING', 'ACCEPTED', 'AUCTION_OPEN', etc.).
   bool get hasActiveRequest => _activeRequest != null;
 
+  int _unreadNotificationsCount = 0;
+  int get unreadNotificationsCount => _unreadNotificationsCount;
+  bool get hasUnreadNotifications => _unreadNotificationsCount > 0;
+
+  void setUnreadNotificationsCount(int count) {
+    if (_unreadNotificationsCount != count) {
+      _unreadNotificationsCount = count;
+      notifyListeners();
+    }
+  }
+
+  Future<void> checkUnreadNotifications(LivoraApi api) async {
+    if (!isAuthenticated) return;
+    try {
+      final items = await api.notifications();
+      final unread = items.where((n) => !n.isRead).length;
+      setUnreadNotificationsCount(unread);
+    } catch (_) {
+      // Ignorar fallos de red silenciosamente
+    }
+  }
+
   /// Actualiza la solicitud activa global y notifica a los observadores.
   void updateActiveRequest(CollectionRequest? req) {
     if (_activeRequest?.id != req?.id ||

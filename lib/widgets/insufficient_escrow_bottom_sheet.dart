@@ -113,21 +113,21 @@ class InsufficientEscrowBottomSheet extends StatelessWidget {
                 children: [
                   _EscrowRow(
                     label: 'Garantía requerida:',
-                    value: '${requiredEscrow.toStringAsFixed(2)} ECO',
+                    value: '${requiredEscrow.toStringAsFixed(2)} LIVO',
                     valueColor: LivoraColors.deep,
                     isBold: true,
                   ),
                   const Divider(height: 18),
                   _EscrowRow(
                     label: 'Tu saldo libre:',
-                    value: '${walletBalance.toStringAsFixed(2)} ECO',
+                    value: '${walletBalance.toStringAsFixed(2)} LIVO',
                     valueColor: walletBalance < requiredEscrow ? const Color(0xFF9E2A2B) : LivoraColors.forest,
                   ),
                   if (missing > 0) ...[
                     const SizedBox(height: 6),
                     _EscrowRow(
                       label: 'Faltante para aceptar:',
-                      value: '- ${missing.toStringAsFixed(2)} ECO',
+                      value: '- ${missing.toStringAsFixed(2)} LIVO',
                       valueColor: const Color(0xFF9E2A2B),
                       isBold: true,
                     ),
@@ -137,7 +137,7 @@ class InsufficientEscrowBottomSheet extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             const Text(
-              'Saldo insuficiente para la garantía. Recarga EcoTokens mediante Izipay para continuar.',
+              'Saldo insuficiente para la garantía. Recarga LIVOs mediante Izipay para continuar.',
               style: TextStyle(
                 fontSize: 13,
                 height: 1.4,

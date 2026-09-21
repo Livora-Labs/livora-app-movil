@@ -52,8 +52,8 @@ class StoreRedemptionDetailModal extends StatelessWidget {
       context,
       title: 'Anular Canje',
       message:
-          '¿Estás seguro de que deseas anular este canje de ${tokenAmount.toStringAsFixed(2)} EcoTokens?\n\n'
-          'Los tokens serán debitados de tu balance comercial y restituidos a la billetera del cliente.',
+          '¿Estás seguro de que deseas anular este canje de ${tokenAmount.toStringAsFixed(2)} LIVOs?\n\n'
+          'Los LIVOs serán debitados de tu balance comercial y restituidos a la billetera del cliente.',
       confirmLabel: 'Sí, anular canje',
       cancelLabel: 'Volver',
     );
@@ -62,7 +62,7 @@ class StoreRedemptionDetailModal extends StatelessWidget {
     try {
       await context.read<LivoraApi>().refundRedemption(redemptionId);
       if (context.mounted) {
-        showAppSnack(context, 'Canje anulado y EcoTokens restituidos al cliente');
+        showAppSnack(context, 'Canje anulado y LIVOs restituidos al cliente');
         Navigator.pop(context);
       }
     } on ApiException catch (e) {
@@ -193,7 +193,7 @@ class StoreRedemptionDetailModal extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        '+$amountRaw ECO',
+                        '+$amountRaw LIVO',
                         style: const TextStyle(
                           fontSize: 34,
                           fontWeight: FontWeight.w900,
@@ -218,7 +218,7 @@ class StoreRedemptionDetailModal extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
-                          'Tasa fija garantizada: 1.00 ECO = S/ 1.00 Soles (PEN)',
+                          'Tasa fija garantizada: 1.00 LIVO = S/ 1.00 Soles (PEN)',
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
@@ -470,7 +470,7 @@ class StoreRedemptionDetailModal extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Este canje fue revertido. Los tokens fueron devueltos a la billetera del cliente.',
+                            'Este canje fue revertido. Los LIVOs fueron devueltos a la billetera del cliente.',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.red.shade800,

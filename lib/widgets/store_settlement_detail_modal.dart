@@ -164,7 +164,7 @@ class StoreSettlementDetailModal extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        '-$tokenAmountRaw ECO',
+                        '-$tokenAmountRaw LIVO',
                         style: const TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.w900,
@@ -189,7 +189,7 @@ class StoreSettlementDetailModal extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
-                          'Tasa fija garantizada: 1.00 ECO = S/ 1.00 Soles (PEN)',
+                          'Tasa fija garantizada: 1.00 LIVO = S/ 1.00 Soles (PEN)',
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
@@ -225,9 +225,9 @@ class StoreSettlementDetailModal extends StatelessWidget {
                         const Divider(height: 20),
 
                         _detailRow(
-                          label: 'Tokens debitados',
+                          label: 'LIVOs debitados',
                           valueWidget: Text(
-                            '$tokenAmountRaw ECO',
+                            '$tokenAmountRaw LIVO',
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                           ),
                         ),
@@ -236,7 +236,7 @@ class StoreSettlementDetailModal extends StatelessWidget {
                         _detailRow(
                           label: 'Tasa de liquidación',
                           valueWidget: const Text(
-                            '1 ECO = S/ 1.00 PEN',
+                            '1 LIVO = S/ 1.00 PEN',
                             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
                           ),
                         ),

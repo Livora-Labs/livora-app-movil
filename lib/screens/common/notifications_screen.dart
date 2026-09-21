@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
@@ -10,6 +11,7 @@ import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../hogar/create_request_screen.dart';
 import '../hogar/request_detail_screen.dart';
+import '../shell/home_shell.dart';
 import 'profile.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -37,16 +39,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           _items = items;
           _error = null;
         });
+        final unread = items.where((n) => !n.isRead).length;
+        context.read<SessionController>().setUnreadNotificationsCount(unread);
       }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     }
   }
 
-  Future<void> _toggleRead(AppNotification item) async {
-    final api = context.read<LivoraApi>();
-    setState(() {
-      _items = [
+  Future<void> _handleTap(AppNotification item) async {
+    HapticFeedback.lightImpact();
+    if (!item.isRead) {
+      final updatedList = [
         for (final n in _items ?? <AppNotification>[])
           n.id == item.id
               ? AppNotification(
@@ -54,17 +58,124 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   title: n.title,
                   message: n.message,
                   type: n.type,
-                  isRead: !item.isRead,
+                  isRead: true,
                   createdAt: n.createdAt,
                 )
               : n,
       ];
+      setState(() {
+        _items = updatedList;
+      });
+      final unread = updatedList.where((n) => !n.isRead).length;
+      context.read<SessionController>().setUnreadNotificationsCount(unread);
+      context
+          .read<LivoraApi>()
+          .markNotification(item.id, isRead: true)
+          .catchError((_) {});
+    }
+
+    final session = context.read<SessionController>();
+    final user = session.user;
+    final role = user?.role;
+    final title = item.title.toLowerCase();
+    final message = item.message.toLowerCase();
+
+    if (role == Roles.hogar) {
+      if (title.contains('acopio') ||
+          title.contains('solicitud') ||
+          title.contains('recolector') ||
+          title.contains('subasta') ||
+          title.contains('propuesta') ||
+          message.contains('solicitud') ||
+          message.contains('acopio')) {
+        final activeReq = session.activeRequest;
+        if (activeReq != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RequestDetailScreen(requestId: activeReq.id),
+            ),
+          );
+        } else {
+          HomeShell.switchTab(context, 0); // Inicio / Dashboard
+        }
+      } else if (title.contains('pago') ||
+          title.contains('livo') ||
+          title.contains('token') ||
+          title.contains('billetera') ||
+          message.contains('livo')) {
+        HomeShell.switchTab(context, 1); // Billetera
+      }
+    } else if (role == Roles.recolector) {
+      if (title.contains('solicitud') ||
+          title.contains('radar') ||
+          message.contains('solicitud')) {
+        HomeShell.switchTab(context, 0); // Solicitudes
+      } else if (title.contains('lote') ||
+          title.contains('batch') ||
+          message.contains('lote')) {
+        HomeShell.switchTab(context, 1); // Mis lotes
+      } else if (title.contains('pago') ||
+          title.contains('livo') ||
+          title.contains('billetera')) {
+        HomeShell.switchTab(context, 2); // Billetera
+      }
+    } else if (role == Roles.centroAcopio) {
+      if (title.contains('lote') ||
+          title.contains('entrega') ||
+          message.contains('lote')) {
+        HomeShell.switchTab(context, 0); // Lotes
+      } else if (title.contains('inventario') ||
+          title.contains('material') ||
+          message.contains('inventario')) {
+        HomeShell.switchTab(context, 1); // Inventario
+      } else if (title.contains('pago') ||
+          title.contains('billetera') ||
+          title.contains('livo')) {
+        HomeShell.switchTab(context, 2); // Billetera
+      }
+    } else if (role == Roles.tienda) {
+      if (title.contains('canje') ||
+          title.contains('cobro') ||
+          title.contains('pago') ||
+          title.contains('billetera')) {
+        HomeShell.switchTab(context, 2); // Billetera
+      }
+    }
+  }
+
+  Future<void> _markAllAsRead() async {
+    final items = _items;
+    if (items == null || items.isEmpty) return;
+    final unread = items.where((n) => !n.isRead).toList();
+    if (unread.isEmpty) return;
+
+    HapticFeedback.lightImpact();
+    setState(() {
+      _items = [
+        for (final n in items)
+          AppNotification(
+            id: n.id,
+            title: n.title,
+            message: n.message,
+            type: n.type,
+            isRead: true,
+            createdAt: n.createdAt,
+          ),
+      ];
     });
+    context.read<SessionController>().setUnreadNotificationsCount(0);
+
+    final api = context.read<LivoraApi>();
     try {
-      await api.markNotification(item.id, isRead: !item.isRead);
-    } on ApiException catch (error) {
-      if (mounted) showAppSnack(context, error.message, error: true);
-      _load();
+      await Future.wait(
+        unread.map((n) => api.markNotification(n.id, isRead: true)),
+      );
+      if (mounted) {
+        showAppSnack(context, 'Todas las notificaciones marcadas como leídas');
+      }
+    } catch (_) {
+      // Ignorado, el estado local ya refleja la lectura
     }
   }
 
@@ -77,6 +188,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _items;
+    final hasUnread = items?.any((n) => !n.isRead) ?? false;
 
     Widget body;
     if (_error != null) {
@@ -140,7 +252,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           final (icon, color) = _styleFor(item.type);
           return Card(
             child: ListTile(
-              onTap: () => _toggleRead(item),
+              onTap: () => _handleTap(item),
               leading: Icon(icon, color: color),
               title: Text(
                 item.title,
@@ -173,7 +285,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     return Scaffold(
-      appBar: livoraAppBar(context, 'Notificaciones'),
+      appBar: AppBar(
+        title: const Text('Notificaciones'),
+        actions: [
+          if (hasUnread)
+            IconButton(
+              icon: const Icon(Icons.done_all_rounded),
+              tooltip: 'Marcar todas como leídas',
+              onPressed: _markAllAsRead,
+            ),
+          const ProfileButton(),
+          const SizedBox(width: 6),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: body is ListView

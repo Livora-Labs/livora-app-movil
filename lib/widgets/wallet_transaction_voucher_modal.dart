@@ -122,7 +122,7 @@ class WalletTransactionVoucherModal extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '$sign${tx.amount.toStringAsFixed(2)} ECO',
+                        '$sign${tx.amount.toStringAsFixed(2)} LIVO',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w900,

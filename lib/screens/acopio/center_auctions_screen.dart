@@ -795,7 +795,7 @@ class _AuctionCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Total: S/ ${myBid.totalEstimatedPenn.toStringAsFixed(2)} PEN (${myBid.totalEstimatedEco.toStringAsFixed(2)} ECO)',
+                            'Total: S/ ${myBid.totalEstimatedPenn.toStringAsFixed(2)} PEN (${myBid.totalEstimatedEco.toStringAsFixed(2)} LIVO)',
                             style: const TextStyle(
                               fontSize: 11,
                               color: LivoraColors.deep,
@@ -1088,11 +1088,11 @@ class _BidSubmissionSheetState extends State<_BidSubmissionSheet> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Equivalencia en Tokens:',
+                          'Equivalencia en LIVOs:',
                           style: TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                         Text(
-                          '${_totalEstimatedECO.toStringAsFixed(2)} ECO',
+                          '${_totalEstimatedECO.toStringAsFixed(2)} LIVO',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,

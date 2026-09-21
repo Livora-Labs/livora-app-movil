@@ -7,9 +7,9 @@ class Web3ConfirmModal extends StatelessWidget {
     super.key,
     required this.tokenAmount,
     required this.destinationName,
-    this.tokenSymbol = 'ECO',
+    this.tokenSymbol = 'LIVO',
     this.destinationAddress,
-    this.actionDescription = 'Canje de EcoTokens en Comercio Aliado',
+    this.actionDescription = 'Canje de LIVOs en Comercio Aliado',
     this.concept,
     this.warningText =
         'Al confirmar, autorizas a Livora a firmar la transacción en la blockchain Stellar. Esta acción es irreversible.',
@@ -128,7 +128,7 @@ class Web3ConfirmModal extends StatelessWidget {
                   const SizedBox(height: 8),
                   _buildDetailRow(
                     'Comisión de Red:',
-                    '0.00 ECO (Cubierto por Livora)',
+                    '0.00 LIVO (Cubierto por Livora)',
                     color: const Color(0xFF10B981),
                   ),
                 ],
@@ -271,9 +271,9 @@ Future<bool> showWeb3ConfirmModal(
   BuildContext context, {
   required double tokenAmount,
   required String destinationName,
-  String tokenSymbol = 'ECO',
+  String tokenSymbol = 'LIVO',
   String? destinationAddress,
-  String actionDescription = 'Canje de EcoTokens en Comercio Aliado',
+  String actionDescription = 'Canje de LIVOs en Comercio Aliado',
   String? concept,
   String warningText =
       'Al confirmar, autorizas a Livora a firmar la transacción en la blockchain Stellar. Esta acción es irreversible.',

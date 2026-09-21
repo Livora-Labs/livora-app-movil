@@ -421,8 +421,16 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       Row(
                         children: [
                           StatusChip(
-                            label: requestStatusLabel(request.status),
-                            color: requestStatusColor(request.status),
+                            label: request.status == 'PENDING' &&
+                                    (request.assignedCenterId != null ||
+                                        request.assignedCenterName != null)
+                                ? 'Acopio Asignado'
+                                : requestStatusLabel(request.status),
+                            color: request.status == 'PENDING' &&
+                                    (request.assignedCenterId != null ||
+                                        request.assignedCenterName != null)
+                                ? LivoraColors.forest
+                                : requestStatusColor(request.status),
                           ),
                           const SizedBox(width: 8),
                           if (request.assignmentMode == 'AUCTION')
@@ -457,6 +465,60 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                           ),
                         ],
                       ),
+                      if (request.assignedCenterId != null ||
+                          request.assignedCenterName != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: LivoraColors.forest.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: LivoraColors.forest.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const CircleAvatar(
+                                radius: 18,
+                                backgroundColor: LivoraColors.forest,
+                                child: Icon(
+                                  Icons.warehouse_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      request.assignedCenterName != null
+                                          ? 'Centro de Acopio: ${request.assignedCenterName}'
+                                          : 'Centro de Acopio Asignado',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: LivoraColors.forest,
+                                      ),
+                                    ),
+                                    Text(
+                                      request.collectorName != null
+                                          ? 'Recolector en camino para entrega a esta planta'
+                                          : 'Tarifario cerrado · Esperando asignación de recolector',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: LivoraColors.ink.withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 14),
 
                       // Fotografía con miniatura expandible
@@ -860,7 +922,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                           style: TextStyle(fontSize: 12, color: Colors.black87),
                                         ),
                                         Text(
-                                          '${bid.totalEstimatedEco.toStringAsFixed(2)} ECO (≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)})',
+                                          '${bid.totalEstimatedEco.toStringAsFixed(2)} LIVO (≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)})',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,

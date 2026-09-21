@@ -357,11 +357,11 @@ class _MaterialPriceCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         const Text(
-                          'Equiv. ECO',
+                          'Equiv. LIVO',
                           style: TextStyle(fontSize: 10, color: Colors.grey),
                         ),
                         Text(
-                          '${price.toStringAsFixed(2)} ECO',
+                          '${price.toStringAsFixed(2)} LIVO',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,

@@ -150,7 +150,7 @@ class KycRequiredBottomSheet extends StatelessWidget {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'La verificación activa tu reputación, insignia oficial en Stellar y acceso al monedero de EcoTokens.',
+                      'La verificación activa tu reputación, insignia oficial en Stellar y acceso al monedero de LIVOs.',
                       style: TextStyle(
                         fontSize: 11.5,
                         color: LivoraColors.deep,

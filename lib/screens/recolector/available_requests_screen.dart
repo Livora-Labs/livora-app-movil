@@ -156,6 +156,12 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
       if (!mounted) return;
 
       final requests = results[0] as List<CollectionRequest>;
+      final availableRequests = requests.where((r) {
+        final isAvailableStatus =
+            r.status == 'PENDING' || r.status == 'AUCTION_ASSIGNED';
+        final isUnassigned = r.collectorId == null || r.collectorId!.isEmpty;
+        return isAvailableStatus && isUnassigned;
+      }).toList();
       final openBatches = results[1] as List<Batch>;
       final balanceStr = results[2] as String;
       final balanceVal =
@@ -171,7 +177,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
           .toList();
 
       setState(() {
-        _requests = requests;
+        _requests = availableRequests;
         _openBatches = openBatches;
         _inRouteRequests = activeStops;
         _walletEcoBalance = balanceVal;
@@ -215,9 +221,21 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
         context,
         'Recolección aceptada. Se fijó en tu ruta y se agregó a "Mi lote".',
       );
+      setState(() {
+        _requests?.removeWhere((r) => r.id == request.id);
+      });
       await _load();
     } on ApiException catch (error) {
-      if (mounted) showAppSnack(context, error.message, error: true);
+      if (mounted) {
+        final raw = error.message;
+        final msg = (raw.contains('PENDING') ||
+                raw.contains('AUCTION_ASSIGNED') ||
+                raw.contains('no está disponible'))
+            ? 'Esta solicitud ya no está disponible para recolección'
+            : raw;
+        showAppSnack(context, msg, error: true);
+        await _load();
+      }
     } finally {
       if (mounted) setState(() => _acceptingId = null);
     }
@@ -235,7 +253,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Para aceptar esta orden requieres contar con ${request.requiredEscrow.toStringAsFixed(2)} ECO de garantía (40% Hogar + 10% Comisión Livora). Al vender el material en el centro de acopio recibirás el 100% en efectivo, recuperando tu adelanto y asegurando tu ganancia del 50%.',
+              'Para aceptar esta orden requieres contar con ${request.requiredEscrow.toStringAsFixed(2)} LIVO de garantía (40% Hogar + 10% Comisión Livora). Al vender el material en el centro de acopio recibirás el 100% en efectivo, recuperando tu adelanto y asegurando tu ganancia del 50%.',
               style: const TextStyle(fontSize: 12.5),
             ),
             const SizedBox(height: 10),
@@ -251,7 +269,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
                 children: [
                   const Text('Tu saldo disponible:', style: TextStyle(fontSize: 12)),
                   Text(
-                    '${_walletEcoBalance.toStringAsFixed(2)} ECO',
+                    '${_walletEcoBalance.toStringAsFixed(2)} LIVO',
                     style: const TextStyle(fontWeight: FontWeight.bold, color: LivoraColors.deep),
                   ),
                 ],
@@ -259,7 +277,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Recarga saldo al instante mediante Izipay con tarjeta de débito/crédito (1 PEN = 1 ECO).',
+              'Recarga saldo al instante mediante Izipay con tarjeta de débito/crédito (1 PEN = 1 LIVO).',
               style: TextStyle(fontSize: 11.5, color: LivoraColors.slate),
             ),
           ],
@@ -1205,7 +1223,7 @@ class _AvailableCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Garantía requerida en EcoTokens:',
+                              'Garantía requerida en LIVOs:',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
@@ -1219,7 +1237,7 @@ class _AvailableCard extends StatelessWidget {
                           ],
                         ),
                         Text(
-                          '${request.requiredEscrow.toStringAsFixed(2)} ECO',
+                          '${request.requiredEscrow.toStringAsFixed(2)} LIVO',
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 13,
@@ -1246,6 +1264,23 @@ class _AvailableCard extends StatelessWidget {
   }
 
   Widget _buildCardCta(BuildContext context, bool hasEnoughEscrow) {
+    if ((request.status != 'PENDING' && request.status != 'AUCTION_ASSIGNED') ||
+        (request.collectorId != null && request.collectorId!.isNotEmpty)) {
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 46),
+          backgroundColor: Colors.grey.shade400,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onPressed: null,
+        icon: const Icon(Icons.check_circle_outline, size: 18),
+        label: const Text(
+          'Solicitud no disponible',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
     if (kycStatus == KycStatus.unverified) {
       return FilledButton.icon(
         style: FilledButton.styleFrom(

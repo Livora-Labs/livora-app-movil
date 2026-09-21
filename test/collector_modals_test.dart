@@ -51,11 +51,11 @@ void main() {
     expect(find.text('S/ 10.00 PEN'), findsOneWidget); // 40% Hogar
     expect(find.text('S/ 2.50 PEN'), findsOneWidget); // 10% Livora
     expect(find.text('S/ 12.50 PEN'), findsOneWidget); // 50% Recolector
-    expect(find.text('12.50 ECO'), findsOneWidget); // Garantia a bloquear
+    expect(find.text('12.50 LIVO'), findsOneWidget); // Garantia a bloquear
 
     // Botón aceptar con saldo suficiente
-    expect(find.text('Aceptar recolección (12.5 ECO)'), findsOneWidget);
-    await tester.tap(find.text('Aceptar recolección (12.5 ECO)'));
+    expect(find.text('Aceptar recolección (12.5 LIVO)'), findsOneWidget);
+    await tester.tap(find.text('Aceptar recolección (12.5 LIVO)'));
     await tester.pump();
     expect(accepted, isTrue);
   });
@@ -128,6 +128,14 @@ void main() {
     expect(find.text('18.5 kg'), findsOneWidget); // Real Báscula PET
     expect(find.text('10 kg'), findsOneWidget); // Real Báscula Cartón
     expect(find.text('28.5 kg'), findsOneWidget); // Total Real
+
+    await tester.scrollUntilVisible(
+      find.text('Ver Comprobante en Stellar Expert'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('Ver Comprobante en Stellar Expert'), findsOneWidget);
   });
 
@@ -152,7 +160,7 @@ void main() {
       ),
     );
 
-    expect(find.text('+40.00 ECO'), findsOneWidget);
+    expect(find.text('+40.00 LIVO'), findsOneWidget);
     expect(find.text('≈ S/ 40.00 PEN'), findsOneWidget);
     expect(find.text('Recompensa por Reciclaje'), findsOneWidget);
     expect(find.text('Centro de Acopio Livora Sur'), findsOneWidget);

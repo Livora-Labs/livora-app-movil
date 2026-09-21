@@ -23,7 +23,7 @@ Livora es una plataforma digital de economía circular operada bajo la legislaci
 
 3. TRANSACCIONES BLOCKCHAIN E IRREVERSIBILIDAD
 3.1. Inmutabilidad: Toda transacción validada en la blockchain de Stellar es inmutable y no reversible. Una vez confirmada una transferencia o canje, Livora no puede anular la operación.
-3.2. Naturaleza de los Tokens: Los EcoTokens (ECO) constituyen unidades de recompensa e incentivo ecológico interno. No constituyen moneda de curso legal (fiat), valores negociables ni depósitos bancarios garantizados por la SBS, y su canje está limitado exclusivamente al ecosistema de comercios asociados de Livora.
+3.2. Naturaleza de los Tokens: Los LIVOs (LIVO) constituyen unidades de recompensa e incentivo ecológico interno. No constituyen moneda de curso legal (fiat), valores negociables ni depósitos bancarios garantizados por la SBS, y su canje está limitado exclusivamente al ecosistema de comercios asociados de Livora.
 3.3. Asunción de Riesgos Tecnológicos: El usuario asume los riesgos propios de la tecnología blockchain descentralizada, congestión de nodos o fluctuaciones operativas de red.
 
 4. COMERCIO ELECTRÓNICO Y TERCEROS ASOCIADOS
@@ -46,7 +46,7 @@ En cumplimiento de la Ley N.° 29733 (Ley de Protección de Datos Personales) y 
 2.2. Finalidades Principales (Necesarias para el servicio):
 - Registro y autenticación de usuarios.
 - Geolocalización de domicilios para el enrutamiento de recolecciones físicas.
-- Trazabilidad y dispersión de saldos de EcoTokens en la blockchain Stellar.
+- Trazabilidad y dispersión de saldos de LIVOs en la blockchain Stellar.
 - Emisión de comprobantes y atención del Libro de Reclamaciones.
 2.3. Finalidades Opcionales (Publicidad y Promociones):
 - Envío de novedades, boletines y promociones de tiendas aliadas. Esta finalidad es estrictamente opcional y puede ser revocada en cualquier momento desde los ajustes de perfil.
