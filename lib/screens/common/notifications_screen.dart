@@ -129,10 +129,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           title.contains('material') ||
           message.contains('inventario')) {
         HomeShell.switchTab(context, 1); // Inventario
-      } else if (title.contains('pago') ||
-          title.contains('billetera') ||
-          title.contains('livo')) {
-        HomeShell.switchTab(context, 2); // Billetera
+      } else if (title.contains('precio') ||
+          title.contains('tarifa') ||
+          title.contains('compra') ||
+          message.contains('precio') ||
+          message.contains('tarifa')) {
+        HomeShell.switchTab(context, 2); // Tarifario
       }
     } else if (role == Roles.tienda) {
       if (title.contains('canje') ||

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -26,6 +27,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   CollectionRequest? _request;
   String? _error;
   bool _cancelling = false;
+  String? _selectingBidId;
 
   @override
   void initState() {
@@ -87,6 +89,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     );
     if (!confirmed || !mounted) return;
 
+    setState(() => _selectingBidId = bidId);
     try {
       await context.read<LivoraApi>().selectBid(widget.requestId, bidId);
       if (mounted) {
@@ -95,6 +98,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       }
     } on ApiException catch (error) {
       if (mounted) showAppSnack(context, error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _selectingBidId = null);
     }
   }
 
@@ -504,8 +509,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                       ),
                                     ),
                                     Text(
-                                      request.collectorName != null
-                                          ? 'Recolector en camino para entrega a esta planta'
+                                      (request.collectorId != null ||
+                                              request.collectorName != null ||
+                                              ['ACCEPTED', 'EN_ROUTE', 'ARRIVED']
+                                                  .contains(request.status))
+                                          ? 'Recolector asignado y en ruta para entrega a esta planta'
                                           : 'Tarifario cerrado · Esperando asignación de recolector',
                                       style: TextStyle(
                                         fontSize: 11.5,
@@ -784,24 +792,30 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Enlace Web3 Stellar Expert (si está confirmada en blockchain)
+                      // Certificación Web3 Stellar (si está confirmada en blockchain)
                       if (request.txHash != null && Stellar.isValidTxHash(request.txHash)) ...[
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: LivoraColors.blue.withValues(alpha: 0.08),
+                            color: const Color(0xFF5B67E8).withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: LivoraColors.blue.withValues(alpha: 0.2)),
+                            border: Border.all(
+                              color: const Color(0xFF5B67E8).withValues(alpha: 0.22),
+                            ),
                           ),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.verified_outlined, color: LivoraColors.blue, size: 22),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.verified_rounded,
+                                    color: Color(0xFF5B67E8),
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
                                       'Certificado en Stellar Blockchain',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w800,
@@ -809,21 +823,68 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                         color: LivoraColors.deep,
                                       ),
                                     ),
-                                    Text(
-                                      'Transacción inmutable y verificable',
-                                      style: TextStyle(fontSize: 11, color: LivoraColors.ink),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  visualDensity: VisualDensity.compact,
+                              const SizedBox(height: 8),
+                              // Hash acortado con acciones
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.link_rounded,
+                                    size: 13,
+                                    color: Color(0xFF5B67E8),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      Stellar.shortHash(request.txHash!),
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFF5B67E8),
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'monospace',
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Botón: copiar hash completo
+                                  _StellarActionButton(
+                                    tooltip: 'Copiar hash de transacción',
+                                    icon: Icons.copy_rounded,
+                                    onPressed: () {
+                                      HapticFeedback.lightImpact();
+                                      Clipboard.setData(
+                                        ClipboardData(
+                                          text: Stellar.cleanTxHash(request.txHash!),
+                                        ),
+                                      );
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Hash copiado al portapapeles'),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(width: 6),
+                                  // Botón: abrir en Stellar Expert
+                                  _StellarActionButton(
+                                    tooltip: 'Ver en Stellar Expert',
+                                    icon: Icons.open_in_new_rounded,
+                                    label: 'Explorer',
+                                    onPressed: () => Stellar.openTxInExplorer(request.txHash),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Transacción inmutable y verificable en la red Stellar',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: LivoraColors.ink.withValues(alpha: 0.65),
                                 ),
-                                onPressed: () => Stellar.openTxInExplorer(request.txHash),
-                                icon: const Icon(Icons.open_in_new, size: 14),
-                                label: const Text('Ver en Explorer', style: TextStyle(fontSize: 11)),
                               ),
                             ],
                           ),
@@ -938,9 +999,18 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                     const SizedBox(height: 10),
                                     FilledButton.icon(
                                       style: FilledButton.styleFrom(backgroundColor: Colors.indigo),
-                                      onPressed: () => _selectBid(bid.id),
-                                      icon: const Icon(Icons.check, size: 16),
-                                      label: const Text('Aceptar esta oferta'),
+                                      onPressed: _selectingBidId != null ? null : () => _selectBid(bid.id),
+                                      icon: _selectingBidId == bid.id
+                                          ? const SizedBox(
+                                              width: 14,
+                                              height: 14,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Icon(Icons.check, size: 16),
+                                      label: Text(_selectingBidId == bid.id ? 'Aceptando…' : 'Aceptar esta oferta'),
                                     ),
                                   ],
                                 ],
@@ -1205,9 +1275,63 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                             _cancelling ? 'Cancelando…' : 'Cancelar solicitud',
                           ),
                         ),
-                    ],
+                     ],
                   ),
                 ),
+    );
+  }
+}
+
+/// Botón compacto para acciones de la sección Stellar (copiar hash / abrir explorador).
+class _StellarActionButton extends StatelessWidget {
+  const _StellarActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.label,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF5B67E8);
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: label != null
+              ? const EdgeInsets.symmetric(horizontal: 8, vertical: 5)
+              : const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: 0.22)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              if (label != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  label!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

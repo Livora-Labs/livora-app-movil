@@ -31,20 +31,32 @@ class Stellar {
         '${address.substring(address.length - tail)}';
   }
 
-  /// El backend devuelve `transactionId` con el hash real (64 hex) cuando la
-  /// transacción salió on-chain, o un id sintético `relayer…` cuando el
-  /// Relayer corrió en modo simulado. Solo el primero existe en el explorador.
-  static final _txHashPattern = RegExp(r'^[0-9a-f]{64}$');
+  /// El backend devuelve transactionId con el hash real (64 hex, opcional prefijo 0x).
+  static final _txHashPattern = RegExp(r'^(0x)?[0-9a-fA-F]{64}$');
 
   static bool isValidTxHash(String? value) =>
-      _txHashPattern.hasMatch((value ?? '').trim().toLowerCase());
+      _txHashPattern.hasMatch((value ?? '').trim());
+
+  /// Limpia el hash eliminando el prefijo 0x para el explorador Stellar Expert.
+  static String cleanTxHash(String hash) {
+    var clean = hash.trim().toLowerCase();
+    if (clean.startsWith('0x')) clean = clean.substring(2);
+    return clean;
+  }
+
+  /// Acorta un hash de transacción (ej. 3a8f...9c12)
+  static String shortHash(String hash, {int head = 6, int tail = 6}) {
+    final clean = cleanTxHash(hash);
+    if (clean.length <= head + tail + 1) return clean;
+    return '${clean.substring(0, head)}…${clean.substring(clean.length - tail)}';
+  }
 
   static Uri accountUrl(String address) => Uri.parse(
         'https://stellar.expert/explorer/$explorerNetwork/account/${normalize(address)}',
       );
 
   static Uri transactionUrl(String hash) => Uri.parse(
-        'https://stellar.expert/explorer/$explorerNetwork/tx/${hash.trim().toLowerCase()}',
+        'https://stellar.expert/explorer/$explorerNetwork/tx/${cleanTxHash(hash)}',
       );
 
   /// Abre una URL de Stellar Expert en el navegador externo.

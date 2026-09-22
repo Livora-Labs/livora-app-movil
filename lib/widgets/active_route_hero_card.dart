@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api_client.dart';
 import '../core/app_theme.dart';
 import '../core/formats.dart';
+import '../core/session.dart';
 import '../models/models.dart';
 import '../services/livora_api.dart';
 import 'common.dart';
@@ -38,9 +39,11 @@ class ActiveRouteHeroCard extends StatefulWidget {
 class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
   int _currentIndex = 0;
   bool _busy = false;
+  String? _loadingAction;
+  final Map<String, CollectionRequest> _overrides = {};
 
   List<CollectionRequest> get _sortedRequests {
-    final list = List<CollectionRequest>.from(widget.requests);
+    final list = widget.requests.map((r) => _overrides[r.id] ?? r).toList();
     if (widget.userLat != null && widget.userLng != null) {
       list.sort((a, b) {
         final distA = a.distanceMeters ?? double.infinity;
@@ -54,6 +57,10 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
   @override
   void didUpdateWidget(covariant ActiveRouteHeroCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _overrides.removeWhere((id, override) {
+      final incoming = widget.requests.where((r) => r.id == id).firstOrNull;
+      return incoming != null && incoming.status == override.status;
+    });
     if (_currentIndex >= widget.requests.length) {
       _currentIndex = 0;
     }
@@ -121,33 +128,57 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
 
   Future<void> _startRoute(CollectionRequest request) async {
     HapticFeedback.lightImpact();
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _loadingAction = 'startRoute';
+    });
     try {
-      await context.read<LivoraApi>().startRoute(request.id);
+      final updated = await context.read<LivoraApi>().startRoute(request.id);
       if (mounted) {
+        setState(() {
+          _overrides[request.id] = updated;
+        });
         showAppSnack(context, 'Ruta iniciada hacia el hogar');
+        context.read<SessionController>().notifyBatchesChanged();
         widget.onVerificationCompleted();
       }
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.message, error: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _loadingAction = null;
+        });
+      }
     }
   }
 
   Future<void> _reachDestination(CollectionRequest request) async {
     HapticFeedback.lightImpact();
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _loadingAction = 'reachDestination';
+    });
     try {
-      await context.read<LivoraApi>().reachDestination(request.id);
+      final updated = await context.read<LivoraApi>().reachDestination(request.id);
       if (mounted) {
+        setState(() {
+          _overrides[request.id] = updated;
+        });
         showAppSnack(context, 'Llegada notificada al hogar. Solicita el PIN de verificación.');
+        context.read<SessionController>().notifyBatchesChanged();
         widget.onVerificationCompleted();
       }
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.message, error: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _loadingAction = null;
+        });
+      }
     }
   }
 
@@ -155,11 +186,11 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
     final arrivedAt = request.arrivedAt;
     if (arrivedAt != null) {
       final elapsedMinutes = DateTime.now().difference(arrivedAt).inMinutes;
-      if (elapsedMinutes < 10) {
-        final remaining = 10 - elapsedMinutes;
+      if (elapsedMinutes < 5) {
+        final remaining = 5 - elapsedMinutes;
         showAppSnack(
           context,
-          'Debes esperar 10 minutos reglamentarios frente al domicilio (faltan $remaining min).',
+          'Debes esperar 5 minutos reglamentarios frente al domicilio (faltan $remaining min).',
           error: true,
         );
         return;
@@ -190,17 +221,29 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
 
     if (confirmed != true || !mounted) return;
 
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _loadingAction = 'reportNoShow';
+    });
     try {
-      await context.read<LivoraApi>().reportNoShow(request.id);
+      final updated = await context.read<LivoraApi>().reportNoShow(request.id);
       if (mounted) {
+        setState(() {
+          _overrides[request.id] = updated;
+        });
         showAppSnack(context, 'Inasistencia reportada. Garantía liberada y compensación acreditada.');
+        context.read<SessionController>().notifyBatchesChanged();
         widget.onVerificationCompleted();
       }
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.message, error: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _loadingAction = null;
+        });
+      }
     }
   }
 
@@ -250,24 +293,37 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
       return;
     }
 
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _loadingAction = 'rejectOnSite';
+    });
     try {
-      await context.read<LivoraApi>().rejectOnSite(request.id, reason);
+      final updated = await context.read<LivoraApi>().rejectOnSite(request.id, reason);
       if (mounted) {
+        setState(() {
+          _overrides[request.id] = updated;
+        });
         showAppSnack(context, 'Recolección rechazada en sitio. Garantía liberada.');
+        context.read<SessionController>().notifyBatchesChanged();
         widget.onVerificationCompleted();
       }
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.message, error: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _loadingAction = null;
+        });
+      }
     }
   }
 
   Future<void> _openOtpModal(CollectionRequest request) async {
     HapticFeedback.lightImpact();
     final verified = await VerificationOtpModal.show(context, request: request);
-    if (verified == true) {
+    if (verified == true && mounted) {
+      context.read<SessionController>().notifyBatchesChanged();
       widget.onVerificationCompleted();
     }
   }
@@ -558,10 +614,21 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: _busy ? null : () => _startRoute(current),
-              icon: const Icon(Icons.directions_bike_rounded, size: 18),
-              label: const Text(
-                'Iniciar Ruta al Domicilio',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              icon: (_busy && _loadingAction == 'startRoute')
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.directions_bike_rounded, size: 18),
+              label: Text(
+                (_busy && _loadingAction == 'startRoute')
+                    ? 'Iniciando recorrido...'
+                    : 'Iniciar Ruta al Domicilio',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
             )
           else if (current.status == 'EN_ROUTE')
@@ -572,10 +639,21 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: _busy ? null : () => _reachDestination(current),
-              icon: const Icon(Icons.pin_drop_rounded, size: 18),
-              label: const Text(
-                'Llegué al Domicilio',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              icon: (_busy && _loadingAction == 'reachDestination')
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.pin_drop_rounded, size: 18),
+              label: Text(
+                (_busy && _loadingAction == 'reachDestination')
+                    ? 'Notificando llegada...'
+                    : 'Llegué al Domicilio',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
             )
           else if (current.status == 'ARRIVED') ...[
@@ -602,8 +680,22 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
                       visualDensity: VisualDensity.compact,
                     ),
                     onPressed: _busy ? null : () => _reportNoShow(current),
-                    icon: const Icon(Icons.timer_off_outlined, size: 15),
-                    label: const Text('Inasistencia (10 min)', style: TextStyle(fontSize: 11)),
+                    icon: (_busy && _loadingAction == 'reportNoShow')
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC53030)),
+                            ),
+                          )
+                        : const Icon(Icons.timer_off_outlined, size: 15),
+                    label: Text(
+                      (_busy && _loadingAction == 'reportNoShow')
+                          ? 'Reportando...'
+                          : 'Inasistencia (5 min)',
+                      style: const TextStyle(fontSize: 11),
+                    ),
                   ),
                 ),
                 Expanded(
@@ -613,8 +705,22 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
                       visualDensity: VisualDensity.compact,
                     ),
                     onPressed: _busy ? null : () => _rejectOnSite(current),
-                    icon: const Icon(Icons.block_outlined, size: 15),
-                    label: const Text('Rechazar en Sitio', style: TextStyle(fontSize: 11)),
+                    icon: (_busy && _loadingAction == 'rejectOnSite')
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC53030)),
+                            ),
+                          )
+                        : const Icon(Icons.block_outlined, size: 15),
+                    label: Text(
+                      (_busy && _loadingAction == 'rejectOnSite')
+                          ? 'Rechazando...'
+                          : 'Rechazar en Sitio',
+                      style: const TextStyle(fontSize: 11),
+                    ),
                   ),
                 ),
               ],

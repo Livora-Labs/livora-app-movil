@@ -29,6 +29,7 @@ class AuthUser {
     this.latitude,
     this.longitude,
     this.marketingAccepted = false,
+    this.kycStatus = KycStatus.unverified,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
@@ -42,6 +43,7 @@ class AuthUser {
         latitude: json['latitude'] != null ? _toDouble(json['latitude']) : null,
         longitude: json['longitude'] != null ? _toDouble(json['longitude']) : null,
         marketingAccepted: json['marketingAccepted'] as bool? ?? false,
+        kycStatus: KycStatus.fromString(json['kycStatus'] as String?),
       );
 
   final String id;
@@ -54,6 +56,7 @@ class AuthUser {
   final double? latitude;
   final double? longitude;
   final bool marketingAccepted;
+  final KycStatus kycStatus;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -66,7 +69,35 @@ class AuthUser {
         'latitude': latitude,
         'longitude': longitude,
         'marketingAccepted': marketingAccepted,
+        'kycStatus': kycStatus.toBackendString(),
       };
+
+  AuthUser copyWith({
+    String? id,
+    String? email,
+    String? role,
+    String? walletAddress,
+    String? name,
+    String? phone,
+    String? address,
+    double? latitude,
+    double? longitude,
+    bool? marketingAccepted,
+    KycStatus? kycStatus,
+  }) =>
+      AuthUser(
+        id: id ?? this.id,
+        email: email ?? this.email,
+        role: role ?? this.role,
+        walletAddress: walletAddress ?? this.walletAddress,
+        name: name ?? this.name,
+        phone: phone ?? this.phone,
+        address: address ?? this.address,
+        latitude: latitude ?? this.latitude,
+        longitude: longitude ?? this.longitude,
+        marketingAccepted: marketingAccepted ?? this.marketingAccepted,
+        kycStatus: kycStatus ?? this.kycStatus,
+      );
 }
 
 /// Lista de precios registrada por un Centro de Acopio.
@@ -174,6 +205,8 @@ class CollectionRequest {
     this.feedback,
     this.createdAt,
     this.arrivedAt,
+    this.isDonation = false,
+    this.householdRewardEarned = 0.0,
   });
 
   factory CollectionRequest.fromJson(Map<String, dynamic> json) {
@@ -246,6 +279,8 @@ class CollectionRequest {
       feedback: json['feedback'] as String?,
       createdAt: _toDate(json['createdAt']),
       arrivedAt: _toDate(json['arrivedAt']),
+      isDonation: json['isDonation'] as bool? ?? false,
+      householdRewardEarned: _toDouble(json['householdRewardEarned']),
     );
   }
 
@@ -283,6 +318,8 @@ class CollectionRequest {
   final String? feedback;
   final DateTime? createdAt;
   final DateTime? arrivedAt;
+  final bool isDonation;
+  final double householdRewardEarned;
 
   double get totalEstimatedKg =>
       itemsEstimated.values.fold(0, (sum, kg) => sum + kg);
@@ -302,17 +339,21 @@ class CollectionRequest {
     return total;
   }
 
-  /// Ganancia estimada para el Hogar: 40% del valor total
-  double get hogarEstimatedEarningsPEN => totalEstimatedValuePEN * 0.40;
+  /// Ganancia estimada para el Hogar: 40% del valor total (o 0 si es donación)
+  double get hogarEstimatedEarningsPEN =>
+      isDonation ? 0.0 : totalEstimatedValuePEN * 0.40;
 
-  /// Comisión Livora: 10% del valor total
-  double get livoraFeePEN => totalEstimatedValuePEN * 0.10;
+  /// Comisión Livora: 10% del valor total (o 0 si es donación)
+  double get livoraFeePEN =>
+      isDonation ? 0.0 : totalEstimatedValuePEN * 0.10;
 
-  /// Margen del Recolector: 50% del valor total
-  double get collectorMarginPEN => totalEstimatedValuePEN * 0.50;
+  /// Margen del Recolector: 50% del valor total (o 100% si es donación solidaria)
+  double get collectorMarginPEN =>
+      isDonation ? totalEstimatedValuePEN : totalEstimatedValuePEN * 0.50;
 
-  /// Calcula la garantía requerida en EcoTokens: 50% del valor estimado total
+  /// Calcula la garantía requerida en EcoTokens: 50% del valor estimado total (0 en donación)
   double get requiredEscrow {
+    if (isDonation) return 0.0;
     if (escrowLocked > 0) return escrowLocked;
     return totalEstimatedValuePEN * 0.50;
   }

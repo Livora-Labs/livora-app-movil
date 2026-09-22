@@ -10,12 +10,14 @@ import 'package:latlong2/latlong.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/session.dart';
+import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 import '../../widgets/materials_editor.dart';
 import '../../widgets/livora_map_tile_layer.dart';
 import '../../widgets/center_picker_pin.dart';
+import '../recolector/kyc_screen.dart';
 
 class CreateRequestScreen extends StatefulWidget {
   const CreateRequestScreen({super.key});
@@ -53,6 +55,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final session = context.read<SessionController>();
+      session.refreshKycStatus(context.read<LivoraApi>());
       if (session.hasActiveRequest) {
         showAppSnack(
           context,
@@ -220,6 +223,341 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       if (userDescription.isNotEmpty) userDescription,
     ].join(' · ');
 
+    final session = context.read<SessionController>();
+    bool isDonation = false;
+
+    if (session.kycStatus == KycStatus.approved) {
+      double estimatedValuePEN = 0;
+      _materials.forEach((mat, wt) {
+        final rate = (mat.toUpperCase().contains('ALUMINIO')
+            ? 1.5
+            : (mat.toUpperCase().contains('PAPEL') ||
+                    mat.toUpperCase().contains('CART'))
+                ? 0.5
+                : 1.0);
+        estimatedValuePEN += wt * rate;
+      });
+      final estimatedLivos = (estimatedValuePEN * 0.40).toStringAsFixed(2);
+
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Modalidad de Recolección',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: LivoraColors.deep,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tu identidad está verificada. Elige cómo deseas gestionar el valor de tus materiales reciclables:',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: LivoraColors.ink.withValues(alpha: 0.75),
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Opción 1: Recibir Recompensa en LIVOs
+              InkWell(
+                onTap: () => Navigator.pop(sheetContext, 'REWARD'),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: LivoraColors.forest.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: LivoraColors.forest, width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: LivoraColors.forest.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.toll_rounded,
+                          color: LivoraColors.forest,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  'Recibir Recompensa',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                    color: LivoraColors.deep,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: LivoraColors.forest,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '~$estimatedLivos LIVO',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Tokens acreditados directamente a tu billetera Web3 tras pesaje y confirmación en centro de acopio.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: LivoraColors.ink.withValues(alpha: 0.7),
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Opción 2: Donación Solidaria
+              InkWell(
+                onTap: () => Navigator.pop(sheetContext, 'DONATION'),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade300, width: 1.2),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.volunteer_activism_rounded,
+                          color: Colors.teal,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Donación Solidaria',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                color: LivoraColors.deep,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Cede el valor económico íntegro al recolector para impulsar su labor social. Suma puntos de impacto comunitario.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: LivoraColors.ink.withValues(alpha: 0.7),
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(
+                    color: LivoraColors.slate,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (choice == null) return;
+      isDonation = (choice == 'DONATION');
+    } else {
+      double estimatedValuePEN = 0;
+      _materials.forEach((mat, wt) {
+        final rate = (mat.toUpperCase().contains('ALUMINIO')
+            ? 1.5
+            : (mat.toUpperCase().contains('PAPEL') ||
+                    mat.toUpperCase().contains('CART'))
+                ? 0.5
+                : 1.0);
+        estimatedValuePEN += wt * rate;
+      });
+      final estimatedLivos = (estimatedValuePEN * 0.40).toStringAsFixed(2);
+
+      final proceed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: LivoraColors.forest.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.eco_rounded,
+                  color: LivoraColors.forest,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Identidad no verificada',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: LivoraColors.deep,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Aún no has validado tu documento de identidad (DNI/CE).\n\n'
+                '• Si validas tu identidad, podrás acumular hasta ~$estimatedLivos LIVOs directamente en tu billetera Web3.\n'
+                '• Si continúas ahora, tu solicitud se registrará como Donación Solidaria (apoyo al recolector y cuidado ambiental, sin asignación de tokens LIVO).',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: LivoraColors.ink.withValues(alpha: 0.8),
+                ),
+              ),
+              const SizedBox(height: 22),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: LivoraColors.forest,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.verified_user_outlined, size: 18),
+                label: const Text(
+                  'Validar mi identidad ahora',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onPressed: () {
+                  Navigator.pop(sheetContext, false);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const KycScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: LivoraColors.ink,
+                  minimumSize: const Size.fromHeight(46),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                onPressed: () => Navigator.pop(sheetContext, true),
+                child: const Text(
+                  'Continuar como Donación Solidaria (0 LIVOs)',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (proceed != true) return;
+      isDonation = true;
+    }
+
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
       final request = await context.read<LivoraApi>().createCollectionRequest(
@@ -229,6 +567,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             assignmentMode: _assignmentMode,
             description: combinedNotes.isNotEmpty ? combinedNotes : null,
             photoUrl: _photoUrl,
+            isDonation: isDonation,
           );
       if (!mounted) return;
       context.read<SessionController>().updateActiveRequest(request);

@@ -17,6 +17,7 @@ import '../acopio/center_prices_screen.dart';
 import '../auth/login_screen.dart';
 import '../tienda/store_profile_screen.dart';
 import 'complaints_screen.dart';
+import '../../widgets/kyc_shield_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -83,6 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _refreshing = true);
     try {
       final api = context.read<LivoraApi>();
+      await context.read<SessionController>().refreshKycStatus(api);
       final raw = await api.client.get('/users/me');
       if (raw is Map<String, dynamic> && mounted) {
         setState(() {
@@ -506,6 +508,142 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         children: [
+          // Tarjeta de Estado de Verificación de Identidad (KYC)
+          Card(
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: session.kycStatus == KycStatus.approved
+                    ? const Color(0xFF2E7D32).withValues(alpha: 0.3)
+                    : session.kycStatus == KycStatus.pending
+                        ? const Color(0xFFE65100).withValues(alpha: 0.3)
+                        : session.kycStatus == KycStatus.rejected
+                            ? const Color(0xFFC62828).withValues(alpha: 0.3)
+                            : Colors.grey.shade300,
+              ),
+            ),
+            child: InkWell(
+              onTap: () => showKycInfoModal(context),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: (session.kycStatus == KycStatus.approved
+                                ? const Color(0xFF2E7D32)
+                                : session.kycStatus == KycStatus.pending
+                                    ? const Color(0xFFE65100)
+                                    : session.kycStatus == KycStatus.rejected
+                                        ? const Color(0xFFC62828)
+                                        : LivoraColors.slate)
+                            .withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        session.kycStatus == KycStatus.approved
+                            ? Icons.verified_user_rounded
+                            : session.kycStatus == KycStatus.pending
+                                ? Icons.pending_actions_rounded
+                                : session.kycStatus == KycStatus.rejected
+                                    ? Icons.gpp_bad_rounded
+                                    : Icons.shield_outlined,
+                        color: session.kycStatus == KycStatus.approved
+                            ? const Color(0xFF2E7D32)
+                            : session.kycStatus == KycStatus.pending
+                                ? const Color(0xFFE65100)
+                                : session.kycStatus == KycStatus.rejected
+                                    ? const Color(0xFFC62828)
+                                    : LivoraColors.slate,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Identidad & KYC',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: LivoraColors.deep,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: (session.kycStatus == KycStatus.approved
+                                          ? const Color(0xFF2E7D32)
+                                          : session.kycStatus == KycStatus.pending
+                                              ? const Color(0xFFE65100)
+                                              : session.kycStatus == KycStatus.rejected
+                                                  ? const Color(0xFFC62828)
+                                                  : Colors.grey.shade600)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  session.kycStatus == KycStatus.approved
+                                      ? 'VERIFICADO'
+                                      : session.kycStatus == KycStatus.pending
+                                          ? 'EN REVISIÓN'
+                                          : session.kycStatus == KycStatus.rejected
+                                              ? 'OBSERVADO'
+                                              : 'NO VERIFICADO',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: session.kycStatus == KycStatus.approved
+                                        ? const Color(0xFF2E7D32)
+                                        : session.kycStatus == KycStatus.pending
+                                            ? const Color(0xFFE65100)
+                                            : session.kycStatus == KycStatus.rejected
+                                                ? const Color(0xFFC62828)
+                                                : Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            session.kycStatus == KycStatus.approved
+                                ? 'Documento autenticado conforme a Ley N° 29733. Recompensas y transferencias Web3 activas.'
+                                : session.kycStatus == KycStatus.pending
+                                    ? 'Documentación en auditoría regulatoria.'
+                                    : session.kycStatus == KycStatus.rejected
+                                        ? 'Toca para volver a subir tu documento de identidad.'
+                                        : 'Toca para validar tu DNI/CE y habilitar recompensas.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: LivoraColors.ink.withValues(alpha: 0.7),
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: LivoraColors.slate,
+                      size: 22,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           // Datos Personales
           Card(
             child: Padding(

@@ -56,10 +56,13 @@ class _HogarDashboardState extends State<HogarDashboard> {
       if (reqList != null) {
         for (final request in reqList) {
           if (request.status == 'PENDING' ||
-              request.status == 'ACCEPTED' ||
+              request.status == 'AUCTION_ACTIVE' ||
+              request.status == 'AUCTION_ASSIGNED' ||
               request.status == 'AUCTION_OPEN' ||
+              request.status == 'ACCEPTED' ||
               request.status == 'ASSIGNED' ||
-              request.status == 'IN_ROUTE') {
+              request.status == 'EN_ROUTE' ||
+              request.status == 'ARRIVED') {
             active = request;
             break;
           }
@@ -87,10 +90,13 @@ class _HogarDashboardState extends State<HogarDashboard> {
   CollectionRequest? get _activeRequest {
     for (final request in _requests ?? const <CollectionRequest>[]) {
       if (request.status == 'PENDING' ||
-          request.status == 'ACCEPTED' ||
+          request.status == 'AUCTION_ACTIVE' ||
+          request.status == 'AUCTION_ASSIGNED' ||
           request.status == 'AUCTION_OPEN' ||
+          request.status == 'ACCEPTED' ||
           request.status == 'ASSIGNED' ||
-          request.status == 'IN_ROUTE') {
+          request.status == 'EN_ROUTE' ||
+          request.status == 'ARRIVED') {
         return request;
       }
     }
@@ -410,24 +416,38 @@ class _HeroActiveRequestCard extends StatelessWidget {
         request.assignedCenterName != null;
     final isAssigned = request.status == 'ACCEPTED' ||
         request.status == 'ASSIGNED' ||
-        request.status == 'IN_ROUTE' ||
+        request.status == 'EN_ROUTE' ||
+        request.status == 'ARRIVED' ||
+        request.collectorId != null ||
         request.collectorName != null ||
         request.collectorEmail != null;
 
     final (badgeLabel, badgeColor, badgeIcon) = switch (request.status) {
-      'ACCEPTED' || 'ASSIGNED' || 'IN_ROUTE' => (
+      'ARRIVED' => (
+          '¡Recolector en tu puerta!',
+          LivoraColors.forest,
+          Icons.door_front_door_rounded,
+        ),
+      'ACCEPTED' || 'ASSIGNED' || 'EN_ROUTE' => (
           'Recolector en camino',
           LivoraColors.green,
           Icons.delivery_dining,
         ),
-      'AUCTION_OPEN' => (
+      'AUCTION_ACTIVE' || 'AUCTION_OPEN' => (
           'Subasta · ${request.bids.length} ${request.bids.length == 1 ? 'oferta' : 'ofertas'}',
           Colors.indigo,
           Icons.gavel,
         ),
+      'AUCTION_ASSIGNED' => (
+          'Acopio asignado · Esperando recolector',
+          LivoraColors.forest,
+          Icons.store_rounded,
+        ),
       _ => isAssigned
           ? (
-              'Recolector en camino',
+              request.status == 'ARRIVED'
+                  ? '¡Recolector en tu puerta!'
+                  : 'Recolector en camino',
               LivoraColors.green,
               Icons.delivery_dining,
             )
@@ -439,12 +459,12 @@ class _HeroActiveRequestCard extends StatelessWidget {
                 )
               : isAuction
                   ? (
-                      'Subasta abierta · ${request.bids.length} ${request.bids.length == 1 ? 'oferta' : 'ofertas'}',
+                      'Subasta activa · ${request.bids.length} ${request.bids.length == 1 ? 'oferta' : 'ofertas'}',
                       Colors.indigo,
                       Icons.gavel,
                     )
                   : (
-                      'Buscando acopio',
+                      'Buscando recolector',
                       LivoraColors.amber,
                       Icons.search,
                     ),
@@ -583,7 +603,7 @@ class _HeroActiveRequestCard extends StatelessWidget {
 
             // Regla de Seguridad del PIN:
             // Ocultar PIN mientras la orden esté en PENDING / sin recolector.
-            // Mostrar OTP Box únicamente cuando pase a ASSIGNED / IN_ROUTE / ACCEPTED con recolector.
+            // Mostrar OTP Box únicamente cuando pase a ASSIGNED / EN_ROUTE / ACCEPTED con recolector.
             if (isAssigned) ...[
               Container(
                 padding: const EdgeInsets.all(12),
@@ -641,8 +661,10 @@ class _HeroActiveRequestCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         isAuction
-                            ? 'Esperando ofertas de centros de acopio. Elige una oferta para que se asigne un recolector.'
-                            : 'Esperando asignación de recolector. El PIN de entrega se activará cuando un recolector tome tu pedido.',
+                            ? (request.status == 'AUCTION_ASSIGNED'
+                                ? 'Centro de acopio seleccionado. Esperando que un recolector tome el viaje.'
+                                : 'Esperando ofertas de centros de acopio. Elige una oferta para que se asigne un recolector.')
+                            : 'Buscando un recolector cercano para tu pedido. El PIN de entrega se activará cuando sea asignado.',
                         style: const TextStyle(
                           fontSize: 11.5,
                           color: LivoraColors.slate,

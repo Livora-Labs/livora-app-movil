@@ -109,9 +109,10 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
     );
 
     final totalPEN = request.totalEstimatedValuePEN;
-    final hogarPEN = totalPEN * 0.40;
-    final livoraPEN = totalPEN * 0.10;
-    final recolectorPEN = totalPEN * 0.50;
+    final isDonation = request.isDonation;
+    final hogarPEN = isDonation ? 0.0 : totalPEN * 0.40;
+    final livoraPEN = isDonation ? 0.0 : totalPEN * 0.10;
+    final recolectorPEN = isDonation ? totalPEN : totalPEN * 0.50;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
@@ -179,7 +180,34 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    if (request.isDonation) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFA5D6A7)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.eco,
+                                size: 13, color: Color(0xFF2E7D32)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Donación',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2E7D32),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     StatusChip(
                       label: requestStatusLabel(request.status),
                       color: requestStatusColor(request.status),
@@ -615,7 +643,9 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
         },
         icon: const Icon(Icons.check_circle_outline, size: 20),
         label: Text(
-          'Aceptar recolección (${request.requiredEscrow.toStringAsFixed(1)} LIVO)',
+          request.isDonation
+              ? 'Aceptar recolección (Donación Ecológica)'
+              : 'Aceptar recolección (${request.requiredEscrow.toStringAsFixed(1)} LIVO)',
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       );

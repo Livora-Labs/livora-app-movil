@@ -19,6 +19,14 @@ class LivoraApi {
     return raw.whereType<Map<String, dynamic>>().map(fromJson).toList();
   }
 
+  // ---------------------------------------------------------------- Usuario
+
+  /// Obtiene los datos actualizados del perfil de usuario autenticado.
+  Future<AuthUser> getMe() async {
+    final raw = await client.get('/users/me');
+    return AuthUser.fromJson(raw as Map<String, dynamic>);
+  }
+
   // ---------------------------------------------------------------- Hogar
 
   Future<CollectionRequest> createCollectionRequest({
@@ -28,12 +36,14 @@ class LivoraApi {
     String assignmentMode = 'AUTOMATIC',
     String? description,
     String? photoUrl,
+    bool isDonation = false,
   }) async {
     final raw = await client.post('/collection-requests', body: {
       'itemsEstimated': itemsEstimated,
       'latitude': latitude,
       'longitude': longitude,
       'assignmentMode': assignmentMode,
+      'isDonation': isDonation,
       if (description != null && description.isNotEmpty)
         'description': description,
       if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,

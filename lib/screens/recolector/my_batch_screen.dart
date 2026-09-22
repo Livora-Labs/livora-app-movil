@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
+import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/offline_queue_manager.dart';
@@ -31,6 +32,8 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
   List<Batch>? _openBatches;
   List<Batch>? _history;
   String? _error;
+  int? _lastBatchesVersion;
+  bool _loadInProgress = false;
 
   @override
   void initState() {
@@ -38,7 +41,15 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
     _load();
   }
 
+  // NOTE: didChangeDependencies is NOT reliable for IndexedStack-mounted widgets
+  // because Provider rebuilds come through build(), not lifecycle hooks.
+  // We track the version in build() with addPostFrameCallback to safely trigger
+  // a reload without calling setState during the build phase.
+
+
   Future<void> _load() async {
+    if (_loadInProgress) return;
+    _loadInProgress = true;
     final api = context.read<LivoraApi>();
     try {
       final results = await Future.wait([api.openBatches(), api.batches()]);
@@ -54,6 +65,8 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
       if (mounted) {
         setState(() => _error = 'No se pudieron sincronizar los lotes');
       }
+    } finally {
+      _loadInProgress = false;
     }
   }
 
@@ -61,6 +74,7 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
     HapticFeedback.lightImpact();
     final dispatched = await BatchDispatchModal.show(context, batch: batch);
     if (dispatched == true && mounted) {
+      context.read<SessionController>().notifyBatchesChanged();
       _load();
     }
   }
@@ -69,12 +83,30 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
     HapticFeedback.lightImpact();
     final verified = await VerificationOtpModal.show(context, request: request);
     if (verified == true && mounted) {
+      context.read<SessionController>().notifyBatchesChanged();
       _load();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Observar SessionController en build() para que Provider pueda notificarnos
+    // incluso cuando estamos en un IndexedStack no visible. Cuando batchesVersion
+    // cambia (ej. validación de PIN en otra pestaña), programamos _load() en el
+    // siguiente frame para no llamar setState() durante la fase de build.
+    final session = context.watch<SessionController>();
+    final currentVersion = session.batchesVersion;
+    if (_lastBatchesVersion != null &&
+        _lastBatchesVersion != currentVersion &&
+        !_loadInProgress) {
+      _lastBatchesVersion = currentVersion;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    } else {
+      _lastBatchesVersion ??= currentVersion;
+    }
+
     final openBatches = _openBatches;
     final history = _history;
 
@@ -94,7 +126,10 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
           0,
           (sum, b) => sum +
               b.requests
-                  .where((r) => r.status == 'ACCEPTED' || r.status == 'IN_ROUTE')
+                  .where((r) =>
+                      r.status == 'ACCEPTED' ||
+                      r.status == 'EN_ROUTE' ||
+                      r.status == 'ARRIVED')
                   .length,
         ) ??
         0;
@@ -483,7 +518,10 @@ class _SegmentedBatchCard extends StatelessWidget {
     final completedCount =
         batch.requests.where((r) => r.status == 'COMPLETED').length;
     final inRouteCount = batch.requests
-        .where((r) => r.status == 'ACCEPTED' || r.status == 'IN_ROUTE')
+        .where((r) =>
+            r.status == 'ACCEPTED' ||
+            r.status == 'EN_ROUTE' ||
+            r.status == 'ARRIVED')
         .length;
 
     return Card(
@@ -713,7 +751,9 @@ class _SegmentedBatchCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (req.status == 'ACCEPTED' || req.status == 'IN_ROUTE')
+                        if (req.status == 'ACCEPTED' ||
+                            req.status == 'EN_ROUTE' ||
+                            req.status == 'ARRIVED')
                           FilledButton.icon(
                             style: FilledButton.styleFrom(
                               backgroundColor: LivoraColors.forest,

@@ -47,6 +47,7 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
   String? _filter;
   final Set<String> _selected = {};
   bool _consolidating = false;
+  String? _settlingBatchId;
 
   StreamSubscription<Map<String, dynamic>>? _liveSubscription;
 
@@ -105,6 +106,7 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
     );
     if (!confirmed || !mounted) return;
 
+    setState(() => _settlingBatchId = batch.id);
     try {
       await context.read<LivoraApi>().settleBatchFiat(batch.id);
       if (mounted) {
@@ -115,6 +117,8 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
       if (mounted) showAppSnack(context, e.message, error: true);
     } catch (_) {
       if (mounted) showAppSnack(context, 'Error al registrar el pago fiat', error: true);
+    } finally {
+      if (mounted) setState(() => _settlingBatchId = null);
     }
   }
 
@@ -630,6 +634,7 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
                     onSettleFiat: batch.status == 'RECEIVED' && !batch.fiatSettled
                         ? () => _settleFiat(batch)
                         : null,
+                    isSettlingFiat: _settlingBatchId == batch.id,
                     onViewDetail: () async {
                       final updated = await BatchDetailModal.show(context, batch: batch);
                       if (updated == true && mounted) _load();
@@ -651,6 +656,7 @@ class _BatchCard extends StatelessWidget {
     this.onReceive,
     this.onResolveDiscrepancy,
     this.onSettleFiat,
+    this.isSettlingFiat = false,
     this.onViewDetail,
   });
 
@@ -660,6 +666,7 @@ class _BatchCard extends StatelessWidget {
   final VoidCallback? onReceive;
   final VoidCallback? onResolveDiscrepancy;
   final VoidCallback? onSettleFiat;
+  final bool isSettlingFiat;
   final VoidCallback? onViewDetail;
 
   @override
@@ -764,11 +771,20 @@ class _BatchCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           side: const BorderSide(color: LivoraColors.forest),
                         ),
-                        onPressed: onSettleFiat,
-                        icon: const Icon(Icons.payments_outlined, size: 14, color: LivoraColors.forest),
-                        label: const Text(
-                          'Pagar Fiat',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: LivoraColors.forest),
+                        onPressed: isSettlingFiat ? null : onSettleFiat,
+                        icon: isSettlingFiat
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(LivoraColors.forest),
+                                ),
+                              )
+                            : const Icon(Icons.payments_outlined, size: 14, color: LivoraColors.forest),
+                        label: Text(
+                          isSettlingFiat ? 'Pagando...' : 'Pagar Fiat',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: LivoraColors.forest),
                         ),
                       ),
                   ],

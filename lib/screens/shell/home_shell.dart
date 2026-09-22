@@ -9,6 +9,7 @@ import '../../core/session.dart';
 import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
 import '../acopio/center_batches_screen.dart';
+import '../acopio/center_prices_screen.dart';
 import '../common/notifications_screen.dart';
 import '../common/wallet_screen.dart';
 import '../hogar/hogar_dashboard.dart';
@@ -158,7 +159,11 @@ class _HomeShellState extends State<HomeShell> {
             Icons.inventory_outlined,
             InventoryScreen(canRegisterSale: true),
           ),
-          wallet,
+          _TabSpec(
+            'Tarifario',
+            Icons.price_change_outlined,
+            CenterPricesScreen(),
+          ),
           alerts,
         ],
       Roles.tienda => const [
@@ -188,7 +193,12 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => _index = value),
+        onDestinationSelected: (value) {
+          if (_index != value) {
+            setState(() => _index = value);
+            context.read<SessionController>().notifyBatchesChanged();
+          }
+        },
         destinations: [
           for (final tab in tabs)
             NavigationDestination(

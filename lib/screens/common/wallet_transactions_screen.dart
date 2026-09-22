@@ -137,7 +137,7 @@ class _WalletTransactionsScreenState extends State<WalletTransactionsScreen> {
                           ),
                           const SizedBox(width: 6),
                           const Text(
-                            'ECO',
+                            'LIVO',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 14,

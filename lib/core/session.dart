@@ -62,6 +62,17 @@ class SessionController extends ChangeNotifier {
     }
   }
 
+  int _batchesVersion = 0;
+
+  /// Contador incremental para forzar la recarga reactiva de lotes y solicitudes
+  /// en pantallas en segundo plano (p. ej. MyBatchScreen en IndexedStack).
+  int get batchesVersion => _batchesVersion;
+
+  void notifyBatchesChanged() {
+    _batchesVersion++;
+    notifyListeners();
+  }
+
   Future<void> checkUnreadNotifications(LivoraApi api) async {
     if (!isAuthenticated) return;
     try {
@@ -86,19 +97,28 @@ class SessionController extends ChangeNotifier {
 
   /// Actualiza el estado KYC y lo persiste localmente.
   void updateKycStatus(KycStatus status) {
-    if (_kycStatus != status) {
+    if (_kycStatus != status || _user?.kycStatus != status) {
       _kycStatus = status;
+      if (_user != null && _user!.kycStatus != status) {
+        _user = _user!.copyWith(kycStatus: status);
+        _secureStorage.write(key: _userKey, value: jsonEncode(_user!.toJson()));
+      }
       _prefs.setString(_kycStatusKey, status.toBackendString());
       notifyListeners();
     }
   }
 
-  /// Consulta el estado KYC actualizado del recolector en el backend.
+  /// Consulta el estado KYC actualizado del usuario en el backend (recolector u hogar).
   Future<void> refreshKycStatus(LivoraApi api) async {
-    if (_user?.role != Roles.recolector) return;
+    if (!isAuthenticated) return;
     try {
-      final app = await api.kycApplication();
-      updateKycStatus(app.kycStatus);
+      if (_user?.role == Roles.recolector) {
+        final app = await api.kycApplication();
+        updateKycStatus(app.kycStatus);
+      } else {
+        final me = await api.getMe();
+        updateKycStatus(me.kycStatus);
+      }
     } catch (_) {
       // Si falla la red, preserva el estado guardado en SharedPreferences
     }
@@ -175,7 +195,9 @@ class SessionController extends ChangeNotifier {
       final expiresAt = _prefs.getString(_expiresAtKey);
       _expiresAt = expiresAt == null ? null : DateTime.tryParse(expiresAt);
       final kycRaw = _prefs.getString(_kycStatusKey);
-      _kycStatus = KycStatus.fromString(kycRaw);
+      _kycStatus = _user?.kycStatus != null && _user!.kycStatus != KycStatus.unverified
+          ? _user!.kycStatus
+          : KycStatus.fromString(kycRaw);
     } catch (_) {
       await logout();
       return;
@@ -286,6 +308,8 @@ class SessionController extends ChangeNotifier {
 
     _api.authToken = token;
     _user = candidateUser;
+    _kycStatus = candidateUser.kycStatus;
+    _prefs.setString(_kycStatusKey, _kycStatus.toBackendString());
     _refreshToken = data['refreshToken'] as String?;
     final expiresIn = (data['expiresIn'] as num?)?.toInt();
     _expiresAt = expiresIn == null

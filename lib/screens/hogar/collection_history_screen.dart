@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
@@ -171,6 +172,9 @@ class _HistoryItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final weights = request.actualWeights ?? request.itemsEstimated;
     final totalKg = weights.values.fold<double>(0.0, (s, w) => s + w);
+    final hasTxHash = request.txHash != null && Stellar.isValidTxHash(request.txHash);
+    final hasDonation = request.isDonation;
+    final reward = request.householdRewardEarned;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -182,6 +186,7 @@ class _HistoryItemCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Fila 1: Materiales + Estado ──────────────────────────────
               Row(
                 children: [
                   Expanded(
@@ -201,6 +206,8 @@ class _HistoryItemCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
+
+              // ── Fila 2: Peso + Badge Recompensa / Donación ───────────────
               Row(
                 children: [
                   const Icon(Icons.scale_outlined, size: 16, color: LivoraColors.forest),
@@ -216,38 +223,70 @@ class _HistoryItemCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  if (request.txHash != null && Stellar.isValidTxHash(request.txHash)) ...[
-                    InkWell(
-                      onTap: () => Stellar.openTxInExplorer(request.txHash),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: LivoraColors.blue.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: LivoraColors.blue.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.open_in_new, size: 11, color: LivoraColors.blue),
-                            SizedBox(width: 4),
-                            Text(
-                              'Stellar',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: LivoraColors.blue,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  if (hasDonation)
+                    _TinyBadge(
+                      label: 'Donación Solidaria',
+                      icon: Icons.volunteer_activism_rounded,
+                      color: const Color(0xFF6B7280),
+                    )
+                  else if (reward > 0)
+                    _TinyBadge(
+                      label: '+${reward.toStringAsFixed(2)} LIVO',
+                      icon: Icons.toll_rounded,
+                      color: LivoraColors.forest,
                     ),
-                  ],
                 ],
               ),
+
+              // ── Fila 3: Hash Stellar (solo si COMPLETED con tx) ──────────
+              if (hasTxHash) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.link_rounded, size: 14, color: Color(0xFF5B67E8)),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        'Tx: ${Stellar.shortHash(request.txHash!)}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: Color(0xFF5B67E8),
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Botón copiar hash
+                    _TxIconButton(
+                      tooltip: 'Copiar hash',
+                      icon: Icons.copy_rounded,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Clipboard.setData(
+                          ClipboardData(text: Stellar.cleanTxHash(request.txHash!)),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Hash copiado al portapapeles'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 4),
+                    // Botón abrir en explorador
+                    _TxIconButton(
+                      tooltip: 'Ver en Stellar Expert',
+                      icon: Icons.open_in_new_rounded,
+                      onTap: () => Stellar.openTxInExplorer(request.txHash),
+                    ),
+                  ],
+                ),
+              ],
+
+              // ── Fila 4: Fecha + Recolector ────────────────────────────────
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -286,3 +325,78 @@ class _HistoryItemCard extends StatelessWidget {
     );
   }
 }
+
+/// Badge pequeño con icono y texto para recompensa o tipo de recolección.
+class _TinyBadge extends StatelessWidget {
+  const _TinyBadge({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Botón icónico para acciones de tx hash (copiar / explorador).
+class _TxIconButton extends StatelessWidget {
+  const _TxIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF5B67E8);
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withValues(alpha: 0.20)),
+          ),
+          child: Icon(icon, size: 13, color: color),
+        ),
+      ),
+    );
+  }
+}
+

@@ -11,9 +11,10 @@ import '../../core/stellar.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
+import '../../widgets/kyc_shield_button.dart';
 import 'profile_screen.dart';
 
-/// AppBar estándar de la app con acceso al perfil.
+/// AppBar estándar de la app con acceso al perfil y estado KYC.
 AppBar livoraAppBar(
   BuildContext context,
   String title, {
@@ -30,6 +31,7 @@ AppBar livoraAppBar(
     ),
     actions: [
       ...?actions,
+      const KycShieldButton(),
       const ProfileButton(),
       const SizedBox(width: 6),
     ],

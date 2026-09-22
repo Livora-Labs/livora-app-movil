@@ -20,7 +20,7 @@ import '../../services/livora_realtime.dart';
 import '../../widgets/active_route_hero_card.dart';
 import '../../widgets/collection_request_detail_bottom_sheet.dart';
 import '../../widgets/common.dart';
-import '../../widgets/kyc_status_shield.dart';
+
 import '../../widgets/live_indicator.dart';
 import '../../widgets/livora_map_tile_layer.dart';
 import '../../widgets/view_toggle_segmented_button.dart';
@@ -171,7 +171,6 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
           .expand((b) => b.requests)
           .where((r) =>
               r.status == 'ACCEPTED' ||
-              r.status == 'IN_ROUTE' ||
               r.status == 'EN_ROUTE' ||
               r.status == 'ARRIVED')
           .toList();
@@ -467,7 +466,6 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
         'Solicitudes',
         actions: [
           const LiveIndicator(),
-          const KycStatusShield(),
           IconButton(
             tooltip: 'Mi reputación',
             onPressed: () {
@@ -1222,26 +1220,41 @@ class _AvailableCard extends StatelessWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Garantía requerida en LIVOs:',
+                            Text(
+                              request.isDonation
+                                  ? 'Donación Ecológica:'
+                                  : 'Garantía requerida en LIVOs:',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
-                                color: LivoraColors.deep,
+                                color: request.isDonation
+                                    ? const Color(0xFF2E7D32)
+                                    : LivoraColors.deep,
                               ),
                             ),
                             Text(
-                              '40% Hogar + 10% Comisión Livora',
-                              style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700),
+                              request.isDonation
+                                  ? '0 LIVOs (Ganancia 100% en Centro de Acopio)'
+                                  : '40% Hogar + 10% Comisión Livora',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: request.isDonation
+                                    ? const Color(0xFF2E7D32)
+                                    : Colors.grey.shade700,
+                              ),
                             ),
                           ],
                         ),
                         Text(
-                          '${request.requiredEscrow.toStringAsFixed(2)} LIVO',
-                          style: const TextStyle(
+                          request.isDonation
+                              ? '0.00 LIVO'
+                              : '${request.requiredEscrow.toStringAsFixed(2)} LIVO',
+                          style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 13,
-                            color: LivoraColors.blue,
+                            color: request.isDonation
+                                ? const Color(0xFF2E7D32)
+                                : LivoraColors.blue,
                           ),
                         ),
                       ],
@@ -1362,7 +1375,11 @@ class _AvailableCard extends StatelessWidget {
               )
             : const Icon(Icons.check_circle_outline, size: 18),
         label: Text(
-          accepting ? 'Aceptando…' : 'Aceptar Recolección',
+          accepting
+              ? 'Aceptando…'
+              : (request.isDonation
+                  ? 'Aceptar (Donación Ecológica)'
+                  : 'Aceptar Recolección'),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       );

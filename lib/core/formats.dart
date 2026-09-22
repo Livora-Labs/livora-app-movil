@@ -146,38 +146,54 @@ String materialLabel(String key) => switch (key.toUpperCase()) {
     };
 
 /// Etiquetas en español para estados de solicitud de recolección.
-String requestStatusLabel(String status) => switch (status) {
-      'PENDING' => 'Pendiente',
-      'ACCEPTED' => 'Aceptada',
+String requestStatusLabel(String status) => switch (status.toUpperCase()) {
+      'PENDING' => 'Buscando recolector',
+      'AUCTION_ACTIVE' || 'AUCTION_OPEN' => 'En subasta de tarifas',
+      'AUCTION_ASSIGNED' => 'Acopio asignado',
+      'ACCEPTED' || 'ASSIGNED' => 'Recolector asignado',
+      'EN_ROUTE' => 'Recolector en camino',
+      'ARRIVED' => 'Recolector en tu puerta',
       'COMPLETED' => 'Completada',
       'CANCELLED' => 'Cancelada',
-      _ => status,
+      'UNATTENDED' => 'No atendida en puerta',
+      'REJECTED_ON_SITE' => 'Rechazada en sitio',
+      'EXPIRED' => 'Tiempo expirado',
+      'FAILED' => 'No completada',
+      _ => _humanizeEnum(status),
     };
 
-Color requestStatusColor(String status) => switch (status) {
+Color requestStatusColor(String status) => switch (status.toUpperCase()) {
       'PENDING' => const Color(0xFFB7791F),
-      'ACCEPTED' => LivoraColors.blue,
+      'AUCTION_ACTIVE' || 'AUCTION_OPEN' => Colors.indigo,
+      'AUCTION_ASSIGNED' => LivoraColors.forest,
+      'ACCEPTED' || 'ASSIGNED' => LivoraColors.blue,
+      'EN_ROUTE' => LivoraColors.green,
+      'ARRIVED' => LivoraColors.forest,
       'COMPLETED' => LivoraColors.green,
       'CANCELLED' => const Color(0xFF9E4B4B),
+      'UNATTENDED' => Colors.orange,
+      'REJECTED_ON_SITE' => const Color(0xFFDC2626),
+      'EXPIRED' || 'FAILED' => const Color(0xFF64748B),
       _ => LivoraColors.ink,
     };
 
 /// Etiquetas en español para estados de lote.
-String batchStatusLabel(String status) => switch (status) {
-      'OPEN' => 'Abierto',
-      'IN_TRANSIT' => 'En tránsito',
-      'FLAGGED_FOR_REVIEW' => 'Observado',
-      'DISPUTED' => 'En Disputa',
-      'PROCESSING' => 'Procesando',
-      'RECEIVED' => 'Recibido',
-      'PARTIALLY_ACCEPTED' => 'Aceptado Parcial',
-      'REROUTED' => 'Redirigido',
-      'REJECTED' => 'Rechazado',
-      'CONSOLIDATED' => 'Consolidado',
-      _ => status,
+String batchStatusLabel(String status) => switch (status.toUpperCase()) {
+      'OPEN' => 'Abierto en ruta',
+      'IN_TRANSIT' => 'En tránsito a acopio',
+      'FLAGGED_FOR_REVIEW' => 'Observado en báscula',
+      'DISPUTED' => 'En impugnación',
+      'PROCESSING' => 'Procesando en báscula',
+      'RECEIVED' => 'Recibido en acopio',
+      'PARTIALLY_ACCEPTED' => 'Aceptado con merma',
+      'REROUTED' => 'Redirigido a otro centro',
+      'REJECTED' => 'Rechazado por acopio',
+      'CONSOLIDATED' => 'Consolidado para industria',
+      'CANCELLED' => 'Lote cancelado',
+      _ => _humanizeEnum(status),
     };
 
-Color batchStatusColor(String status) => switch (status) {
+Color batchStatusColor(String status) => switch (status.toUpperCase()) {
       'OPEN' => LivoraColors.cyan,
       'IN_TRANSIT' => LivoraColors.blue,
       'FLAGGED_FOR_REVIEW' => LivoraColors.coral,
@@ -188,8 +204,56 @@ Color batchStatusColor(String status) => switch (status) {
       'REROUTED' => const Color(0xFF2563EB),
       'REJECTED' => const Color(0xFFDC2626),
       'CONSOLIDATED' => LivoraColors.deep,
+      'CANCELLED' => const Color(0xFF64748B),
       _ => LivoraColors.ink,
     };
+
+/// Etiquetas en español para ofertas en subastas de centros de acopio.
+String bidStatusLabel(String status) => switch (status.toUpperCase()) {
+      'PENDING' => 'Oferta enviada',
+      'ACCEPTED' => 'Oferta ganadora',
+      'REJECTED' => 'No seleccionada',
+      'EXPIRED' => 'Subasta finalizada',
+      _ => _humanizeEnum(status),
+    };
+
+Color bidStatusColor(String status) => switch (status.toUpperCase()) {
+      'PENDING' => const Color(0xFFB7791F),
+      'ACCEPTED' => LivoraColors.green,
+      'REJECTED' => const Color(0xFF64748B),
+      'EXPIRED' => const Color(0xFF94A3B8),
+      _ => LivoraColors.slate,
+    };
+
+/// Etiquetas en español para modalidades de recolección.
+String assignmentModeLabel(String mode) => switch (mode.toUpperCase()) {
+      'AUTOMATIC' => 'Tarifa preferente',
+      'AUCTION' => 'Subasta abierta',
+      _ => _humanizeEnum(mode),
+    };
+
+/// Etiquetas en español para tipos de transacción financiera y Web3.
+String txTypeLabel(String type) => switch (type.toUpperCase()) {
+      'RECOMPENSA_RECICLAJE' => 'Recompensa por Reciclaje',
+      'PAGO_TIENDA' => 'Canje en Tienda Aliada',
+      'TRANSFERENCIA_EXTERNA' => 'Transferencia Stellar P2P',
+      'RECARGA_IZIPAY' => 'Recarga de Saldo (Izipay)',
+      'GARANTIA_ESCROW' => 'Garantía de Compromiso',
+      'DEVOLUCION_GARANTIA' => 'Liberación de Garantía',
+      'PAGO_ACOPIO_FIAT' => 'Liquidación de Acopio (Soles)',
+      _ => _humanizeEnum(type),
+    };
+
+/// Transforma de forma segura cualquier clave enum SCREAMING_SNAKE_CASE a Title Case amigable.
+String _humanizeEnum(String raw) {
+  if (raw.isEmpty) return raw;
+  final parts = raw.split('_').where((p) => p.isNotEmpty);
+  return parts
+      .map((w) => w.length > 1
+          ? w[0].toUpperCase() + w.substring(1).toLowerCase()
+          : w.toUpperCase())
+      .join(' ');
+}
 
 String _two(int n) => n.toString().padLeft(2, '0');
 

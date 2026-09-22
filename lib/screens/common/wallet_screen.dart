@@ -32,11 +32,24 @@ class _WalletScreenState extends State<WalletScreen> {
   String? _balance;
   bool _loadingBalance = false;
   bool _sending = false;
+  int? _lastBatchesVersion;
 
   @override
   void initState() {
     super.initState();
     _loadBalance();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final session = context.watch<SessionController>();
+    if (_lastBatchesVersion != null && _lastBatchesVersion != session.batchesVersion) {
+      _lastBatchesVersion = session.batchesVersion;
+      _loadBalance();
+    } else {
+      _lastBatchesVersion = session.batchesVersion;
+    }
   }
 
   @override

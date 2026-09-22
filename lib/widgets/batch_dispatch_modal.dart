@@ -307,10 +307,16 @@ class _BatchDispatchModalState extends State<BatchDispatchModal>
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: _sending ? null : _scanCenterQr,
-                        icon: const Icon(Icons.camera_alt_outlined),
-                        label: const Text(
-                          'Abrir Cámara para Escanear',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        icon: _sending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Icon(Icons.camera_alt_outlined),
+                        label: Text(
+                          _sending ? 'Despachando lote…' : 'Abrir Cámara para Escanear',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(height: 18),
