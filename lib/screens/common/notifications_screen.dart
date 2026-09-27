@@ -106,6 +106,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final title = item.title.toLowerCase();
     final message = item.message.toLowerCase();
 
+    final explicitReqId = item.data?['requestId']?.toString() ??
+        item.data?['collectionId']?.toString();
+    if (explicitReqId != null && explicitReqId.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RequestDetailScreen(requestId: explicitReqId),
+        ),
+      );
+      return;
+    }
+
     if (role == Roles.hogar) {
       if (title.contains('acopio') ||
           title.contains('solicitud') ||

@@ -12,6 +12,7 @@ import '../../core/stellar.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
 import '../../widgets/kyc_shield_button.dart';
+import 'complaints_screen.dart';
 import 'profile_screen.dart';
 
 /// AppBar estándar de la app con acceso al perfil y estado KYC.
@@ -118,13 +119,12 @@ Future<void> showProfileSheet(BuildContext context) {
                 ],
               ),
               const SizedBox(height: 18),
-              _CopyTile(
-                label: 'ID de usuario',
-                value: user.id,
-                hint: user.role == Roles.centroAcopio
-                    ? 'Compártelo con los recolectores para que envíen sus lotes a tu centro.'
-                    : null,
-              ),
+              if (user.role == Roles.centroAcopio)
+                _CopyTile(
+                  label: 'ID de usuario',
+                  value: user.id,
+                  hint: 'Compártelo con los recolectores para que envíen sus lotes a tu centro.',
+                ),
               if (user.walletAddress != null)
                 _CopyTile(
                   label: 'Billetera (${Stellar.networkLabel})',
@@ -135,6 +135,27 @@ Future<void> showProfileSheet(BuildContext context) {
                       : null,
                 ),
               const SizedBox(height: 8),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.person_outline_rounded, color: LivoraColors.forest),
+                title: Text(
+                  user.role == Roles.hogar
+                      ? 'Mi Perfil de Hogar & Verificación'
+                      : 'Mi Cuenta & Ajustes',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ProfileScreen(),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -159,11 +180,13 @@ Future<void> showProfileSheet(BuildContext context) {
                     label: const Text('Privacidad', style: TextStyle(fontSize: 12)),
                   ),
                   TextButton.icon(
-                    onPressed: () async {
-                      final url = Uri.parse(EnvConfig.claimsBookUrl);
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url, mode: LaunchMode.externalApplication);
-                      }
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const ComplaintsScreen(),
+                        ),
+                      );
                     },
                     icon: const Icon(Icons.menu_book_outlined, size: 16, color: LivoraColors.amber),
                     label: const Text('Reclamos', style: TextStyle(fontSize: 12, color: LivoraColors.amber)),

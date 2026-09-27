@@ -240,17 +240,20 @@ class _HistoryItemCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.scale_outlined, size: 16, color: LivoraColors.forest),
                   const SizedBox(width: 6),
-                  Text(
-                    request.actualWeights != null
-                        ? 'Pesaje real: ${fmtKg(totalKg)}'
-                        : 'Estimado: ${fmtKg(totalKg)}',
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: LivoraColors.forest,
+                  Expanded(
+                    child: Text(
+                      request.actualWeights != null
+                          ? 'Pesaje real: ${fmtKg(totalKg)}'
+                          : 'Estimado: ${fmtKg(totalKg)}',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: LivoraColors.forest,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   if (hasDonation)
                     const _TinyBadge(
                       label: 'Donación Solidaria',
@@ -262,6 +265,12 @@ class _HistoryItemCard extends StatelessWidget {
                       label: '+${reward.toStringAsFixed(2)} LIVO',
                       icon: Icons.toll_rounded,
                       color: LivoraColors.forest,
+                    )
+                  else if (request.hogarEstimatedEarningsPEN > 0 && request.status != 'CANCELLED')
+                    _TinyBadge(
+                      label: '~${request.hogarEstimatedEarningsPEN.toStringAsFixed(2)} LIVO',
+                      icon: Icons.hourglass_top_rounded,
+                      color: const Color(0xFFB7791F),
                     ),
                 ],
               ),

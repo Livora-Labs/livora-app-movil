@@ -18,6 +18,7 @@ import '../acopio/center_prices_screen.dart';
 import '../auth/login_screen.dart';
 import '../tienda/store_profile_screen.dart';
 import 'complaints_screen.dart';
+import 'onboarding_screen.dart';
 import '../../widgets/kyc_shield_button.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -680,9 +681,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Row(
                             children: [
-                              const Text(
-                                'Identidad & KYC',
-                                style: TextStyle(
+                              Text(
+                                session.user?.role == Roles.hogar
+                                    ? 'Hogar Eco-Responsable'
+                                    : 'Identidad & KYC',
+                                style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
                                   color: LivoraColors.deep,
@@ -730,13 +733,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            session.kycStatus == KycStatus.approved
-                                ? 'Documento autenticado conforme a Ley N° 29733. Recompensas y transferencias Web3 activas.'
-                                : session.kycStatus == KycStatus.pending
-                                    ? 'Documentación en auditoría regulatoria.'
-                                    : session.kycStatus == KycStatus.rejected
-                                        ? 'Toca para volver a subir tu documento de identidad.'
-                                        : 'Toca para validar tu DNI/CE y habilitar recompensas.',
+                            session.user?.role == Roles.hogar
+                                ? (session.kycStatus == KycStatus.approved
+                                    ? 'Hogar 100% verificado. Canjes de recompensa LIVO ilimitados en comercios.'
+                                    : (session.kycStatus == KycStatus.pending
+                                        ? 'Verificación residencial en auditoría regulatoria.'
+                                        : (session.kycStatus == KycStatus.rejected
+                                            ? 'Documentación observada. Toca para reenviar.'
+                                            : 'Valida tu DNI/CE para mayores beneficios y canjes.')))
+                                : (session.kycStatus == KycStatus.approved
+                                    ? 'Documento autenticado conforme a Ley N° 29733. Recompensas y transferencias Web3 activas.'
+                                    : session.kycStatus == KycStatus.pending
+                                        ? 'Documentación en auditoría regulatoria.'
+                                        : session.kycStatus == KycStatus.rejected
+                                            ? 'Toca para volver a subir tu documento de identidad.'
+                                            : 'Toca para validar tu DNI/CE y habilitar recompensas.'),
                             style: TextStyle(
                               fontSize: 12,
                               color: LivoraColors.ink.withValues(alpha: 0.7),
@@ -1001,6 +1012,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
+                  if (user.role == Roles.hogar) ...[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Gestión Residencial (Hogar)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: LivoraColors.deep,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Configura las preferencias de recojo y ubicación de tu vivienda para facilitar la llegada del recolector.',
+                              style: TextStyle(fontSize: 12.5, color: Colors.grey),
+                            ),
+                            const SizedBox(height: 12),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: LivoraColors.forest.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.home_outlined,
+                                  color: LivoraColors.forest,
+                                  size: 20,
+                                ),
+                              ),
+                              title: const Text(
+                                'Mi Domicilio de Recojo',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(
+                                _addressController.text.isNotEmpty
+                                    ? _addressController.text
+                                    : 'Fija o actualiza tu dirección con GPS',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              trailing: const Icon(
+                                Icons.gps_fixed,
+                                color: LivoraColors.forest,
+                                size: 20,
+                              ),
+                              onTap: () async {
+                                await _geolocalizar();
+                                if (context.mounted) {
+                                  showAppSnack(
+                                    context,
+                                    'Ubicación GPS residencial actualizada con éxito',
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (user.role == Roles.centroAcopio) ...[
                     Card(
                       child: Padding(
@@ -1242,6 +1322,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: LivoraColors.deep),
                           ),
                           const SizedBox(height: 12),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.school_outlined, color: LivoraColors.forest),
+                            title: const Text(
+                              'Cómo funciona Livora',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: const Text(
+                              'Guía de reciclaje, pesaje en puerta y tokens LIVO',
+                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (context) => OnboardingScreen(
+                                    onComplete: () => Navigator.pop(context),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const Divider(height: 12),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: const Icon(Icons.menu_book_outlined, color: LivoraColors.amber),

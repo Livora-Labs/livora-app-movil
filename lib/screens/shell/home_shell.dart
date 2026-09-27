@@ -49,10 +49,30 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
   StreamSubscription<String>? _tokenRefreshSub;
   StreamSubscription<Map<String, dynamic>>? _realtimeNotifSub;
+  bool _showOfflineBanner = false;
+  Timer? _offlineDebounceTimer;
+  LivoraRealtime? _realtime;
 
   void setTabIndex(int index) {
     if (mounted) {
       setState(() => _index = index);
+    }
+  }
+
+  void _onRealtimeConnectionChanged() {
+    final connected = _realtime?.isConnected ?? false;
+    if (connected) {
+      _offlineDebounceTimer?.cancel();
+      if (_showOfflineBanner && mounted) {
+        setState(() => _showOfflineBanner = false);
+      }
+    } else {
+      _offlineDebounceTimer?.cancel();
+      _offlineDebounceTimer = Timer(const Duration(milliseconds: 2500), () {
+        if (mounted && !(_realtime?.isConnected ?? false)) {
+          setState(() => _showOfflineBanner = true);
+        }
+      });
     }
   }
 
@@ -65,12 +85,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // (logout) porque el shell se desmonta.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        final realtime = context.read<LivoraRealtime>();
-        realtime.connect();
+        _realtime = context.read<LivoraRealtime>();
+        _realtime?.addListener(_onRealtimeConnectionChanged);
+        _realtime?.connect();
+        _onRealtimeConnectionChanged();
         context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
 
         _realtimeNotifSub?.cancel();
-        _realtimeNotifSub = realtime.on(RealtimeEvents.notificationCreated).listen((data) {
+        _realtimeNotifSub = _realtime?.on(RealtimeEvents.notificationCreated).listen((data) {
           if (mounted) {
             context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
             final title = data['title'] as String? ?? 'Nueva notificación';
@@ -97,6 +119,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _offlineDebounceTimer?.cancel();
+    _realtime?.removeListener(_onRealtimeConnectionChanged);
     _fcmSubscription?.cancel();
     _onMessageOpenedAppSub?.cancel();
     _tokenRefreshSub?.cancel();
@@ -235,9 +259,51 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final index = _index < tabs.length ? _index : 0;
 
     return Scaffold(
-      body: IndexedStack(
-        index: index,
-        children: [for (final tab in tabs) tab.body],
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: index,
+            children: [for (final tab in tabs) tab.body],
+          ),
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+            top: _showOfflineBanner ? MediaQuery.paddingOf(context).top + 8 : -80,
+            left: 16,
+            right: 16,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 250),
+              opacity: _showOfflineBanner ? 1.0 : 0.0,
+              child: IgnorePointer(
+                ignoring: !_showOfflineBanner,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFFD97706),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    child: Row(
+                      children: [
+                        Icon(Icons.wifi_off_rounded, size: 16, color: Colors.white),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Modo sin conexión • Reintentando enlace...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,

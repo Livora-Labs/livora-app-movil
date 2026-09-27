@@ -370,10 +370,12 @@ class _WalletScreenState extends State<WalletScreen> {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Saldo de LIVOs',
-                          style: TextStyle(
+                          user?.role == Roles.hogar
+                              ? 'Mis Puntos de Recompensa LIVO'
+                              : 'Saldo de LIVOs',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
                           ),
@@ -427,9 +429,11 @@ class _WalletScreenState extends State<WalletScreen> {
                     },
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'LIVO · Billetera de Incentivos (1 LIVO = S/ 1.00)',
-                    style: TextStyle(color: Colors.white70, fontSize: 11.5),
+                  Text(
+                    user?.role == Roles.hogar
+                        ? 'Recompensa ecológica familiar (1 LIVO = S/ 1.00 PEN)'
+                        : 'LIVO · Billetera de Incentivos (1 LIVO = S/ 1.00)',
+                    style: const TextStyle(color: Colors.white70, fontSize: 11.5),
                   ),
                   if (address != null) ...[
                     const SizedBox(height: 14),
@@ -521,7 +525,53 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
               ),
             ],
-            if (user?.role != Roles.tienda && user?.role != Roles.centroAcopio) ...[
+            if (user?.role == Roles.hogar) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: LivoraColors.forest,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 2,
+                ),
+                onPressed: _scanAndPay,
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 22),
+                label: const Text(
+                  'Pagar con QR en Tiendas y Bodegas',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: LivoraColors.deep,
+                  side: const BorderSide(color: LivoraColors.deep, width: 1.5),
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () async {
+                  final scanned = await Navigator.push<String>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StoresCatalogScreen(),
+                    ),
+                  );
+                  if (scanned != null && mounted) {
+                    _scanAndPay(scanned);
+                  }
+                },
+                icon: const Icon(Icons.storefront_outlined),
+                label: const Text(
+                  'Explorar Tiendas Cercanas y Descuentos',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ] else if (user?.role != Roles.tienda && user?.role != Roles.centroAcopio) ...[
               const SizedBox(height: 12),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -588,7 +638,19 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const SectionTitle(text: 'Transferir LIVOs'),
+            SectionTitle(
+              text: user?.role == Roles.hogar
+                  ? 'Donar o Transferir LIVOs'
+                  : 'Transferir LIVOs',
+            ),
+            if (user?.role == Roles.hogar) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Puedes transferir LIVOs a familiares o donar tus recompensas a recicladores de base mediante su clave pública Stellar.',
+                style: TextStyle(fontSize: 12, color: LivoraColors.slate),
+              ),
+              const SizedBox(height: 10),
+            ],
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),

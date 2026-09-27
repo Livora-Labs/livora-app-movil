@@ -72,7 +72,7 @@ class TransactionReceiptScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
                       const Text(
-                        '¡Canje Confirmado!',
+                        'Canje Confirmado',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,

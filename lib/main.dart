@@ -11,6 +11,7 @@ import 'core/app_theme.dart';
 import 'core/session.dart';
 import 'core/env_config.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/common/onboarding_screen.dart';
 import 'screens/shell/home_shell.dart';
 import 'services/livora_api.dart';
 import 'services/offline_queue_manager.dart';
@@ -87,38 +88,56 @@ Future<void> main() async {
         debugPrint('Error leyendo getInitialMessage de FCM: $e');
       }
 
+      final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+
       runApp(LivoraApp(
         api: api,
         session: session,
         livoraApi: livoraApi,
         realtime: realtime,
+        hasSeenOnboarding: hasSeenOnboarding,
       ));
     },
   );
 }
 
-class LivoraApp extends StatelessWidget {
+class LivoraApp extends StatefulWidget {
   const LivoraApp({
     super.key,
     required this.api,
     required this.session,
     required this.livoraApi,
     required this.realtime,
+    required this.hasSeenOnboarding,
   });
 
   final ApiClient api;
   final SessionController session;
   final LivoraApi livoraApi;
   final LivoraRealtime realtime;
+  final bool hasSeenOnboarding;
+
+  @override
+  State<LivoraApp> createState() => _LivoraAppState();
+}
+
+class _LivoraAppState extends State<LivoraApp> {
+  late bool _seenOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _seenOnboarding = widget.hasSeenOnboarding;
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider.value(value: api),
-        Provider.value(value: livoraApi),
-        ChangeNotifierProvider.value(value: session),
-        ChangeNotifierProvider.value(value: realtime),
+        Provider.value(value: widget.api),
+        Provider.value(value: widget.livoraApi),
+        ChangeNotifierProvider.value(value: widget.session),
+        ChangeNotifierProvider.value(value: widget.realtime),
       ],
       child: Consumer<SessionController>(
         builder: (context, session, _) => MaterialApp(
@@ -134,9 +153,15 @@ class LivoraApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: session.isAuthenticated
-              ? const HomeShell()
-              : const LoginScreen(),
+          home: !_seenOnboarding
+              ? OnboardingScreen(
+                  onComplete: () {
+                    setState(() => _seenOnboarding = true);
+                  },
+                )
+              : (session.isAuthenticated
+                  ? const HomeShell()
+                  : const LoginScreen()),
         ),
       ),
     );

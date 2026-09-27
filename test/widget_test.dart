@@ -25,6 +25,7 @@ void main() {
       session: session,
       livoraApi: livoraApi,
       realtime: realtime,
+      hasSeenOnboarding: true,
     ));
     await tester.pump();
 

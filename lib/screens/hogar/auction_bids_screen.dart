@@ -82,9 +82,12 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
     final confirmed = await confirmDialog(
       context,
       title: 'Aceptar propuesta de subasta',
-      message: '¿Deseas aceptar la oferta de "$centerName"? '
-          'Recibirás ≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)} PEN (40%) '
-          'y se asignará un recolector a tu domicilio.',
+      message: _request.isDonation
+          ? '¿Deseas aceptar la oferta de "$centerName"? '
+              'La recolección será asignada y el 100% del valor apoyará la labor del recolector asignado (Donación Solidaria).'
+          : '¿Deseas aceptar la oferta de "$centerName"? '
+              'Recibirás ${bid.totalEstimatedEco.toStringAsFixed(2)} LIVO (≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)}) '
+              'y se asignará un recolector a tu domicilio.',
       confirmLabel: 'Aceptar oferta',
     );
     if (!confirmed || !mounted) return;
@@ -93,7 +96,7 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
     try {
       await context.read<LivoraApi>().selectBid(_request.id, bid.id);
       if (mounted) {
-        showAppSnack(context, '¡Oferta aceptada! El centro de acopio ha sido asignado.');
+        showAppSnack(context, 'Oferta aceptada. El centro de acopio ha sido asignado.');
         await _refreshRequest();
         if (mounted) Navigator.pop(context, true);
       }
@@ -134,7 +137,9 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
   @override
   Widget build(BuildContext context) {
     final bids = _request.bids;
-    final isAuctionOpen = _request.status == 'PENDING' || _request.status == 'AUCTION_OPEN';
+    final isAuctionOpen = _request.status == 'PENDING' ||
+        _request.status == 'AUCTION_OPEN' ||
+        _request.status == 'AUCTION_ACTIVE';
 
     return Scaffold(
       appBar: AppBar(
@@ -207,7 +212,7 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
                           const SizedBox(height: 6),
                           Text(
                             'Compara las tarifas que los centros de acopio ofrecen por tus materiales. '
-                            'El 40% del valor total se abona directamente a tu billetera.',
+                            'El valor de tu recompensa se abona directamente en tokens LIVO a tu billetera.',
                             style: TextStyle(
                               fontSize: 12,
                               color: LivoraColors.ink.withValues(alpha: 0.75),
@@ -332,40 +337,83 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.shade50.withValues(alpha: 0.7),
+                                  color: _request.isDonation
+                                      ? Colors.amber.shade50.withValues(alpha: 0.8)
+                                      : Colors.green.shade50.withValues(alpha: 0.7),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.green.shade200),
+                                  border: Border.all(
+                                    color: _request.isDonation ? Colors.amber.shade300 : Colors.green.shade200,
+                                  ),
                                 ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Tu ganancia estimada (40%):',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            color: LivoraColors.deep,
+                                child: _request.isDonation
+                                    ? const Row(
+                                        children: [
+                                          Icon(Icons.volunteer_activism_rounded, size: 22, color: LivoraColors.amber),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Entrega Solidaria (100% donación)',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: LivoraColors.deep,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'El valor total apoya íntegramente al recolector asignado.',
+                                                  style: TextStyle(fontSize: 10.5, color: LivoraColors.slate),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          'Abono directo en LIVOs',
-                                          style: TextStyle(fontSize: 10.5, color: LivoraColors.slate),
-                                        ),
-                                      ],
-                                    ),
-                                    Text(
-                                      '≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)} PEN',
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w900,
-                                        color: LivoraColors.forest,
+                                        ],
+                                      )
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Tu recompensa estimada:',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: LivoraColors.deep,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Abono directo en LIVOs',
+                                                style: TextStyle(fontSize: 10.5, color: LivoraColors.slate),
+                                              ),
+                                            ],
+                                          ),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                '${bid.totalEstimatedEco.toStringAsFixed(2)} LIVO',
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: LivoraColors.forest,
+                                                ),
+                                              ),
+                                              Text(
+                                                '(≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)})',
+                                                style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: LivoraColors.ink.withValues(alpha: 0.65),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
-                                ),
                               ),
 
                               // Botón Aceptar Oferta

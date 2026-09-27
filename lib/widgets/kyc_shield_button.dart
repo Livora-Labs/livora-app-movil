@@ -5,6 +5,7 @@ import '../core/app_theme.dart';
 import '../core/formats.dart';
 import '../core/session.dart';
 import '../models/models.dart';
+import '../screens/hogar/hogar_kyc_screen.dart';
 import '../screens/recolector/kyc_screen.dart';
 
 /// Botón con ícono de escudo profesional para consultar y gestionar el estado KYC.
@@ -225,9 +226,12 @@ Future<void> showKycInfoModal(BuildContext context) {
               ),
               onPressed: () {
                 Navigator.pop(sheetContext);
+                final target = session.user?.role == Roles.hogar
+                    ? const HogarKycScreen()
+                    : const KycScreen();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const KycScreen()),
+                  MaterialPageRoute(builder: (_) => target),
                 );
               },
             ),

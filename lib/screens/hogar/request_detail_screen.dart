@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +19,7 @@ import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_map_tile_layer.dart';
 import 'auction_bids_screen.dart';
+import 'widgets/material_slider_card.dart';
 
 /// Detalle de una solicitud de recolección (vista del HOGAR).
 class RequestDetailScreen extends StatefulWidget {
@@ -35,6 +36,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   String? _error;
   bool _cancelling = false;
   String? _selectingBidId;
+  String? _cachedPin;
 
   StreamSubscription<Map<String, dynamic>>? _locationSub;
   StreamSubscription<Map<String, dynamic>>? _arrivedSub;
@@ -280,6 +282,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         setState(() {
           _request = request;
           _error = null;
+          if (request.verificationPin != null && request.verificationPin!.isNotEmpty) {
+            _cachedPin = request.verificationPin;
+          }
           if (request.collectorLocation != null) {
             final loc = request.collectorLocation!;
             _collectorPos = LatLng(loc.latitude, loc.longitude);
@@ -304,10 +309,13 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Future<void> _cancel() async {
+    final hasCollector = _request?.status == 'ACCEPTED' || _request?.collectorName != null;
     final confirmed = await confirmDialog(
       context,
       title: 'Cancelar solicitud',
-      message: '¿Seguro que deseas cancelar esta solicitud de recolección?',
+      message: hasCollector
+          ? 'Un recolector ya ha sido asignado a tu recojo. Si cancelas ahora, se liberará el encargo. ¿Deseas cancelar la recolección?'
+          : '¿Seguro que deseas cancelar esta solicitud de recolección?',
       confirmLabel: 'Sí, cancelar',
     );
     if (!confirmed || !mounted) return;
@@ -343,7 +351,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     try {
       await context.read<LivoraApi>().selectBid(widget.requestId, bidId);
       if (mounted) {
-        showAppSnack(context, '¡Centro de acopio asignado con éxito!');
+        showAppSnack(context, 'Centro de acopio asignado con éxito.');
         await _load();
       }
     } on ApiException catch (error) {
@@ -460,7 +468,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                             );
                         if (!context.mounted) return;
                         if (ctx.mounted) Navigator.pop(ctx);
-                        showAppSnack(context, '¡Gracias por calificar el servicio!');
+                        showAppSnack(context, 'Calificación registrada con éxito.');
                         await _load();
                       } on ApiException catch (e) {
                         setDlgState(() => submitting = false);
@@ -496,150 +504,256 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     });
     final descCtrl = TextEditingController(text: req.description ?? '');
     bool saving = false;
+    String? localError;
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.edit_note, color: LivoraColors.forest),
-              SizedBox(width: 8),
-              Text('Editar Solicitud'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (context, setDlgState) {
+          final unusedOptions = kMaterialOptions.where((opt) =>
+              !controllers.keys.any((k) => k.toUpperCase() == opt.toUpperCase())).toList();
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
               children: [
-                const Text(
-                  'Modifica los materiales o cantidades estimadas:',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-                const SizedBox(height: 12),
-                ...controllers.entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            entry.key,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 3,
-                          child: TextField(
-                            controller: entry.value,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(
-                              suffixText: 'kg',
-                              isDense: true,
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Notas o indicaciones:',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: descCtrl,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    hintText: 'Indicaciones actualizadas...',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
+                Icon(Icons.edit_note, color: LivoraColors.forest),
+                SizedBox(width: 8),
+                Text('Editar Solicitud', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Modifica los materiales o cantidades estimadas:',
+                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 12),
+                    if (controllers.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No hay materiales agregados. Añade al menos uno abajo.',
+                          style: TextStyle(fontSize: 12, color: Colors.redAccent),
+                        ),
+                      ),
+                    ...controllers.entries.map(
+                      (entry) {
+                        final spec = kMaterialSpecs[entry.key.toUpperCase()];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                spec?.icon ?? Icons.recycling_rounded,
+                                size: 18,
+                                color: spec?.color ?? LivoraColors.forest,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  materialLabel(entry.key),
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: entry.value,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: kDecimalInputFormatters,
+                                  onChanged: (_) {
+                                    if (localError != null) setDlgState(() => localError = null);
+                                  },
+                                  decoration: const InputDecoration(
+                                    suffixText: 'kg',
+                                    isDense: true,
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  ),
+                                ),
+                              ),
+                              if (controllers.length > 1)
+                                IconButton(
+                                  icon: const Icon(Icons.close, size: 18, color: Colors.black45),
+                                  padding: const EdgeInsets.only(left: 4),
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Eliminar material',
+                                  onPressed: () {
+                                    setDlgState(() {
+                                      controllers.remove(entry.key)?.dispose();
+                                      if (localError != null) localError = null;
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    if (unusedOptions.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final opt in unusedOptions)
+                            ActionChip(
+                              label: Text('+ ${materialLabel(opt)}', style: const TextStyle(fontSize: 11)),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              onPressed: () {
+                                setDlgState(() {
+                                  controllers[opt] = TextEditingController(text: '1.0');
+                                  if (localError != null) localError = null;
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Notas o indicaciones:',
+                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: descCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        hintText: 'Indicaciones actualizadas para el recolector...',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                    ),
+                    if (localError != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, size: 16, color: Colors.red),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                localError!,
+                                style: const TextStyle(fontSize: 12, color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
-            ElevatedButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      setDlgState(() => saving = true);
-                      final updatedItems = <String, double>{};
-                      controllers.forEach((k, v) {
-                        final parsed = double.tryParse(v.text.replaceAll(',', '.')) ?? 0;
-                        if (parsed > 0) updatedItems[k] = parsed;
-                      });
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final updatedItems = <String, double>{};
+                        double totalKg = 0;
+                        controllers.forEach((k, v) {
+                          final parsed = double.tryParse(v.text.replaceAll(',', '.')) ?? 0;
+                          if (parsed > 0) {
+                            updatedItems[k] = parsed;
+                            totalKg += parsed;
+                          }
+                        });
 
-                      try {
-                        await context.read<LivoraApi>().editCollectionRequest(
-                              widget.requestId,
-                              itemsEstimated: updatedItems,
-                              description: descCtrl.text.trim(),
-                            );
-                        if (!context.mounted) return;
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        showAppSnack(context, 'Solicitud actualizada con éxito');
-                        await _load();
-                      } on ApiException catch (e) {
-                        setDlgState(() => saving = false);
-                        if (e.statusCode == 409 || e.message.contains('ya está en curso')) {
+                        if (updatedItems.isEmpty) {
+                          setDlgState(() => localError = 'Ingresa al menos un material con peso mayor a 0 kg.');
+                          return;
+                        }
+                        if (totalKg < 0.5) {
+                          setDlgState(() => localError = 'El peso total estimado debe ser al menos 0.5 kg.');
+                          return;
+                        }
+
+                        setDlgState(() {
+                          saving = true;
+                          localError = null;
+                        });
+
+                        try {
+                          await context.read<LivoraApi>().editCollectionRequest(
+                                widget.requestId,
+                                itemsEstimated: updatedItems,
+                                description: descCtrl.text.trim(),
+                              );
                           if (!context.mounted) return;
                           if (ctx.mounted) Navigator.pop(ctx);
-                          await showDialog(
-                            context: context,
-                            builder: (alertCtx) => AlertDialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              title: const Row(
-                                children: [
-                                  Icon(Icons.info_outline, color: Color(0xFFF59E0B)),
-                                  SizedBox(width: 8),
-                                  Text('No se puede modificar'),
+                          showAppSnack(context, 'Solicitud actualizada con éxito');
+                          await _load();
+                        } on ApiException catch (e) {
+                          setDlgState(() => saving = false);
+                          if (e.statusCode == 409 || e.message.contains('ya está en curso')) {
+                            if (!context.mounted) return;
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            await showDialog(
+                              context: context,
+                              builder: (alertCtx) => AlertDialog(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                title: const Row(
+                                  children: [
+                                    Icon(Icons.info_outline, color: Color(0xFFF59E0B)),
+                                    SizedBox(width: 8),
+                                    Text('No se puede modificar'),
+                                  ],
+                                ),
+                                content: const Text(
+                                  'Tu solicitud ya está en curso y no puede ser modificada',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(alertCtx),
+                                    child: const Text('Entendido'),
+                                  ),
                                 ],
                               ),
-                              content: const Text(
-                                'Tu solicitud ya está en curso y no puede ser modificada',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(alertCtx),
-                                  child: const Text('Entendido'),
-                                ),
-                              ],
-                            ),
-                          );
-                          await _load();
-                        } else {
-                          if (context.mounted) showAppSnack(context, e.message, error: true);
+                            );
+                            await _load();
+                          } else {
+                            if (context.mounted) showAppSnack(context, e.message, error: true);
+                          }
+                        } catch (_) {
+                          setDlgState(() => saving = false);
+                          if (context.mounted) {
+                            showAppSnack(context, 'Error al actualizar la solicitud', error: true);
+                          }
                         }
-                      } catch (_) {
-                        setDlgState(() => saving = false);
-                        if (context.mounted) {
-                          showAppSnack(context, 'Error al actualizar la solicitud', error: true);
-                        }
-                      }
-                    },
-              child: saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Guardar'),
-            ),
-          ],
-        ),
+                      },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Guardar'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1260,8 +1374,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                         const SizedBox(height: 14),
                       ],
 
-                      // PIN de Verificación en Cajas OTP
-                      if (['PENDING', 'ACCEPTED', 'EN_ROUTE', 'ARRIVED'].contains(request.status)) ...[
+                      // PIN de Verificación en Cajas OTP (Disponible cuando hay recolector asignado o en camino)
+                      if (['ACCEPTED', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED'].contains(request.status)) ...[
                         Card(
                           color: LivoraColors.blue.withValues(alpha: 0.06),
                           shape: RoundedRectangleBorder(
@@ -1290,7 +1404,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                 ),
                                 const SizedBox(height: 14),
                                 OtpPinBox(
-                                  pin: request.verificationPin ?? '----',
+                                  pin: request.verificationPin ?? _cachedPin ?? '----',
                                   isActive: true,
                                 ),
                                 const SizedBox(height: 10),
@@ -1305,6 +1419,89 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                               ],
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Tarjeta explicativa de estado terminal no completado
+                      if (['UNATTENDED', 'REJECTED_ON_SITE', 'EXPIRED', 'CANCELLED'].contains(request.status)) ...[
+                        Builder(
+                          builder: (context) {
+                            final (icon, title, desc, color) = switch (request.status) {
+                              'UNATTENDED' => (
+                                  Icons.doorbell_outlined,
+                                  'Visita no atendida en domicilio',
+                                  'El recolector acudió a la dirección pero no se obtuvo respuesta en puerta. Puedes generar una nueva solicitud cuando estés disponible en casa.',
+                                  Colors.amber.shade800,
+                                ),
+                              'REJECTED_ON_SITE' => (
+                                  Icons.report_problem_outlined,
+                                  'Recolección rechazada en sitio',
+                                  'El material no cumplió con las condiciones mínimas de reciclaje (limpieza, separación adecuada o acceso restringido). Revisa las guías antes de volver a solicitar.',
+                                  Colors.red.shade700,
+                                ),
+                              'EXPIRED' => (
+                                  Icons.timer_off_outlined,
+                                  'Tiempo límite expirado',
+                                  'No se encontró un recolector disponible en la zona durante la ventana horaria activa. Te sugerimos solicitar nuevamente en horario diurno.',
+                                  Colors.grey.shade700,
+                                ),
+                              'CANCELLED' => (
+                                  Icons.cancel_outlined,
+                                  'Solicitud cancelada',
+                                  'Esta recolección fue cancelada. No se generó ningún débito de garantía ni transferencia de tokens.',
+                                  Colors.grey.shade700,
+                                ),
+                              _ => (
+                                  Icons.info_outline,
+                                  'Solicitud no completada',
+                                  'Esta solicitud concluyó sin concretar la recolección física.',
+                                  Colors.grey.shade700,
+                                ),
+                            };
+
+                            return Card(
+                              color: color.withValues(alpha: 0.06),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(color: color.withValues(alpha: 0.3)),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(icon, color: color, size: 24),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            title,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w800,
+                                              color: color,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            desc,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: LivoraColors.ink.withValues(alpha: 0.85),
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -1496,7 +1693,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         const Text(
-                                          'Tu ganancia estimada (40%):',
+                                          'Tu recompensa estimada:',
                                           style: TextStyle(fontSize: 12, color: Colors.black87),
                                         ),
                                         Text(
@@ -1538,97 +1735,62 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       ],
 
                       // Materiales Estimados vs Reales
-                      const SectionTitle(text: 'Materiales y Pesajes'),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            children: [
-                              for (final entry in request.itemsEstimated.entries) ...[
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 6),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.recycling, size: 18, color: LivoraColors.green),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          materialLabel(entry.key),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: LivoraColors.deep,
+                      if (request.actualWeights != null) ...[
+                        _WeightReconciliationCard(request: request),
+                      ] else ...[
+                        const SectionTitle(text: 'Materiales Estimados'),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              children: [
+                                for (final entry in request.itemsEstimated.entries) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.recycling, size: 18, color: LivoraColors.green),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            materialLabel(entry.key),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: LivoraColors.deep,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            'Est: ${fmtKg(entry.value)}',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: LivoraColors.ink,
-                                            ),
+                                        Text(
+                                          fmtKg(entry.value),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: LivoraColors.ink,
                                           ),
-                                          if (request.actualWeights != null &&
-                                              request.actualWeights![entry.key] != null) ...[
-                                            Text(
-                                              'Real: ${fmtKg(request.actualWeights![entry.key])}',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 13,
-                                                color: LivoraColors.forest,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const Divider(height: 12),
-                              ],
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Total estimado',
-                                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                                  ),
-                                  Text(
-                                    fmtKg(request.totalEstimatedKg),
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                                  ),
+                                  const Divider(height: 12),
                                 ],
-                              ),
-                              if (request.actualWeights != null) ...[
-                                const SizedBox(height: 4),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     const Text(
-                                      'Total real en planta',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13.5,
-                                        color: LivoraColors.forest,
-                                      ),
+                                      'Total estimado',
+                                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                                     ),
                                     Text(
-                                      fmtKg(request.totalActualKg),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13.5,
-                                        color: LivoraColors.forest,
-                                      ),
+                                      fmtKg(request.totalEstimatedKg),
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                                     ),
                                   ],
                                 ),
                               ],
-                            ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                       const SizedBox(height: 16),
 
                       // Información del Servicio
@@ -1657,10 +1819,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                   ),
                                 ),
                               InfoRow(
-                                label: 'Ganancia estimada Hogar',
+                                label: 'Recompensa estimada',
                                 value: request.hogarEstimatedEarningsPEN > 0
-                                    ? '≈ S/ ${request.hogarEstimatedEarningsPEN.toStringAsFixed(2)} PEN (40%)'
-                                    : 'A liquidar en pesaje',
+                                    ? '${request.hogarEstimatedEarningsPEN.toStringAsFixed(2)} LIVO (≈ S/ ${request.hogarEstimatedEarningsPEN.toStringAsFixed(2)})'
+                                    : 'Recompensa calculada al pesar',
                               ),
                               InfoRow(
                                 label: 'Notas',
@@ -1846,7 +2008,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       Icon(Icons.gavel, size: 14, color: Colors.black87),
                       SizedBox(width: 4),
                       Text(
-                        '¡NUEVA PUJA RECIBIDA!',
+                        '¡NUEVA PUJA RECIBIDA',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
@@ -1897,7 +2059,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             Row(
               children: [
                 Text(
-                  'S/ ${penn.toStringAsFixed(2)} PEN',
+                  '${livos.toStringAsFixed(2)} LIVO',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -1906,7 +2068,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '(${livos.toStringAsFixed(2)} LIVOs)',
+                  '(≈ S/ ${penn.toStringAsFixed(2)})',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1985,3 +2147,370 @@ class _StellarActionButton extends StatelessWidget {
     );
   }
 }
+
+/// Tarjeta de conciliación detallada entre los pesos declarados por el hogar y
+/// el pesaje certificado por la balanza digital del centro de acopio.
+class _WeightReconciliationCard extends StatelessWidget {
+  const _WeightReconciliationCard({required this.request});
+
+  final CollectionRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final actual = request.actualWeights ?? const {};
+    final estimated = request.itemsEstimated;
+    final allKeys = <String>{...estimated.keys, ...actual.keys}.toList();
+
+    final rewardEarned = request.householdRewardEarned > 0
+        ? request.householdRewardEarned
+        : request.hogarEstimatedEarningsPEN;
+
+    final isDonation = request.isDonation;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: LivoraColors.forest.withValues(alpha: 0.25)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: LivoraColors.forest.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.balance_rounded,
+                    color: LivoraColors.forest,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pesaje y Liquidación Oficial',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: LivoraColors.deep,
+                        ),
+                      ),
+                      Text(
+                        'Certificado en báscula digital del acopio',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: LivoraColors.ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: LivoraColors.forest.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_rounded, size: 14, color: LivoraColors.forest),
+                      SizedBox(width: 4),
+                      Text(
+                        'PESADO',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: LivoraColors.forest,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+
+            // Encabezados de columnas
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Material',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: LivoraColors.ink),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      'Declarado',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: LivoraColors.ink),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      'Balanza',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: LivoraColors.forest),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      'Diferencia',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: LivoraColors.ink),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 8),
+
+            // Filas de materiales
+            for (final key in allKeys) ...[
+              Builder(
+                builder: (context) {
+                  final est = estimated[key] ?? 0.0;
+                  final act = actual[key] ?? 0.0;
+                  final diff = act - est;
+                  final isPositive = diff > 0.001;
+                  final isNegative = diff < -0.001;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            materialLabel(key),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                              color: LivoraColors.deep,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            fmtKg(est),
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontSize: 12, color: LivoraColors.ink),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            fmtKg(act),
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: LivoraColors.forest,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            diff.abs() < 0.001
+                                ? '0.0 kg'
+                                : '${isPositive ? "+" : ""}${fmtKg(diff)}',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: isPositive
+                                  ? LivoraColors.forest
+                                  : (isNegative ? Colors.orange.shade800 : LivoraColors.ink),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+            const Divider(height: 12),
+
+            // Fila de Totales
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  const Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Total General',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: LivoraColors.deep,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      fmtKg(request.totalEstimatedKg),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      fmtKg(request.totalActualKg),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: LivoraColors.forest,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Builder(
+                      builder: (context) {
+                        final totalDiff = request.totalActualKg - request.totalEstimatedKg;
+                        final isPos = totalDiff > 0.001;
+                        final isNeg = totalDiff < -0.001;
+                        return Text(
+                          totalDiff.abs() < 0.001
+                              ? '0.0 kg'
+                              : '${isPos ? "+" : ""}${fmtKg(totalDiff)}',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isPos
+                                ? LivoraColors.forest
+                                : (isNeg ? Colors.orange.shade800 : LivoraColors.ink),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Liquidación en LIVO destacada
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    LivoraColors.forest.withValues(alpha: 0.08),
+                    LivoraColors.green.withValues(alpha: 0.14),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: LivoraColors.forest.withValues(alpha: 0.2)),
+              ),
+              child: isDonation
+                  ? const Row(
+                      children: [
+                        Icon(Icons.volunteer_activism_rounded, color: LivoraColors.forest, size: 22),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Entrega Solidaria: El 100% del valor del reciclaje fue cedido al recolector.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: LivoraColors.forest,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.stars_rounded,
+                            color: LivoraColors.forest,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Recompensa final liquidada',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: LivoraColors.ink,
+                                ),
+                              ),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.baseline,
+                                textBaseline: TextBaseline.alphabetic,
+                                children: [
+                                  Text(
+                                    '${rewardEarned.toStringAsFixed(2)} LIVO',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 17,
+                                      color: LivoraColors.forest,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '≈ S/ ${rewardEarned.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12.5,
+                                      color: LivoraColors.ink,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

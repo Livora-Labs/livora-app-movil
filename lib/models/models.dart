@@ -489,17 +489,23 @@ class AppNotification {
     required this.type,
     required this.isRead,
     this.createdAt,
+    this.data,
   });
 
-  factory AppNotification.fromJson(Map<String, dynamic> json) =>
-      AppNotification(
-        id: json['id'] as String? ?? '',
-        title: json['title'] as String? ?? '',
-        message: json['message'] as String? ?? '',
-        type: json['type'] as String? ?? 'INFO',
-        isRead: json['isRead'] as bool? ?? false,
-        createdAt: _toDate(json['createdAt']),
-      );
+  factory AppNotification.fromJson(Map<String, dynamic> json) {
+    final rawData = json['data'] ?? json['metadata'];
+    return AppNotification(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      message: json['message'] as String? ?? '',
+      type: json['type'] as String? ?? 'INFO',
+      isRead: json['isRead'] as bool? ?? false,
+      createdAt: _toDate(json['createdAt']),
+      data: rawData is Map<String, dynamic>
+          ? rawData
+          : (rawData is Map ? Map<String, dynamic>.from(rawData) : null),
+    );
+  }
 
   final String id;
   final String title;
@@ -507,6 +513,7 @@ class AppNotification {
   final String type;
   final bool isRead;
   final DateTime? createdAt;
+  final Map<String, dynamic>? data;
 }
 
 /// Existencia de material en inventario (centro de acopio / tienda).

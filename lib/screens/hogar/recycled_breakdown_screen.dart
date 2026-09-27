@@ -3,6 +3,7 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import 'request_detail_screen.dart';
 
 /// Pantalla interactiva que desglosa los kilogramos reciclados por material.
 class RecycledBreakdownScreen extends StatelessWidget {
@@ -263,6 +264,14 @@ class RecycledBreakdownScreen extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => RequestDetailScreen(requestId: req.id),
+                      ),
+                    );
+                  },
                   leading: const CircleAvatar(
                     backgroundColor: LivoraColors.paper,
                     child: Icon(Icons.check_circle_rounded, color: LivoraColors.green),
@@ -276,16 +285,23 @@ class RecycledBreakdownScreen extends StatelessWidget {
                     ),
                   ),
                   subtitle: Text(
-                    '${fmtDate(req.createdAt)} · ${req.collectorName ?? req.collectorEmail ?? "Recolector"}',
+                    '${fmtDate(req.createdAt)} · ${sanitizedPersonName(req.collectorName, req.collectorEmail, defaultLabel: "Recolector")}',
                     style: const TextStyle(fontSize: 11.5),
                   ),
-                  trailing: Text(
-                    fmtKg(reqTotal),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                      color: LivoraColors.forest,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fmtKg(reqTotal),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: LivoraColors.forest,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded, size: 18, color: LivoraColors.ink),
+                    ],
                   ),
                 ),
               );

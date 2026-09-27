@@ -15,10 +15,10 @@ import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/location_service.dart';
 import '../../widgets/common.dart';
-import '../../widgets/materials_editor.dart';
 import '../../widgets/livora_map_tile_layer.dart';
 import '../../widgets/center_picker_pin.dart';
-import '../recolector/kyc_screen.dart';
+import 'hogar_kyc_screen.dart';
+import 'widgets/material_slider_card.dart';
 
 class CreateRequestScreen extends StatefulWidget {
   const CreateRequestScreen({super.key});
@@ -39,7 +39,10 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   bool _isMapDragging = false;
   bool _geocodingAddress = false;
 
-  Map<String, double> _materials = {};
+  final Map<String, double> _materials = {
+    'PET': 2.0,
+    'CARTON': 1.0,
+  };
   String _assignmentMode = 'AUTOMATIC';
   bool _busy = false;
   bool _fetchingLocation = false;
@@ -49,6 +52,36 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   bool _uploadingPhoto = false;
 
   double get _totalKg => _materials.values.fold<double>(0.0, (s, w) => s + w);
+
+  double get _estimatedMarketPEN {
+    double total = 0.0;
+    _materials.forEach((mat, wt) {
+      final spec = kMaterialSpecs[mat.toUpperCase()];
+      final rate = spec?.avgMarketRatePerKg ?? 1.0;
+      total += wt * rate;
+    });
+    return total;
+  }
+
+  double get _estimatedLivoReward => _estimatedMarketPEN * 0.40;
+
+  double get _estimatedCo2Saved {
+    double co2 = 0.0;
+    _materials.forEach((mat, wt) {
+      final spec = kMaterialSpecs[mat.toUpperCase()];
+      co2 += wt * (spec?.co2FactorPerKg ?? 1.0);
+    });
+    return co2;
+  }
+
+  double get _estimatedWaterSaved {
+    double water = 0.0;
+    _materials.forEach((mat, wt) {
+      final spec = kMaterialSpecs[mat.toUpperCase()];
+      water += wt * (spec?.waterFactorPerKg ?? 15.0);
+    });
+    return water;
+  }
 
   @override
   void initState() {
@@ -295,17 +328,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     bool isDonation = false;
 
     if (session.kycStatus == KycStatus.approved) {
-      double estimatedValuePEN = 0;
-      _materials.forEach((mat, wt) {
-        final rate = (mat.toUpperCase().contains('ALUMINIO')
-            ? 1.5
-            : (mat.toUpperCase().contains('PAPEL') ||
-                    mat.toUpperCase().contains('CART'))
-                ? 0.5
-                : 1.0);
-        estimatedValuePEN += wt * rate;
-      });
-      final estimatedLivos = (estimatedValuePEN * 0.40).toStringAsFixed(2);
+      final estimatedLivos = _estimatedLivoReward.toStringAsFixed(2);
 
       final choice = await showModalBottomSheet<String>(
         context: context,
@@ -416,7 +439,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Tokens acreditados directamente a tu billetera Web3 tras pesaje y confirmación en centro de acopio.',
+                              'Tokens acreditados en tu billetera tras la entrega y pesaje (≈ S/ $estimatedLivos para canjear en comercios aliados).',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: LivoraColors.ink.withValues(alpha: 0.7),
@@ -593,7 +616,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   Navigator.pop(sheetContext, false);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const KycScreen()),
+                    MaterialPageRoute(builder: (_) => const HogarKycScreen()),
                   );
                 },
               ),
@@ -650,7 +673,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             color: LivoraColors.green,
             size: 44,
           ),
-          title: const Text('¡Solicitud creada!'),
+          title: const Text('Solicitud Registrada con Éxito'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -700,10 +723,57 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SectionTitle(text: '¿Qué vas a reciclar?'),
-                MaterialsEditor(
-                  onChanged: (materials) =>
-                      setState(() => _materials = materials),
+                Text(
+                  'Ajusta los kilogramos estimados con los sliders o botones rápidos (+1kg, +5kg):',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: LivoraColors.slate.withValues(alpha: 0.9),
+                  ),
                 ),
+                const SizedBox(height: 10),
+                for (final entry in _materials.entries)
+                  if (kMaterialSpecs.containsKey(entry.key.toUpperCase()))
+                    MaterialSliderCard(
+                      spec: kMaterialSpecs[entry.key.toUpperCase()]!,
+                      weightKg: entry.value,
+                      onWeightChanged: (newKg) {
+                        setState(() {
+                          if (newKg <= 0) {
+                            _materials.remove(entry.key);
+                          } else {
+                            _materials[entry.key] = newKg;
+                          }
+                        });
+                      },
+                    ),
+                if (kMaterialSpecs.keys.any((k) => !_materials.containsKey(k))) ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Añadir otros materiales a la misma solicitud:',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: LivoraColors.slate),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final spec in kMaterialSpecs.values)
+                        if (!_materials.containsKey(spec.key))
+                          ActionChip(
+                            avatar: Icon(spec.icon, size: 16, color: spec.color),
+                            label: Text('+ ${spec.name}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                            backgroundColor: Colors.white,
+                            side: BorderSide(color: Colors.grey.shade300),
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              setState(() {
+                                _materials[spec.key] = 1.0;
+                              });
+                            },
+                          ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 14),
 
                 const SectionTitle(text: 'Foto del material (opcional)'),
@@ -741,8 +811,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   padding: const EdgeInsets.only(top: 8, bottom: 10),
                   child: Text(
                     _assignmentMode == 'AUTOMATIC'
-                        ? 'El primer centro de acopio que solicite la orden la tomará directamente.'
-                        : 'Recibe propuestas de tarifas de centros de acopio y elige la ganancia en PEN más conveniente.',
+                        ? 'El centro de acopio más cercano asegura la tarifa y luego los recolectores toman el viaje.'
+                        : 'Publica tu orden en subasta abierta para que los acopios compitan ofreciendo la mayor cantidad de LIVOs.',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -895,7 +965,113 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   ),
                   maxLines: 2,
                 ),
-                const SizedBox(height: 24),
+                // Tarjeta de Cálculo Reactivo de Recompensa (LIVO principal) e Impacto Ambiental
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _totalKg >= 0.5 ? LivoraColors.paper : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _totalKg >= 0.5
+                          ? LivoraColors.forest.withValues(alpha: 0.35)
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total a entregar:',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: LivoraColors.deep,
+                            ),
+                          ),
+                          Text(
+                            '${_totalKg.toStringAsFixed(1)} kg',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _totalKg >= 0.5 ? LivoraColors.deep : LivoraColors.slate,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.toll, size: 18, color: LivoraColors.forest),
+                              SizedBox(width: 6),
+                              Text(
+                                'Recompensa estimada:',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: LivoraColors.deep,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: '${_estimatedLivoReward.toStringAsFixed(2)} LIVO',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                    color: LivoraColors.forest,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' (≈ S/ ${_estimatedLivoReward.toStringAsFixed(2)})',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    color: LivoraColors.ink.withValues(alpha: 0.65),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_totalKg >= 0.5) ...[
+                        const Divider(height: 18),
+                        Row(
+                          children: [
+                            const Icon(Icons.eco_rounded, size: 16, color: LivoraColors.amber),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${_estimatedCo2Saved.toStringAsFixed(1)} kg CO₂ evitados · ~${_estimatedWaterSaved.toStringAsFixed(0)} L agua ahorrada',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: LivoraColors.deep,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Mínimo 0.5 kg en total para poder solicitar recojo a domicilio.',
+                          style: TextStyle(fontSize: 11.5, color: LivoraColors.coral),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
 
                 BusyButton(
                   label: 'Crear solicitud',
