@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/app_theme.dart';
 import '../../services/location_service.dart';
@@ -482,9 +484,18 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
                     ),
                   ),
                 ),
+              ],
+            ),
 
-                // Marcadores de tiendas aliadas
-                ...storesWithCoords.map((store) {
+            // Agrupamiento profesional de comercios (Marker Clustering a 60/120 FPS)
+            MarkerClusterLayerWidget(
+              options: MarkerClusterLayerOptions(
+                maxClusterRadius: 45,
+                size: const Size(42, 42),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.all(40),
+                maxZoom: 16,
+                markers: storesWithCoords.map((store) {
                   final lat = double.parse(store['latitude'].toString());
                   final lng = double.parse(store['longitude'].toString());
                   return Marker(
@@ -496,8 +507,34 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
                       onTap: () => _showStoreDetail(store),
                     ),
                   );
-                }),
-              ],
+                }).toList(),
+                builder: (context, markers) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: LivoraColors.forest,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${markers.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -511,10 +548,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
             backgroundColor: Colors.white,
             foregroundColor: LivoraColors.forest,
             elevation: 3,
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _mapController.move(centerPoint, 14.0);
-            },
+            onPressed: _recenterOnUser,
             child: const Icon(Icons.my_location_rounded, size: 20),
           ),
         ),
@@ -527,6 +561,137 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _recenterOnUser() async {
+    HapticFeedback.lightImpact();
+    if (_userLat != null && _userLng != null) {
+      _mapController.move(LatLng(_userLat!, _userLng!), 14.5);
+      return;
+    }
+
+    final isGpsOn = await LocationService.isLocationServiceEnabled();
+    if (!isGpsOn) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.location_off_outlined, color: Color(0xFFF59E0B)),
+              SizedBox(width: 8),
+              Text('GPS Desactivado', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            'El servicio de ubicación (GPS) está desactivado en tu dispositivo. Actívalo para ubicar tu posición y calcular la distancia a los comercios aliados.',
+            style: TextStyle(fontSize: 14, color: LivoraColors.slate),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+              onPressed: () {
+                Navigator.pop(ctx);
+                LocationService.openLocationSettings();
+              },
+              icon: const Icon(Icons.settings, size: 16),
+              label: const Text('Activar GPS'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final permission = await LocationService.checkPermission();
+    if (permission == LocationPermission.denied) {
+      final req = await LocationService.requestPermission();
+      if (req == LocationPermission.denied || req == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.security, color: Color(0xFFF59E0B)),
+                SizedBox(width: 8),
+                Text('Permiso de Ubicación', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: const Text(
+              'La aplicación requiere permisos de ubicación para mostrar comercios cercanos a tu posición actual.',
+              style: TextStyle(fontSize: 14, color: LivoraColors.slate),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  LocationService.openAppSettings();
+                },
+                child: const Text('Abrir Ajustes'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    } else if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.security, color: Color(0xFFF59E0B)),
+              SizedBox(width: 8),
+              Text('Permiso Denegado', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            'Los permisos de ubicación fueron denegados permanentemente. Habilítalos en los ajustes del sistema para posicionarte en el mapa.',
+            style: TextStyle(fontSize: 14, color: LivoraColors.slate),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+              onPressed: () {
+                Navigator.pop(ctx);
+                LocationService.openAppSettings();
+              },
+              child: const Text('Abrir Ajustes'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final pos = await LocationService.getCurrentPosition();
+    if (pos != null && mounted) {
+      setState(() {
+        _userLat = pos.latitude;
+        _userLng = pos.longitude;
+      });
+      _mapController.move(LatLng(pos.latitude, pos.longitude), 14.5);
+    } else if (mounted) {
+      showAppSnack(context, 'No se pudo obtener la posición actual del dispositivo.', error: true);
+    }
   }
 
   void _showStoreDetail(Map<String, dynamic> store) {

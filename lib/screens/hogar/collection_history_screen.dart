@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -5,9 +7,11 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/paging_controller.dart';
+import '../../core/session.dart';
 import '../../core/stellar.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_empty_state.dart';
 import '../../widgets/paginated_list_view.dart';
@@ -30,6 +34,9 @@ class CollectionHistoryScreen extends StatefulWidget {
 class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
   late String _selectedFilter;
   late final PagingController<CollectionRequest> _pagingController;
+  StreamSubscription<Map<String, dynamic>>? _updateSub;
+  StreamSubscription<Map<String, dynamic>>? _createSub;
+  int? _lastBatchesVersion;
 
   static const _filters = [
     'TODAS',
@@ -62,10 +69,23 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
       pageSize: 15,
     );
     _pagingController.loadFirstPage();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      _updateSub = realtime.on(RealtimeEvents.collectionUpdated).listen((_) {
+        if (mounted) _pagingController.refresh();
+      });
+      _createSub = realtime.on(RealtimeEvents.collectionCreated).listen((_) {
+        if (mounted) _pagingController.refresh();
+      });
+    });
   }
 
   @override
   void dispose() {
+    _updateSub?.cancel();
+    _createSub?.cancel();
     _pagingController.dispose();
     super.dispose();
   }
@@ -79,6 +99,14 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
+    if (_lastBatchesVersion != session.batchesVersion) {
+      _lastBatchesVersion = session.batchesVersion;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _pagingController.refresh();
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Historial de Recolecciones'),
@@ -224,10 +252,10 @@ class _HistoryItemCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   if (hasDonation)
-                    _TinyBadge(
+                    const _TinyBadge(
                       label: 'Donación Solidaria',
                       icon: Icons.volunteer_activism_rounded,
-                      color: const Color(0xFF6B7280),
+                      color: Color(0xFF6B7280),
                     )
                   else if (reward > 0)
                     _TinyBadge(

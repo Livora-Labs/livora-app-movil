@@ -9,8 +9,10 @@ import '../core/formats.dart';
 import '../core/session.dart';
 import '../models/models.dart';
 import '../services/livora_api.dart';
+import '../services/location_service.dart';
 import 'common.dart';
 import 'verification_otp_modal.dart';
+import '../screens/recolector/collector_active_route_screen.dart';
 
 /// Tarjeta Héroe multiparada desacoplada y anclada en la parte superior (Sticky Header)
 /// del radar para pedidos activos en ruta (ACCEPTED / EN_ROUTE / ARRIVED).
@@ -68,36 +70,24 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
 
   Future<void> _openNavigation(CollectionRequest request) async {
     HapticFeedback.lightImpact();
-    final lat = request.latitude;
-    final lng = request.longitude;
 
-    // Intent geo nativo para Google Maps / Waze con fallback a URL web
-    final geoUri = Uri.parse('geo:$lat,$lng?q=$lat,$lng');
-    final webMapsUri =
-        Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-    final wazeUri =
-        Uri.parse('https://waze.com/ul?ll=$lat,$lng&navigate=yes');
+    // Abre la consola de navegación Turn-by-Turn integrada con proxy OSRM
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CollectorActiveRouteScreen(
+          request: request,
+          initialCollectorLat: widget.userLat,
+          initialCollectorLng: widget.userLng,
+        ),
+      ),
+    );
 
-    try {
-      if (await canLaunchUrl(geoUri)) {
-        await launchUrl(geoUri, mode: LaunchMode.externalApplication);
-      } else if (await canLaunchUrl(wazeUri)) {
-        await launchUrl(wazeUri, mode: LaunchMode.externalApplication);
-      } else if (await canLaunchUrl(webMapsUri)) {
-        await launchUrl(webMapsUri, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          showAppSnack(
-            context,
-            'No se encontró una aplicación de mapas compatible',
-            error: true,
-          );
-        }
-      }
-    } catch (_) {
-      if (mounted) {
-        showAppSnack(context, 'Error al iniciar la navegación GPS', error: true);
-      }
+    if (mounted) {
+      setState(() {
+        _overrides.clear();
+      });
+      widget.onVerificationCompleted();
     }
   }
 
@@ -228,6 +218,7 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
     try {
       final updated = await context.read<LivoraApi>().reportNoShow(request.id);
       if (mounted) {
+        LocationService.stopCollectorTracking();
         setState(() {
           _overrides[request.id] = updated;
         });
@@ -300,6 +291,7 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
     try {
       final updated = await context.read<LivoraApi>().rejectOnSite(request.id, reason);
       if (mounted) {
+        LocationService.stopCollectorTracking();
         setState(() {
           _overrides[request.id] = updated;
         });
@@ -323,6 +315,7 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
     HapticFeedback.lightImpact();
     final verified = await VerificationOtpModal.show(context, request: request);
     if (verified == true && mounted) {
+      LocationService.stopCollectorTracking();
       context.read<SessionController>().notifyBatchesChanged();
       widget.onVerificationCompleted();
     }

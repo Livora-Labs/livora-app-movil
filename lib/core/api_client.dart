@@ -107,8 +107,8 @@ class ApiClient {
   Future<dynamic> patch(String path, {Object? body}) =>
       _send('PATCH', path, body: body);
 
-  Future<dynamic> delete(String path, {Object? body}) =>
-      _send('DELETE', path, body: body);
+  Future<dynamic> delete(String path, {Map<String, Object?>? query, Object? body}) =>
+      _send('DELETE', path, query: query, body: body);
 
   /// Sube un archivo por multipart. El backend expone `POST /uploads` con el
   /// campo `file` y un `purpose` que decide bucket y tipos permitidos.

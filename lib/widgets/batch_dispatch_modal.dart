@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../core/api_client.dart';
 import '../core/app_theme.dart';
 import '../core/formats.dart';
+import '../core/session.dart';
 import '../models/models.dart';
 import '../screens/common/qr_scanner_view.dart';
 import '../services/livora_api.dart';
@@ -78,6 +79,7 @@ class _BatchDispatchModalState extends State<BatchDispatchModal>
     try {
       await context.read<LivoraApi>().sendBatchToCenter(widget.batch.id, cleanId);
       if (mounted) {
+        context.read<SessionController>().notifyBatchesChanged();
         showAppSnack(
           context,
           'Lote despachado en tránsito hacia el Centro de Acopio para pesaje.',

@@ -15,15 +15,19 @@ import 'screens/shell/home_shell.dart';
 import 'services/livora_api.dart';
 import 'services/offline_queue_manager.dart';
 import 'services/livora_realtime.dart';
+import 'services/notification_router.dart';
 import 'dart:ui';
+
+import 'firebase_options.dart';
+import 'services/push_notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     debugPrint("Notificación recibida en segundo plano: ${message.notification?.title}");
   } catch (e) {
-    debugPrint("Error inicializando Firebase en background: $e");
+    debugPrint("Error procesando mensaje en background: $e");
   }
 }
 
@@ -49,6 +53,17 @@ Future<void> main() async {
         return false;
       };
 
+      // Inicialización robusta de Firebase con credenciales multiplataforma
+      try {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+        FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+        await PushNotificationService.initialize();
+      } catch (e) {
+        debugPrint('Aviso: Firebase no pudo inicializarse en este entorno: $e');
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final api = ApiClient(prefs);
       await api.migrateLegacyBaseUrl();
@@ -61,11 +76,16 @@ Future<void> main() async {
       final realtime = LivoraRealtime(api);
       session.onLogout = () => realtime.disconnect();
 
-      Firebase.initializeApp().then((_) {
-        FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-      }).catchError((e) {
-        debugPrint('FCM no inicializado en entorno local: $e');
-      });
+      try {
+        final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+        if (initialMessage != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            NotificationRouter.handleRemoteMessage(initialMessage);
+          });
+        }
+      } catch (e) {
+        debugPrint('Error leyendo getInitialMessage de FCM: $e');
+      }
 
       runApp(LivoraApp(
         api: api,
@@ -102,6 +122,7 @@ class LivoraApp extends StatelessWidget {
       ],
       child: Consumer<SessionController>(
         builder: (context, session, _) => MaterialApp(
+          navigatorKey: NotificationRouter.navigatorKey,
           title: 'Livora Labs',
           debugShowCheckedModeBanner: false,
           theme: LivoraTheme.light(),

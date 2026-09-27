@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
 import '../hogar/create_request_screen.dart';
 import '../hogar/request_detail_screen.dart';
@@ -24,14 +26,35 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   List<AppNotification>? _items;
   String? _error;
+  int? _lastUnreadCount;
+  int? _lastBatchesVersion;
+  bool _loadInProgress = false;
+  StreamSubscription<Map<String, dynamic>>? _notifSub;
 
   @override
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _notifSub = context
+          .read<LivoraRealtime>()
+          .on(RealtimeEvents.notificationCreated)
+          .listen((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _notifSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
+    if (_loadInProgress) return;
+    _loadInProgress = true;
     try {
       final items = await context.read<LivoraApi>().notifications();
       if (mounted) {
@@ -40,10 +63,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           _error = null;
         });
         final unread = items.where((n) => !n.isRead).length;
+        _lastUnreadCount = unread;
         context.read<SessionController>().setUnreadNotificationsCount(unread);
       }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
+    } finally {
+      _loadInProgress = false;
     }
   }
 
@@ -189,6 +215,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
+    if ((_lastUnreadCount != null && _lastUnreadCount != session.unreadNotificationsCount) ||
+        (_lastBatchesVersion != null && _lastBatchesVersion != session.batchesVersion)) {
+      _lastUnreadCount = session.unreadNotificationsCount;
+      _lastBatchesVersion = session.batchesVersion;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+    } else {
+      _lastUnreadCount = session.unreadNotificationsCount;
+      _lastBatchesVersion = session.batchesVersion;
+    }
+
     final items = _items;
     final hasUnread = items?.any((n) => !n.isRead) ?? false;
 

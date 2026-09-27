@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
+import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
@@ -207,23 +208,27 @@ class _ReceiveBatchScreenState extends State<ReceiveBatchScreen> {
           final resolved =
               await _showResolveDiscrepancyDialog(widget.batch.id);
           if (resolved && mounted) {
+            context.read<SessionController>().notifyBatchesChanged();
             showAppSnack(
               context,
               'Discrepancia autorizada. Lote enviado a procesamiento blockchain.',
             );
             Navigator.pop(context, true);
           } else if (mounted) {
+            context.read<SessionController>().notifyBatchesChanged();
             Navigator.pop(context, 'FLAGGED_FOR_REVIEW');
           }
         } else {
+          context.read<SessionController>().notifyBatchesChanged();
           Navigator.pop(context, 'FLAGGED_FOR_REVIEW');
         }
         return;
       }
 
+      context.read<SessionController>().notifyBatchesChanged();
       showAppSnack(
         context,
-        'Lote recibido exitosamente. Notarización ESG en proceso y liquidación en efectivo al recolector confirmada.',
+        'Lote recibido: materiales transferidos a tu Inventario y registrado en el historial de Lotes.',
       );
       Navigator.pop(context, true);
     } on ApiException catch (error) {

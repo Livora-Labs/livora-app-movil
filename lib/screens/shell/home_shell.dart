@@ -8,6 +8,8 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
+import '../../services/notification_router.dart';
+import '../../services/push_notification_service.dart';
 import '../acopio/center_batches_screen.dart';
 import '../acopio/center_prices_screen.dart';
 import '../common/notifications_screen.dart';
@@ -41,9 +43,12 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   StreamSubscription<RemoteMessage>? _fcmSubscription;
+  StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
+  StreamSubscription<String>? _tokenRefreshSub;
+  StreamSubscription<Map<String, dynamic>>? _realtimeNotifSub;
 
   void setTabIndex(int index) {
     if (mounted) {
@@ -54,20 +59,48 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _setupFcm();
     // Al entrar a la zona autenticada abrimos el socket; se cierra al salir
     // (logout) porque el shell se desmonta.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<LivoraRealtime>().connect();
+        final realtime = context.read<LivoraRealtime>();
+        realtime.connect();
         context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+
+        _realtimeNotifSub?.cancel();
+        _realtimeNotifSub = realtime.on(RealtimeEvents.notificationCreated).listen((data) {
+          if (mounted) {
+            context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+            final title = data['title'] as String? ?? 'Nueva notificación';
+            final body = data['body'] as String? ?? '';
+            NotificationRouter.showInAppToast(
+              title: title,
+              body: body,
+              data: data,
+            );
+          }
+        });
       }
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<LivoraRealtime>().connect();
+      context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fcmSubscription?.cancel();
+    _onMessageOpenedAppSub?.cancel();
+    _tokenRefreshSub?.cancel();
+    _realtimeNotifSub?.cancel();
     context.read<LivoraRealtime>().disconnect();
     super.dispose();
   }
@@ -88,35 +121,50 @@ class _HomeShellState extends State<HomeShell> {
           debugPrint('FCM Token obtenido y registrado');
           final platform = Theme.of(context).platform == TargetPlatform.iOS ? 'IOS' : 'ANDROID';
           await context.read<LivoraApi>().registerDeviceToken(token, platform: platform);
+
+          if (!mounted) return;
+          // Suscripción automática a tópicos según rol y zona geográfica general
+          final role = context.read<SessionController>().user?.role;
+          if (role != null) {
+            PushNotificationService.subscribeToTopic('role_${role.toLowerCase()}');
+          }
+          PushNotificationService.subscribeToTopic('zone_lima');
         }
       }
 
-      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      _tokenRefreshSub?.cancel();
+      _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
         if (mounted) {
           final platform = Theme.of(context).platform == TargetPlatform.iOS ? 'IOS' : 'ANDROID';
           context.read<LivoraApi>().registerDeviceToken(newToken, platform: platform);
         }
+      });
+
+      _onMessageOpenedAppSub?.cancel();
+      _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        NotificationRouter.handleRemoteMessage(message);
       });
       
       _fcmSubscription?.cancel();
       _fcmSubscription = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         if (mounted) {
           context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
-          if (message.notification != null) {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text(message.notification!.title ?? 'Notificación'),
-                content: Text(message.notification!.body ?? ''),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cerrar'),
-                  ),
-                ],
-              ),
-            );
-          }
+          final title = message.notification?.title ?? message.data['title'] ?? 'Livora';
+          final body = message.notification?.body ?? message.data['message'] ?? '';
+
+          // 1. Mostrar notificación nativa en la bandeja del SO con sonido y canal
+          PushNotificationService.showNotification(
+            title: title,
+            body: body,
+            data: message.data,
+          );
+
+          // 2. Banner animado flotante en la UI
+          NotificationRouter.showInAppToast(
+            title: title,
+            body: body,
+            data: message.data,
+          );
         }
       });
     } catch (e) {

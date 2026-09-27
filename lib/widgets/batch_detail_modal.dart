@@ -69,6 +69,9 @@ class BatchDetailModal extends StatelessWidget {
     try {
       await context.read<LivoraApi>().settleBatchFiat(batch.id);
       if (context.mounted) {
+        try {
+          context.read<SessionController>().notifyBatchesChanged();
+        } catch (_) {}
         showAppSnack(context, 'Pago fiat registrado exitosamente');
         Navigator.pop(context, true);
       }
@@ -128,6 +131,9 @@ class BatchDetailModal extends StatelessWidget {
     try {
       await context.read<LivoraApi>().disputeBatch(batch.id, reasonController.text.trim());
       if (context.mounted) {
+        try {
+          context.read<SessionController>().notifyBatchesChanged();
+        } catch (_) {}
         showAppSnack(context, 'Disputa iniciada. El lote ha pasado a estado EN DISPUTA para arbitraje.');
         Navigator.pop(context, true);
       }

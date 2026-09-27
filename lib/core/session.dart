@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
 import '../services/livora_api.dart';
+import '../services/location_service.dart';
 import '../services/offline_queue_manager.dart';
 import 'api_client.dart';
 import 'formats.dart';
@@ -205,6 +208,7 @@ class SessionController extends ChangeNotifier {
     // Si el token guardado ya venció, renovamos antes de mostrar la app para
     // que el usuario no vea errores en la primera pantalla.
     if (isTokenExpired) await _refreshSession();
+    if (isAuthenticated) _syncFcmToken();
   }
 
   /// Canjea el refresh token por una sesión nueva de forma atómica y deduplicada.
@@ -337,6 +341,44 @@ class SessionController extends ChangeNotifier {
       await _prefs.remove(_expiresAtKey);
     }
     notifyListeners();
+    _syncFcmToken();
+  }
+
+  /// Sincroniza automáticamente el token de Firebase Cloud Messaging (FCM) con el backend
+  /// para garantizar la recepción de notificaciones push en primer y segundo plano.
+  void _syncFcmToken() {
+    unawaited(() async {
+      try {
+        final messaging = FirebaseMessaging.instance;
+        final settings = await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional) {
+          final token = await messaging.getToken();
+          if (token != null && token.isNotEmpty) {
+            await _api.post('/users/me/device-tokens', body: {
+              'token': token,
+              'platform': defaultTargetPlatform == TargetPlatform.android ? 'android' : 'ios',
+            });
+          }
+          messaging.onTokenRefresh.listen((newToken) {
+            if (newToken.isNotEmpty) {
+              _api
+                  .post('/users/me/device-tokens', body: {
+                    'token': newToken,
+                    'platform': defaultTargetPlatform == TargetPlatform.android ? 'android' : 'ios',
+                  })
+                  .catchError((_) => <String, dynamic>{});
+            }
+          });
+        }
+      } catch (_) {
+        // En emuladores sin servicios de Google Play o sin red se degrada con seguridad
+      }
+    }());
   }
 
   /// Elimina la cuenta (Ley N.° 29733 - ARCO) y purga toda la sesión y base de datos local.
@@ -350,6 +392,18 @@ class SessionController extends ChangeNotifier {
 
   /// Cierra la sesión, purga SharedPreferences, vacía Hive y notifica a los observadores.
   Future<void> logout() async {
+    // Detener de inmediato sensor GPS y Foreground Service si estaban activos
+    LocationService.stopCollectorTracking();
+
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      await _api.delete('/users/me/device-tokens', query: {
+        if (fcmToken != null && fcmToken.isNotEmpty) 'token': fcmToken,
+      });
+    } catch (_) {
+      // Ignorar fallos de red al desregistrar el token FCM en el backend
+    }
+
     _api.authToken = null;
     _user = null;
     _refreshToken = null;

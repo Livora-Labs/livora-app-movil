@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../services/offline_queue_manager.dart';
 import '../../widgets/batch_detail_modal.dart';
 import '../../widgets/batch_dispatch_modal.dart';
@@ -34,11 +36,38 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
   String? _error;
   int? _lastBatchesVersion;
   bool _loadInProgress = false;
+  final List<StreamSubscription> _realtimeSubs = [];
 
   @override
   void initState() {
     super.initState();
+    _subscribeRealtime();
     _load();
+  }
+
+  void _subscribeRealtime() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      void onEvent(_) {
+        if (mounted && !_loadInProgress) _load();
+      }
+
+      _realtimeSubs.add(realtime.on(RealtimeEvents.collectionUpdated).listen(onEvent));
+      _realtimeSubs.add(realtime.on(RealtimeEvents.batchCompleted).listen(onEvent));
+      _realtimeSubs.add(realtime.on(RealtimeEvents.batchDispatched).listen(onEvent));
+      _realtimeSubs.add(realtime.on(RealtimeEvents.batchUpdated).listen(onEvent));
+      _realtimeSubs.add(realtime.on(RealtimeEvents.batchFiatSettled).listen(onEvent));
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final sub in _realtimeSubs) {
+      sub.cancel();
+    }
+    _realtimeSubs.clear();
+    super.dispose();
   }
 
   // NOTE: didChangeDependencies is NOT reliable for IndexedStack-mounted widgets

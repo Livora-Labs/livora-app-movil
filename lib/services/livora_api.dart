@@ -34,6 +34,7 @@ class LivoraApi {
     required double latitude,
     required double longitude,
     String assignmentMode = 'AUTOMATIC',
+    String? address,
     String? description,
     String? photoUrl,
     bool isDonation = false,
@@ -44,6 +45,7 @@ class LivoraApi {
       'longitude': longitude,
       'assignmentMode': assignmentMode,
       'isDonation': isDonation,
+      if (address != null && address.isNotEmpty) 'address': address,
       if (description != null && description.isNotEmpty)
         'description': description,
       if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
@@ -170,6 +172,110 @@ class LivoraApi {
   Future<CollectionRequest> reachDestination(String id) async {
     final raw = await client.post('/collection-requests/$id/reach-destination');
     return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
+  /// Confirmar llegada al domicilio (alias oficial PATCH /arrival)
+  Future<CollectionRequest> confirmArrival(String id) async {
+    final raw = await client.patch('/collection-requests/$id/arrival');
+    return CollectionRequest.fromJson(raw as Map<String, dynamic>);
+  }
+
+  /// Despacha telemetría GPS periódica hacia PATCH /collection-requests/:id/location
+  Future<Map<String, dynamic>> updateCollectorLocation(
+    String id, {
+    required double latitude,
+    required double longitude,
+    double? heading,
+    double? speed,
+    double? accuracy,
+    int? timestamp,
+    double? distanceRemainingMeters,
+    double? etaMinutes,
+    String? transportType,
+  }) async {
+    final raw = await client.patch(
+      '/collection-requests/$id/location',
+      body: {
+        'latitude': latitude,
+        'longitude': longitude,
+        if (heading != null) 'heading': heading,
+        if (speed != null) 'speed': speed,
+        if (accuracy != null) 'accuracy': accuracy,
+        if (timestamp != null) 'timestamp': timestamp,
+        if (distanceRemainingMeters != null)
+          'distanceRemainingMeters': distanceRemainingMeters,
+        if (etaMinutes != null) 'etaMinutes': etaMinutes,
+        if (transportType != null) 'transportType': transportType,
+      },
+    );
+    return raw as Map<String, dynamic>;
+  }
+
+  /// Consulta al proxy OSRM backend para trazar ruta A->B y obtener ETA
+  Future<Map<String, dynamic>> calculateRoute({
+    required double originLat,
+    required double originLng,
+    required double destLat,
+    required double destLng,
+    String profile = 'driving',
+  }) async {
+    final raw = await client.post(
+      '/routing/route',
+      body: {
+        'originLat': originLat,
+        'originLng': originLng,
+        'destLat': destLat,
+        'destLng': destLng,
+        'profile': profile,
+      },
+    );
+    return raw as Map<String, dynamic>;
+  }
+
+  /// Búsqueda predictiva de direcciones (Forward Geocoding) a través del backend seguro
+  Future<List<Map<String, dynamic>>> searchAddress(String query) async {
+    final raw = await client.get(
+      '/routing/geocode/search',
+      query: {'q': query},
+    );
+    if (raw is List) {
+      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    return [];
+  }
+
+  /// Geocodificación inversa (LatLng -> Dirección) a través del backend seguro
+  Future<String?> reverseGeocode(double lat, double lng) async {
+    final raw = await client.get(
+      '/routing/geocode/reverse',
+      query: {
+        'lat': lat.toString(),
+        'lng': lng.toString(),
+      },
+    );
+    if (raw is Map && raw['address'] != null) {
+      return raw['address'].toString();
+    }
+    return null;
+  }
+
+  /// Optimización de ruta multi-parada (VRP / TSP) para ordenar un lote de solicitudes
+  Future<Map<String, dynamic>> optimizeTrip({
+    required double collectorLat,
+    required double collectorLng,
+    required List<Map<String, dynamic>> waypoints,
+    String profile = 'driving',
+  }) async {
+    final raw = await client.post(
+      '/routing/optimize-trip',
+      body: {
+        'collectorLat': collectorLat,
+        'collectorLng': collectorLng,
+        'waypoints': waypoints,
+        'profile': profile,
+      },
+    );
+    return raw as Map<String, dynamic>;
   }
 
   Future<CollectionRequest> reportNoShow(String id) async {
@@ -572,6 +678,16 @@ class LivoraApi {
 
   Future<void> updateFcmToken(String fcmToken) async {
     await client.patch('/users/fcm-token', body: {'fcmToken': fcmToken});
+  }
+
+  Future<void> unregisterDeviceToken([String? token]) async {
+    try {
+      await client.delete('/users/me/device-tokens', query: {
+        if (token != null && token.isNotEmpty) 'token': token,
+      });
+    } catch (_) {
+      // Best effort on logout
+    }
   }
 
   Future<void> deleteAccount() async {

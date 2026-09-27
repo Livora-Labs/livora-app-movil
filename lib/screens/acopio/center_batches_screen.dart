@@ -50,17 +50,53 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
   String? _settlingBatchId;
 
   StreamSubscription<Map<String, dynamic>>? _liveSubscription;
+  StreamSubscription<Map<String, dynamic>>? _updateSub;
+  StreamSubscription<Map<String, dynamic>>? _createSub;
+  StreamSubscription<Map<String, dynamic>>? _batchDispatchedSub;
+  StreamSubscription<Map<String, dynamic>>? _batchUpdatedSub;
+  StreamSubscription<Map<String, dynamic>>? _batchSettledSub;
+  int? _lastBatchesVersion;
+  bool _loadInProgress = false;
 
   @override
   void initState() {
     super.initState();
     _load();
-    // El servidor nos suscribió a la sala `center:<id>`: cuando un lote
-    // termina de procesarse en cadena, la lista se refresca sola.
-    _liveSubscription = context
-        .read<LivoraRealtime>()
-        .on(RealtimeEvents.batchCompleted)
-        .listen(_onBatchCompleted);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      _liveSubscription = realtime
+          .on(RealtimeEvents.batchCompleted)
+          .listen(_onBatchCompleted);
+      _updateSub = realtime
+          .on(RealtimeEvents.collectionUpdated)
+          .listen((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+      _createSub = realtime
+          .on(RealtimeEvents.collectionCreated)
+          .listen((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+      _batchDispatchedSub = realtime
+          .on(RealtimeEvents.batchDispatched)
+          .listen((data) {
+        if (!mounted) return;
+        HapticFeedback.lightImpact();
+        showAppSnack(context, 'Un recolector ha despachado un nuevo lote hacia este centro');
+        if (!_loadInProgress) _load();
+      });
+      _batchUpdatedSub = realtime
+          .on(RealtimeEvents.batchUpdated)
+          .listen((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+      _batchSettledSub = realtime
+          .on(RealtimeEvents.batchFiatSettled)
+          .listen((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+    });
   }
 
   void _onBatchCompleted(Map<String, dynamic> data) {
@@ -72,10 +108,17 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
   @override
   void dispose() {
     _liveSubscription?.cancel();
+    _updateSub?.cancel();
+    _createSub?.cancel();
+    _batchDispatchedSub?.cancel();
+    _batchUpdatedSub?.cancel();
+    _batchSettledSub?.cancel();
     super.dispose();
   }
 
   Future<void> _load() async {
+    if (_loadInProgress) return;
+    _loadInProgress = true;
     try {
       final batches =
           await context.read<LivoraApi>().batches(status: _filter);
@@ -92,6 +135,8 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
       }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
+    } finally {
+      _loadInProgress = false;
     }
   }
 
@@ -492,6 +537,16 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
+    if (_lastBatchesVersion != session.batchesVersion) {
+      _lastBatchesVersion = session.batchesVersion;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_loadInProgress) {
+          _load();
+        }
+      });
+    }
+
     final batches = _batches;
     final selectedBatches = batches?.where((b) => _selected.contains(b.id)).toList() ?? [];
     final totalWeight = selectedBatches.fold<double>(
@@ -507,11 +562,12 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
           const LiveIndicator(),
           IconButton(
             tooltip: 'Mercado de Órdenes',
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const CenterAuctionsScreen()),
               );
+              if (mounted) _load();
             },
             icon: const Icon(Icons.storefront_rounded),
           ),

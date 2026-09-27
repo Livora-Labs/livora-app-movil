@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
@@ -165,6 +166,118 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _geolocalizar() async {
+    final isGpsOn = await LocationService.isLocationServiceEnabled();
+    if (!isGpsOn) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.location_off_outlined, color: Color(0xFFF59E0B)),
+              SizedBox(width: 8),
+              Text('GPS Desactivado', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            'El servicio de ubicación (GPS) está desactivado en tu dispositivo. Actívalo para capturar tus coordenadas exactas de domicilio.',
+            style: TextStyle(fontSize: 14, color: LivoraColors.slate),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+              onPressed: () {
+                Navigator.pop(ctx);
+                LocationService.openLocationSettings();
+              },
+              icon: const Icon(Icons.settings, size: 16),
+              label: const Text('Activar GPS'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final permission = await LocationService.checkPermission();
+    if (permission == LocationPermission.denied) {
+      final req = await LocationService.requestPermission();
+      if (req == LocationPermission.denied || req == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.security, color: Color(0xFFF59E0B)),
+                SizedBox(width: 8),
+                Text('Permiso de Ubicación', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: const Text(
+              'La aplicación requiere permisos de ubicación para registrar tus coordenadas domiciliarias en el sistema.',
+              style: TextStyle(fontSize: 14, color: LivoraColors.slate),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  LocationService.openAppSettings();
+                },
+                child: const Text('Abrir Ajustes'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    } else if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.security, color: Color(0xFFF59E0B)),
+              SizedBox(width: 8),
+              Text('Permiso Denegado', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            'Los permisos de ubicación fueron denegados permanentemente. Habilítalos en los ajustes del sistema para capturar tu ubicación.',
+            style: TextStyle(fontSize: 14, color: LivoraColors.slate),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+              onPressed: () {
+                Navigator.pop(ctx);
+                LocationService.openAppSettings();
+              },
+              child: const Text('Abrir Ajustes'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _fetchingGps = true;
       _gpsCaptured = false;

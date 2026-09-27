@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
@@ -10,7 +14,10 @@ import '../../core/session.dart';
 import '../../core/stellar.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common.dart';
+import '../../widgets/livora_map_tile_layer.dart';
 import 'auction_bids_screen.dart';
 
 /// Detalle de una solicitud de recolección (vista del HOGAR).
@@ -29,10 +36,239 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   bool _cancelling = false;
   String? _selectingBidId;
 
+  StreamSubscription<Map<String, dynamic>>? _locationSub;
+  StreamSubscription<Map<String, dynamic>>? _arrivedSub;
+  StreamSubscription<Map<String, dynamic>>? _bidSub;
+  StreamSubscription<Map<String, dynamic>>? _updateSub;
+  Timer? _bidToastTimer;
+  Map<String, dynamic>? _incomingBidToast;
+  int _bidToastSecondsLeft = 10;
+  Timer? _bidCountdownTimer;
+
+  LatLng? _collectorPos;
+  double _collectorHeading = 0.0;
+  int? _etaMinutes;
+  double? _distanceMeters;
+  bool _geofenceAlertTriggered = false;
+  final MapController _mapController = MapController();
+  List<LatLng> _polylinePoints = [];
+  String? _transportType;
+  DateTime? _lastRouteFetch;
+  Timer? _routeRefreshTimer;
+  bool _firstMapFitDone = false;
+  DateTime? _lastLocationPing;
+  Timer? _staleCheckTimer;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _subscribeRealtime();
+    _staleCheckTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted && _request?.status == 'EN_ROUTE') {
+        setState(() {});
+      }
+    });
+  }
+
+  void _triggerBidPopup(Map<String, dynamic> data) {
+    _bidToastTimer?.cancel();
+    _bidCountdownTimer?.cancel();
+    setState(() {
+      _incomingBidToast = data;
+      _bidToastSecondsLeft = 10;
+    });
+
+    _bidCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_bidToastSecondsLeft <= 1) {
+        t.cancel();
+      } else {
+        setState(() => _bidToastSecondsLeft--);
+      }
+    });
+
+    _bidToastTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted) {
+        setState(() {
+          _incomingBidToast = null;
+        });
+      }
+    });
+  }
+
+  void _fitMapBounds() {
+    if (_collectorPos == null || _request == null) return;
+    try {
+      final points = _polylinePoints.isNotEmpty
+          ? _polylinePoints
+          : [LatLng(_request!.latitude, _request!.longitude), _collectorPos!];
+      final bounds = LatLngBounds.fromPoints(points);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(40),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _fetchOsrmRoute({bool silent = false}) async {
+    if (_collectorPos == null || _request == null) return;
+    final now = DateTime.now();
+    if (_lastRouteFetch != null &&
+        now.difference(_lastRouteFetch!).inSeconds < 8 &&
+        _polylinePoints.isNotEmpty) {
+      return;
+    }
+    _lastRouteFetch = now;
+
+    String profile = 'driving';
+    final transport = _transportType ?? _request?.collectorLocation?.transportType;
+    if (transport == 'A_PIE') {
+      profile = 'walking';
+    } else if (transport == 'BICICLETA' || transport == 'TRICICLO') {
+      profile = 'cycling';
+    }
+
+    try {
+      final res = await context.read<LivoraApi>().calculateRoute(
+            originLat: _collectorPos!.latitude,
+            originLng: _collectorPos!.longitude,
+            destLat: _request!.latitude,
+            destLng: _request!.longitude,
+            profile: profile,
+          );
+
+      final geometry = res['geometry'] as Map<String, dynamic>?;
+      final coords = geometry?['coordinates'] as List<dynamic>?;
+
+      if (coords != null && coords.isNotEmpty && mounted) {
+        final points = coords.map((c) {
+          final pair = c as List<dynamic>;
+          return LatLng(
+            (pair[1] as num).toDouble(),
+            (pair[0] as num).toDouble(),
+          );
+        }).toList();
+
+        setState(() {
+          _polylinePoints = points;
+          if (res['distanceMeters'] != null) {
+            _distanceMeters = (res['distanceMeters'] as num).toDouble();
+          }
+          if (res['etaMinutes'] != null) {
+            _etaMinutes = (res['etaMinutes'] as num).toInt();
+          }
+        });
+        if (!_firstMapFitDone) {
+          _firstMapFitDone = true;
+          _fitMapBounds();
+        }
+      }
+    } catch (e) {
+      debugPrint('[HogarRoute] Error calculando ruta OSRM: $e');
+    }
+  }
+
+  void _subscribeRealtime() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      _locationSub = realtime.on(RealtimeEvents.collectorLocation).listen((data) {
+        if (data['requestId'] == widget.requestId && mounted) {
+          final lat = (data['latitude'] as num?)?.toDouble();
+          final lng = (data['longitude'] as num?)?.toDouble();
+          final heading = (data['heading'] as num?)?.toDouble() ?? 0.0;
+          final eta = (data['etaMinutes'] as num?)?.toInt();
+          final dist = (data['distanceRemainingMeters'] as num?)?.toDouble();
+
+          if (lat != null && lng != null) {
+            final oldPos = _collectorPos;
+            setState(() {
+              _collectorPos = LatLng(lat, lng);
+              _collectorHeading = heading;
+              _etaMinutes = eta;
+              _distanceMeters = dist;
+              _lastLocationPing = DateTime.now();
+              if (data['transportType'] != null) {
+                _transportType = data['transportType'] as String;
+              }
+            });
+
+            if (!_firstMapFitDone) {
+              _firstMapFitDone = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) => _fitMapBounds());
+            }
+
+            if (oldPos == null ||
+                LocationService.distanceBetween(
+                        oldPos.latitude, oldPos.longitude, lat, lng) >
+                    30) {
+              _fetchOsrmRoute(silent: true);
+            }
+
+            // Geocerca de 50 metros
+            if (dist != null && dist <= 50 && !_geofenceAlertTriggered) {
+              _geofenceAlertTriggered = true;
+              HapticFeedback.heavyImpact();
+              showAppSnack(
+                context,
+                'Tu recolector está a menos de 50 metros. Acércate a la puerta.',
+              );
+            }
+          }
+        }
+      });
+
+      _arrivedSub = realtime.on(RealtimeEvents.collectorArrived).listen((data) {
+        if (data['requestId'] == widget.requestId && mounted) {
+          HapticFeedback.vibrate();
+          _load();
+          showAppSnack(
+            context,
+            'El recolector ha llegado al domicilio. Muestra tu código PIN.',
+          );
+        }
+      });
+
+      _bidSub = realtime.on(RealtimeEvents.auctionBid).listen((data) {
+        if (data['requestId'] == widget.requestId && mounted) {
+          HapticFeedback.heavyImpact();
+          _load();
+          _triggerBidPopup(data);
+        }
+      });
+
+      _updateSub = realtime.on(RealtimeEvents.collectionUpdated).listen((data) {
+        if (data['id'] == widget.requestId && mounted) {
+          _load();
+        }
+      });
+
+      _routeRefreshTimer?.cancel();
+      _routeRefreshTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+        if (_request?.status == 'EN_ROUTE') {
+          _fetchOsrmRoute(silent: true);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _locationSub?.cancel();
+    _arrivedSub?.cancel();
+    _bidSub?.cancel();
+    _updateSub?.cancel();
+    _bidToastTimer?.cancel();
+    _bidCountdownTimer?.cancel();
+    _routeRefreshTimer?.cancel();
+    _staleCheckTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -44,7 +280,21 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         setState(() {
           _request = request;
           _error = null;
+          if (request.collectorLocation != null) {
+            final loc = request.collectorLocation!;
+            _collectorPos = LatLng(loc.latitude, loc.longitude);
+            _collectorHeading = loc.heading;
+            _etaMinutes = loc.etaMinutes;
+            _distanceMeters = loc.distanceRemainingMeters;
+            _transportType = loc.transportType;
+            _lastLocationPing = DateTime.now();
+            _fetchOsrmRoute(silent: true);
+          }
         });
+        if (_collectorPos != null && !_firstMapFitDone) {
+          _firstMapFitDone = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _fitMapBounds());
+        }
       }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -418,10 +668,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             )
           : request == null
               ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
+              : Stack(
+                  children: [
+                    RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
                     children: [
                       Row(
                         children: [
@@ -738,6 +990,271 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                 ),
                               ],
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // =======================================================
+                      // MAPA DE TRACKING EN TIEMPO REAL (EN_ROUTE / ARRIVED)
+                      // =======================================================
+                      if (['EN_ROUTE', 'ARRIVED'].contains(request.status)) ...[
+                        Card(
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: request.status == 'ARRIVED'
+                                  ? LivoraColors.forest
+                                  : LivoraColors.blue.withValues(alpha: 0.3),
+                              width: 1.5,
+                            ),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Cabecera con ETA en vivo
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                color: request.status == 'ARRIVED'
+                                    ? LivoraColors.forest.withValues(alpha: 0.12)
+                                    : LivoraColors.blue.withValues(alpha: 0.08),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      request.status == 'ARRIVED'
+                                          ? Icons.check_circle
+                                          : Icons.directions_bike,
+                                      size: 18,
+                                      color: request.status == 'ARRIVED'
+                                          ? LivoraColors.forest
+                                          : LivoraColors.blue,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        request.status == 'ARRIVED'
+                                            ? '¡Tu recolector está en tu puerta!'
+                                            : _etaMinutes != null
+                                                ? 'Llegada estimada: ~$_etaMinutes min (${_distanceMeters != null ? (_distanceMeters! / 1000).toStringAsFixed(1) : ""} km)'
+                                                : 'Recolector en camino hacia tu domicilio...',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                          color: request.status == 'ARRIVED'
+                                              ? LivoraColors.forest
+                                              : LivoraColors.deep,
+                                        ),
+                                      ),
+                                    ),
+                                    if (request.status == 'EN_ROUTE')
+                                      const SizedBox(
+                                        width: 12,
+                                        height: 12,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: LivoraColors.blue,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+
+                              // Banner de advertencia si la señal GPS está en pausa (> 60s)
+                              if (request.status == 'EN_ROUTE' &&
+                                  _lastLocationPing != null &&
+                                  DateTime.now().difference(_lastLocationPing!).inSeconds >= 60)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  color: const Color(0xFFFEF3C7),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.access_time_filled, size: 14, color: Color(0xFFB45309)),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Señal en pausa hace ${(DateTime.now().difference(_lastLocationPing!).inSeconds / 60).floor() == 0 ? 1 : (DateTime.now().difference(_lastLocationPing!).inSeconds / 60).floor()} min (recolector en semáforo o cobertura reducida)',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF92400E),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                              // Contenedor del Mapa
+                              SizedBox(
+                                height: 230,
+                                child: Stack(
+                                  children: [
+                                    FlutterMap(
+                                      mapController: _mapController,
+                                      options: MapOptions(
+                                        initialCenter: _collectorPos != null
+                                            ? LatLng(
+                                                (request.latitude + _collectorPos!.latitude) / 2,
+                                                (request.longitude + _collectorPos!.longitude) / 2,
+                                              )
+                                            : LatLng(
+                                                request.latitude,
+                                                request.longitude,
+                                              ),
+                                        initialZoom: _collectorPos != null ? 14.5 : 16.0,
+                                        maxZoom: 19,
+                                        minZoom: 11,
+                                      ),
+                                      children: [
+                                        const LivoraMapTileLayer(),
+
+                                        // Geocerca de arribo (50m)
+                                        CircleLayer(
+                                          circles: [
+                                            CircleMarker(
+                                              point: LatLng(
+                                                request.latitude,
+                                                request.longitude,
+                                              ),
+                                              radius: 50,
+                                              useRadiusInMeter: true,
+                                              color: LivoraColors.forest.withValues(alpha: 0.15),
+                                              borderColor: LivoraColors.forest,
+                                              borderStrokeWidth: 2.0,
+                                            ),
+                                          ],
+                                        ),
+
+                                        // Trazado de ruta vehicular turn-by-turn OSRM
+                                        if (_polylinePoints.isNotEmpty)
+                                          PolylineLayer(
+                                            polylines: [
+                                              Polyline(
+                                                points: _polylinePoints,
+                                                strokeWidth: 4.8,
+                                                color: const Color(0xFF2E7D32),
+                                                strokeCap: StrokeCap.round,
+                                                strokeJoin: StrokeJoin.round,
+                                              ),
+                                            ],
+                                          )
+                                        else if (_collectorPos != null)
+                                          PolylineLayer(
+                                            polylines: [
+                                              Polyline(
+                                                points: [
+                                                  _collectorPos!,
+                                                  LatLng(request.latitude, request.longitude),
+                                                ],
+                                                strokeWidth: 3.5,
+                                                color: const Color(0xFF16A34A),
+                                                strokeCap: StrokeCap.round,
+                                              ),
+                                            ],
+                                          ),
+
+                                        // Marcadores: Hogar y Recolector en vivo
+                                        MarkerLayer(
+                                          markers: [
+                                            // Pin del Hogar (Destino)
+                                            Marker(
+                                              point: LatLng(
+                                                request.latitude,
+                                                request.longitude,
+                                              ),
+                                              width: 44,
+                                              height: 44,
+                                              child: const Icon(
+                                                Icons.location_on,
+                                                color: Color(0xFFC53030),
+                                                size: 40,
+                                              ),
+                                            ),
+
+                                            // Marcador del Recolector con Heading y halo visual
+                                            if (_collectorPos != null)
+                                              Marker(
+                                                point: _collectorPos!,
+                                                width: 46,
+                                                height: 46,
+                                                child: Transform.rotate(
+                                                  angle: _collectorHeading * (pi / 180),
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF15803D), // green 700
+                                                      shape: BoxShape.circle,
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: const Color(0xFF15803D).withValues(alpha: 0.4),
+                                                          blurRadius: 8,
+                                                          spreadRadius: 2,
+                                                          offset: const Offset(0, 2),
+                                                        ),
+                                                      ],
+                                                      border: Border.all(color: Colors.white, width: 2.5),
+                                                    ),
+                                                    padding: const EdgeInsets.all(4),
+                                                    child: const Icon(
+                                                      Icons.navigation,
+                                                      color: Colors.white,
+                                                      size: 22,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+
+                                    // Botón flotante para re-encuadrar ruta y recolector
+                                    if (_collectorPos != null)
+                                      Positioned(
+                                        top: 10,
+                                        right: 10,
+                                        child: InkWell(
+                                          onTap: _fitMapBounds,
+                                          borderRadius: BorderRadius.circular(20),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(20),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withValues(alpha: 0.15),
+                                                  blurRadius: 4,
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.center_focus_strong, size: 16, color: LivoraColors.forest),
+                                                SizedBox(width: 5),
+                                                Text(
+                                                  'Recentrar ruta',
+                                                  style: TextStyle(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: LivoraColors.forest,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -1244,8 +1761,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Botón para editar materiales en PENDING
-                      if (request.status == 'PENDING') ...[
+                      // Botón para editar materiales en PENDING / AUCTION_ACTIVE
+                      if (request.status == 'PENDING' ||
+                          request.status == 'AUCTION_ACTIVE' ||
+                          request.status == 'AUCTION_OPEN') ...[
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: LivoraColors.forest,
@@ -1262,6 +1781,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       // Cancelación
                       if (request.status == 'PENDING' ||
                           request.status == 'ACCEPTED' ||
+                          request.status == 'AUCTION_ACTIVE' ||
+                          request.status == 'AUCTION_ASSIGNED' ||
                           request.status == 'AUCTION_OPEN')
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
@@ -1278,6 +1799,135 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                      ],
                   ),
                 ),
+                if (_incomingBidToast != null)
+                  Positioned(
+                    top: 12,
+                    left: 16,
+                    right: 16,
+                    child: _buildBidToastBanner(_incomingBidToast!),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildBidToastBanner(Map<String, dynamic> data) {
+    final centerName = data['centerName'] ?? 'Centro de Acopio';
+    final penn = (data['totalEstimatedPenn'] as num?)?.toDouble() ?? 0.0;
+    final livos = (data['totalEstimatedLivo'] as num?)?.toDouble() ?? 0.0;
+
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      shadowColor: Colors.black45,
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.shade400, width: 1.5),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade500,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.gavel, size: 14, color: Colors.black87),
+                      SizedBox(width: 4),
+                      Text(
+                        '¡NUEVA PUJA RECIBIDA!',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black87,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${_bidToastSecondsLeft}s',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.amberAccent,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    _bidToastTimer?.cancel();
+                    _bidCountdownTimer?.cancel();
+                    setState(() => _incomingBidToast = null);
+                  },
+                  child: const Icon(Icons.close, size: 18, color: Colors.white70),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              centerName,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(
+                  'S/ ${penn.toStringAsFixed(2)} PEN',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF4ADE80),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '(${livos.toStringAsFixed(2)} LIVOs)',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: _bidToastSecondsLeft / 10.0,
+                backgroundColor: Colors.white12,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.amber.shade400),
+                minHeight: 3,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

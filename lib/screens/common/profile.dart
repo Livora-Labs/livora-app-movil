@@ -5,10 +5,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/api_client.dart';
+import '../../core/env_config.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../core/stellar.dart';
-import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
 import '../../widgets/kyc_shield_button.dart';
@@ -140,7 +140,7 @@ Future<void> showProfileSheet(BuildContext context) {
                 children: [
                   TextButton.icon(
                     onPressed: () async {
-                      final url = Uri.parse('https://livora.org/terminos');
+                      final url = Uri.parse(EnvConfig.termsUrl);
                       if (await canLaunchUrl(url)) {
                         await launchUrl(url, mode: LaunchMode.externalApplication);
                       }
@@ -150,7 +150,7 @@ Future<void> showProfileSheet(BuildContext context) {
                   ),
                   TextButton.icon(
                     onPressed: () async {
-                      final url = Uri.parse('https://livora.org/privacidad');
+                      final url = Uri.parse(EnvConfig.privacyUrl);
                       if (await canLaunchUrl(url)) {
                         await launchUrl(url, mode: LaunchMode.externalApplication);
                       }
@@ -160,9 +160,7 @@ Future<void> showProfileSheet(BuildContext context) {
                   ),
                   TextButton.icon(
                     onPressed: () async {
-                      final api = sheetContext.read<LivoraApi>();
-                      final webBaseUrl = api.client.baseUrl.replaceAll('/api', '');
-                      final url = Uri.parse('$webBaseUrl/libro-de-reclamaciones');
+                      final url = Uri.parse(EnvConfig.claimsBookUrl);
                       if (await canLaunchUrl(url)) {
                         await launchUrl(url, mode: LaunchMode.externalApplication);
                       }

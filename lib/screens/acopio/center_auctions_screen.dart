@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
 
 /// Pantalla de visualización y postulación de subastas de recolección para CENTRO_ACOPIO.
@@ -20,16 +22,46 @@ class CenterAuctionsScreen extends StatefulWidget {
 
 class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
   List<CollectionRequest> _directRequests = [];
+  List<CollectionRequest> _claimedRequests = [];
   List<CollectionRequest> _auctionRequests = [];
   Map<String, double> _centerPriceMap = {};
   String? _claimingId;
   String? _error;
   bool _loading = true;
 
+  StreamSubscription<Map<String, dynamic>>? _createSub;
+  StreamSubscription<Map<String, dynamic>>? _updateSub;
+  StreamSubscription<Map<String, dynamic>>? _bidSub;
+
   @override
   void initState() {
     super.initState();
+    _subscribeRealtime();
     _loadRequests();
+  }
+
+  void _subscribeRealtime() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      _createSub = realtime.on(RealtimeEvents.collectionCreated).listen((_) {
+        if (mounted) _loadRequests();
+      });
+      _updateSub = realtime.on(RealtimeEvents.collectionUpdated).listen((_) {
+        if (mounted) _loadRequests();
+      });
+      _bidSub = realtime.on(RealtimeEvents.auctionBid).listen((_) {
+        if (mounted) _loadRequests();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _createSub?.cancel();
+    _updateSub?.cancel();
+    _bidSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadRequests() async {
@@ -66,13 +98,26 @@ class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
               r.assignedCenterId == null)
           .toList();
 
+      final claimed = all
+          .where((r) =>
+              r.assignedCenterId == centerId &&
+              r.status != 'COMPLETED' &&
+              r.status != 'CANCELLED' &&
+              r.status != 'REJECTED_ON_SITE')
+          .toList();
+
       final auctions = all
-          .where((r) => r.assignmentMode == 'AUCTION' && r.status == 'PENDING')
+          .where((r) =>
+              r.assignmentMode == 'AUCTION' &&
+              (r.status == 'AUCTION_ACTIVE' ||
+                  r.status == 'PENDING' ||
+                  r.status == 'AUCTION_OPEN'))
           .toList();
 
       if (mounted) {
         setState(() {
           _directRequests = directs;
+          _claimedRequests = claimed;
           _auctionRequests = auctions;
           _centerPriceMap = priceMap;
           _loading = false;
@@ -250,6 +295,92 @@ class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
     );
   }
 
+  Widget _buildClaimedTab() {
+    return RefreshIndicator(
+      onRefresh: _loadRequests,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E3A8A), Color(0xFF1E40AF)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.inventory_2_rounded,
+                    color: Colors.amberAccent,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Órdenes Tomadas por tu Planta',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${_claimedRequests.length} orden(es) asignadas esperando recolección o en camino a planta.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: EmptyState(
+                icon: Icons.error_outline,
+                title: 'Error al sincronizar',
+                message: _error,
+              ),
+            )
+          else if (_claimedRequests.isEmpty)
+            const EmptyState(
+              icon: Icons.assignment_outlined,
+              title: 'No tienes órdenes tomadas en curso',
+              message:
+                  'Cuando tomes una solicitud directa o ganes una subasta, aparecerá aquí hasta que el recolector entregue el lote.',
+            )
+          else
+            for (final req in _claimedRequests) ...[
+              _ClaimedOrderCard(
+                request: req,
+                priceMap: _centerPriceMap,
+              ),
+              const SizedBox(height: 12),
+            ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildAuctionTab(String? currentCenterId) {
     return RefreshIndicator(
       onRefresh: _loadRequests,
@@ -347,7 +478,7 @@ class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
     final currentCenterId = session.user?.id;
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Mercado de Órdenes'),
@@ -362,14 +493,14 @@ class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
             indicatorColor: LivoraColors.forest,
             labelColor: LivoraColors.forest,
             unselectedLabelColor: Colors.grey,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             tabs: [
               Tab(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.flash_on, size: 18),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.flash_on, size: 16),
+                    const SizedBox(width: 4),
                     Text('Directas (${_directRequests.length})'),
                   ],
                 ),
@@ -378,8 +509,18 @@ class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.gavel_rounded, size: 18),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.inventory_2_outlined, size: 16),
+                    const SizedBox(width: 4),
+                    Text('Tomadas (${_claimedRequests.length})'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.gavel_rounded, size: 16),
+                    const SizedBox(width: 4),
                     Text('Subastas (${_auctionRequests.length})'),
                   ],
                 ),
@@ -392,6 +533,7 @@ class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
             : TabBarView(
                 children: [
                   _buildDirectTab(),
+                  _buildClaimedTab(),
                   _buildAuctionTab(currentCenterId),
                 ],
               ),
@@ -610,6 +752,201 @@ class _DirectOrderCard extends StatelessWidget {
                         )
                       : const Icon(Icons.check_circle_outline, size: 16),
                   label: Text(claiming ? 'Tomando...' : 'Tomar orden'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ClaimedOrderCard extends StatelessWidget {
+  const _ClaimedOrderCard({
+    required this.request,
+    required this.priceMap,
+  });
+
+  final CollectionRequest request;
+  final Map<String, double> priceMap;
+
+  double _calculateEstimatedPayout() {
+    double sum = 0.0;
+    final estimated = request.itemsEstimated;
+    for (final entry in estimated.entries) {
+      final code = entry.key.toUpperCase();
+      final weight = entry.value;
+      final rate = priceMap[code] ?? 1.0;
+      sum += weight * rate;
+    }
+    return sum;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final householdAlias = request.householdName ??
+        (request.householdEmail != null
+            ? request.householdEmail!.split('@').first
+            : 'Hogar Livora');
+    final estimatedPayout = _calculateEstimatedPayout();
+
+    final (badgeLabel, badgeColor, badgeIcon) = switch (request.status) {
+      'ACCEPTED' => (
+          'Recolector Asignado: ${request.collectorName ?? 'En camino'}',
+          LivoraColors.blue,
+          Icons.person_pin_circle_rounded,
+        ),
+      'EN_ROUTE' => (
+          'Recolector en Ruta al Domicilio',
+          LivoraColors.green,
+          Icons.delivery_dining_rounded,
+        ),
+      'ARRIVED' => (
+          'Recolector en Sitio (Validando)',
+          LivoraColors.forest,
+          Icons.door_front_door_rounded,
+        ),
+      _ => (
+          'Esperando Recolector en Zona',
+          const Color(0xFFD97706),
+          Icons.hourglass_top_rounded,
+        ),
+    };
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: badgeColor.withValues(alpha: 0.4),
+          width: 1.2,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Orden #${request.shortId}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      color: LivoraColors.deep,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: badgeColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(badgeIcon, size: 13, color: badgeColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        badgeLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: badgeColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.home_outlined, size: 16, color: LivoraColors.slate),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    request.householdAddress?.isNotEmpty == true
+                        ? request.householdAddress!
+                        : 'Domicilio de $householdAlias',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: LivoraColors.ink,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Column(
+                children: [
+                  for (final entry in request.itemsEstimated.entries)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            materialLabel(entry.key),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            fmtKg(entry.value),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Pago estimado a liquidar',
+                      style: TextStyle(fontSize: 11, color: LivoraColors.slate),
+                    ),
+                    Text(
+                      'S/ ${estimatedPayout.toStringAsFixed(2)} PEN (${(estimatedPayout * 0.4).toStringAsFixed(2)} LIVOs)',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: LivoraColors.forest,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  request.collectorId == null
+                      ? 'Visible en radar'
+                      : 'Recolector: ${request.collectorName ?? 'En camino'}',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: request.collectorId == null
+                        ? const Color(0xFFD97706)
+                        : LivoraColors.forest,
+                  ),
                 ),
               ],
             ),

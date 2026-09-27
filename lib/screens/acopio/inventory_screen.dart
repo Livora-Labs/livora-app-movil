@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,8 +7,10 @@ import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/paging_controller.dart';
+import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_empty_state.dart';
 import '../../widgets/livora_shimmer.dart';
@@ -28,14 +32,41 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen> {
   List<InventoryItem>? _items;
   String? _error;
+  StreamSubscription<Map<String, dynamic>>? _batchCompletedSub;
+  StreamSubscription<Map<String, dynamic>>? _updateSub;
+  int? _lastBatchesVersion;
+  bool _loadInProgress = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      _batchCompletedSub = realtime
+          .on(RealtimeEvents.batchCompleted)
+          .listen((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+      _updateSub = realtime
+          .on(RealtimeEvents.collectionUpdated)
+          .listen((_) {
+        if (mounted && !_loadInProgress) _load();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _batchCompletedSub?.cancel();
+    _updateSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
+    if (_loadInProgress) return;
+    _loadInProgress = true;
     try {
       final items = await context.read<LivoraApi>().inventory();
       if (mounted) {
@@ -46,6 +77,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
+    } finally {
+      _loadInProgress = false;
     }
   }
 
@@ -66,6 +99,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
+    if (_lastBatchesVersion != session.batchesVersion) {
+      _lastBatchesVersion = session.batchesVersion;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_loadInProgress) {
+          _load();
+        }
+      });
+    }
+
     final items = _items;
 
     return Scaffold(

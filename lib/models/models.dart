@@ -207,6 +207,7 @@ class CollectionRequest {
     this.arrivedAt,
     this.isDonation = false,
     this.householdRewardEarned = 0.0,
+    this.collectorLocation,
   });
 
   factory CollectionRequest.fromJson(Map<String, dynamic> json) {
@@ -215,6 +216,7 @@ class CollectionRequest {
     final center = json['assignedCenter'];
     final batch = json['batch'];
     final rawBids = json['bids'];
+    final rawCollectorLoc = json['collectorLocation'];
 
     Map<String, double>? resolvedWeights;
     if (json['actualWeights'] != null) {
@@ -248,9 +250,9 @@ class CollectionRequest {
       batchId: json['batchId'] as String? ?? (batch is Map ? batch['id'] as String? : null),
       householdEmail:
           household is Map ? household['email'] as String? : null,
-      householdAddress: household is Map
-          ? household['address'] as String?
-          : (json['address'] as String?),
+      householdAddress: (json['address'] as String?)?.trim().isNotEmpty == true
+          ? (json['address'] as String).trim()
+          : (household is Map ? household['address'] as String? : null),
       householdName: household is Map
           ? household['name'] as String?
           : (json['householdName'] as String?),
@@ -281,6 +283,9 @@ class CollectionRequest {
       arrivedAt: _toDate(json['arrivedAt']),
       isDonation: json['isDonation'] as bool? ?? false,
       householdRewardEarned: _toDouble(json['householdRewardEarned']),
+      collectorLocation: rawCollectorLoc is Map<String, dynamic>
+          ? CollectorLocationTelemetry.fromJson(rawCollectorLoc)
+          : null,
     );
   }
 
@@ -320,6 +325,7 @@ class CollectionRequest {
   final DateTime? arrivedAt;
   final bool isDonation;
   final double householdRewardEarned;
+  final CollectorLocationTelemetry? collectorLocation;
 
   double get totalEstimatedKg =>
       itemsEstimated.values.fold(0, (sum, kg) => sum + kg);
@@ -759,6 +765,43 @@ class WalletTransaction {
   final DateTime? createdAt;
 
   bool get isIncoming => direction == 'IN';
-  double get amountPen => amount; // 1 ECO = 1 PEN
+  double get amountPen => amount; // 1 LIVO = 1 PEN
+}
+
+class CollectorLocationTelemetry {
+  const CollectorLocationTelemetry({
+    required this.latitude,
+    required this.longitude,
+    this.heading = 0.0,
+    this.speed = 0.0,
+    this.distanceRemainingMeters,
+    this.etaMinutes,
+    this.transportType,
+    this.timestamp,
+  });
+
+  final double latitude;
+  final double longitude;
+  final double heading;
+  final double speed;
+  final double? distanceRemainingMeters;
+  final int? etaMinutes;
+  final String? transportType;
+  final int? timestamp;
+
+  factory CollectorLocationTelemetry.fromJson(Map<String, dynamic> json) {
+    return CollectorLocationTelemetry(
+      latitude: _toDouble(json['latitude']),
+      longitude: _toDouble(json['longitude']),
+      heading: _toDouble(json['heading']),
+      speed: _toDouble(json['speed']),
+      distanceRemainingMeters: json['distanceRemainingMeters'] != null
+          ? _toDouble(json['distanceRemainingMeters'])
+          : null,
+      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
+      transportType: json['transportType'] as String?,
+      timestamp: (json['timestamp'] as num?)?.toInt(),
+    );
+  }
 }
 

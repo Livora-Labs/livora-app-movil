@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/api_client.dart';
@@ -61,8 +62,10 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   String? _acceptingId;
   MapListViewMode _viewMode = MapListViewMode.list;
   final MapController _mapController = MapController();
-
   StreamSubscription<Map<String, dynamic>>? _liveSubscription;
+  StreamSubscription<Map<String, dynamic>>? _updateSubscription;
+  int? _lastBatchesVersion;
+  bool _loadInProgress = false;
 
   static const List<double> _radiusPresets = [2.0, 5.0, 10.0, 20.0];
 
@@ -74,20 +77,76 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   }
 
   void _subscribeRealtime() {
-    _liveSubscription = context
-        .read<LivoraRealtime>()
+    final realtime = context.read<LivoraRealtime>();
+    _liveSubscription = realtime
         .on(RealtimeEvents.collectionCreated)
         .listen(_onCollectionCreated);
+    _updateSubscription = realtime
+        .on(RealtimeEvents.collectionUpdated)
+        .listen((_) {
+      if (mounted && !_loadInProgress) _load();
+    });
   }
 
   Future<void> _activateGps() async {
     final enabled = await LocationService.isLocationServiceEnabled();
     if (!enabled) {
-      await LocationService.openLocationSettings();
+      if (mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (dlgCtx) => AlertDialog(
+            icon: const Icon(Icons.location_off_outlined, color: LivoraColors.forest, size: 36),
+            title: const Text('GPS requerido para el radar', style: TextStyle(fontWeight: FontWeight.w700)),
+            content: const Text(
+              'Para calcular distancias precisas y listar solicitudes dentro de tu radio de recolección, activa el servicio de ubicación del dispositivo.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dlgCtx, false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(dlgCtx, true);
+                  LocationService.openLocationSettings();
+                },
+                child: const Text('Activar GPS'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true) return;
+      }
     } else {
-      final perm = await LocationService.checkPermission();
-      if (perm == LocationPermission.deniedForever) {
-        await LocationService.openAppSettings();
+      var perm = await LocationService.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await LocationService.requestPermission();
+      }
+      if (perm == LocationPermission.deniedForever && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (dlgCtx) => AlertDialog(
+            icon: const Icon(Icons.security_outlined, color: LivoraColors.forest, size: 36),
+            title: const Text('Permiso de ubicación denegado', style: TextStyle(fontWeight: FontWeight.w700)),
+            content: const Text(
+              'Livora necesita permiso de ubicación para operar el radar satelital. Puedes habilitarlo en los ajustes de la aplicación.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(dlgCtx);
+                  LocationService.openAppSettings();
+                },
+                child: const Text('Abrir Ajustes'),
+              ),
+            ],
+          ),
+        );
+        return;
       }
     }
     await _initLocationAndLoad();
@@ -121,11 +180,14 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   @override
   void dispose() {
     _liveSubscription?.cancel();
+    _updateSubscription?.cancel();
     _mapController.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    if (_loadInProgress) return;
+    _loadInProgress = true;
     final api = context.read<LivoraApi>();
     final session = context.read<SessionController>();
     final lat = (_nearbyFilter && _userLat != null) ? _userLat : null;
@@ -190,6 +252,10 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'No se pudieron sincronizar las solicitudes');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loadInProgress = false);
       }
     }
   }
@@ -456,9 +522,22 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
+    final currentVersion = session.batchesVersion;
+    if (_lastBatchesVersion != null &&
+        _lastBatchesVersion != currentVersion &&
+        !_loadInProgress) {
+      _lastBatchesVersion = currentVersion;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    } else {
+      _lastBatchesVersion ??= currentVersion;
+    }
+
     final requests = _requests;
     final inRouteRequests = _inRouteRequests;
-    final kycStatus = context.select<SessionController, KycStatus>((s) => s.kycStatus);
+    final kycStatus = session.kycStatus;
 
     return Scaffold(
       appBar: livoraAppBar(
@@ -800,7 +879,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
                 ],
               ),
 
-              // Marcador de posición del Recolector y solicitudes
+              // Marcador de posición del Recolector (sin cluster para mantenerlo fijo)
               MarkerLayer(
                 markers: [
                   Marker(
@@ -827,15 +906,25 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
                           ],
                         ),
                         child: const Icon(
-                          Icons.person_pin_circle_rounded,
+                           Icons.person_pin_circle_rounded,
                           color: Colors.white,
                           size: 20,
                         ),
                       ),
                     ),
                   ),
+                ],
+              ),
 
-                  ...validRequests.map(
+              // Clúster de solicitudes disponibles con conteo visual
+              MarkerClusterLayerWidget(
+                options: MarkerClusterLayerOptions(
+                  maxClusterRadius: 45,
+                  size: const Size(42, 42),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(40),
+                  maxZoom: 16,
+                  markers: validRequests.map(
                     (req) => Marker(
                       point: LatLng(req.latitude, req.longitude),
                       width: 86,
@@ -845,8 +934,34 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
                         onTap: () => _openDetail(req, kycStatus),
                       ),
                     ),
-                  ),
-                ],
+                  ).toList(),
+                  builder: (context, markers) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: LivoraColors.forest,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${markers.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
           ),

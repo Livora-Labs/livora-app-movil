@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../core/stellar.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
 import '../../widgets/izipay_checkout_modal.dart';
 import '../../widgets/web3_confirm_modal.dart';
@@ -33,27 +35,47 @@ class _WalletScreenState extends State<WalletScreen> {
   bool _loadingBalance = false;
   bool _sending = false;
   int? _lastBatchesVersion;
+  final List<StreamSubscription> _realtimeSubs = [];
+  VoidCallback? _sessionListener;
 
   @override
   void initState() {
     super.initState();
     _loadBalance();
-  }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      void onRealtimeUpdate(_) {
+        if (mounted && !_loadingBalance) _loadBalance();
+      }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final session = context.watch<SessionController>();
-    if (_lastBatchesVersion != null && _lastBatchesVersion != session.batchesVersion) {
+      _realtimeSubs.add(realtime.on(RealtimeEvents.collectionUpdated).listen(onRealtimeUpdate));
+      _realtimeSubs.add(realtime.on(RealtimeEvents.batchCompleted).listen(onRealtimeUpdate));
+      _realtimeSubs.add(realtime.on(RealtimeEvents.redemptionCompleted).listen(onRealtimeUpdate));
+
+      final session = context.read<SessionController>();
       _lastBatchesVersion = session.batchesVersion;
-      _loadBalance();
-    } else {
-      _lastBatchesVersion = session.batchesVersion;
-    }
+      _sessionListener = () {
+        if (mounted && session.batchesVersion != _lastBatchesVersion) {
+          _lastBatchesVersion = session.batchesVersion;
+          if (!_loadingBalance) _loadBalance();
+        }
+      };
+      session.addListener(_sessionListener!);
+    });
   }
 
   @override
   void dispose() {
+    for (final sub in _realtimeSubs) {
+      sub.cancel();
+    }
+    _realtimeSubs.clear();
+    if (_sessionListener != null) {
+      try {
+        context.read<SessionController>().removeListener(_sessionListener!);
+      } catch (_) {}
+    }
     _addressController.dispose();
     _amountController.dispose();
     super.dispose();

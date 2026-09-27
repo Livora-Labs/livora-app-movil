@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/env_config.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
@@ -214,7 +215,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               alignment: PlaceholderAlignment.middle,
                               child: GestureDetector(
                                 onTap: () async {
-                                  final url = Uri.parse('https://livora.org/terminos');
+                                  final url = Uri.parse(EnvConfig.termsUrl);
                                   if (await canLaunchUrl(url)) {
                                     await launchUrl(url, mode: LaunchMode.externalApplication);
                                   }
@@ -235,7 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               alignment: PlaceholderAlignment.middle,
                               child: GestureDetector(
                                 onTap: () async {
-                                  final url = Uri.parse('https://livora.org/privacidad');
+                                  final url = Uri.parse(EnvConfig.privacyUrl);
                                   if (await canLaunchUrl(url)) {
                                     await launchUrl(url, mode: LaunchMode.externalApplication);
                                   }

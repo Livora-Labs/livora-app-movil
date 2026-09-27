@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +8,7 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
 
 /// Pantalla dedicada para que el Hogar compare las propuestas de tarifas
@@ -25,12 +27,31 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
   bool _loading = false;
   String? _selectingBidId;
   bool _cancelling = false;
+  StreamSubscription<Map<String, dynamic>>? _bidSub;
+  StreamSubscription<Map<String, dynamic>>? _collectionSub;
 
   @override
   void initState() {
     super.initState();
     _request = widget.request;
     _refreshRequest();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final realtime = context.read<LivoraRealtime>();
+      _bidSub = realtime.on(RealtimeEvents.auctionBid).listen((_) {
+        if (mounted) _refreshRequest();
+      });
+      _collectionSub = realtime.on(RealtimeEvents.collectionUpdated).listen((_) {
+        if (mounted) _refreshRequest();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _bidSub?.cancel();
+    _collectionSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _refreshRequest() async {

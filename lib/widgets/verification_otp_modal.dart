@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/api_client.dart';
 import '../core/app_theme.dart';
 import '../core/formats.dart';
+import '../core/session.dart';
 import '../models/models.dart';
 import '../services/livora_api.dart';
 import '../services/offline_queue_manager.dart';
@@ -112,6 +113,9 @@ class _VerificationOtpModalState extends State<VerificationOtpModal> {
           );
 
       if (mounted) {
+        try {
+          context.read<SessionController>().notifyBatchesChanged();
+        } catch (_) {}
         showAppSnack(context, 'Recolección verificada y liquidada con éxito');
         Navigator.pop(context, true);
       }
@@ -133,6 +137,9 @@ class _VerificationOtpModalState extends State<VerificationOtpModal> {
 
         if (mounted) {
           widget.request.status = 'COMPLETED';
+          try {
+            context.read<SessionController>().notifyBatchesChanged();
+          } catch (_) {}
           showAppSnack(
             context,
             'Sin cobertura. Verificación guardada en el dispositivo; se sincronizará automáticamente.',
@@ -153,6 +160,9 @@ class _VerificationOtpModalState extends State<VerificationOtpModal> {
 
       if (mounted) {
         widget.request.status = 'COMPLETED';
+        try {
+          context.read<SessionController>().notifyBatchesChanged();
+        } catch (_) {}
         showAppSnack(
           context,
           'Guardado localmente. Se sincronizará al recuperar internet.',

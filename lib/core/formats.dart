@@ -146,10 +146,10 @@ String materialLabel(String key) => switch (key.toUpperCase()) {
     };
 
 /// Etiquetas en español para estados de solicitud de recolección.
-String requestStatusLabel(String status) => switch (status.toUpperCase()) {
-      'PENDING' => 'Buscando recolector',
+String requestStatusLabel(String status, {bool hasCenter = false}) => switch (status.toUpperCase()) {
+      'PENDING' => hasCenter ? 'Acopio asignado · Buscando recolector' : 'Buscando centro de acopio',
       'AUCTION_ACTIVE' || 'AUCTION_OPEN' => 'En subasta de tarifas',
-      'AUCTION_ASSIGNED' => 'Acopio asignado',
+      'AUCTION_ASSIGNED' => 'Acopio asignado · Buscando recolector',
       'ACCEPTED' || 'ASSIGNED' => 'Recolector asignado',
       'EN_ROUTE' => 'Recolector en camino',
       'ARRIVED' => 'Recolector en tu puerta',

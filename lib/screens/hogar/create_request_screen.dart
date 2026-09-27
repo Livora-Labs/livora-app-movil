@@ -2,10 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
@@ -80,7 +81,11 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   Future<void> _resolveAddress(double lat, double lng) async {
     setState(() => _geocodingAddress = true);
     try {
-      final street = await LocationService.reverseGeocode(lat, lng);
+      final street = await LocationService.reverseGeocode(
+        lat,
+        lng,
+        api: context.read<LivoraApi>(),
+      );
       if (mounted) {
         setState(() {
           if (street != null && street.isNotEmpty) {
@@ -95,13 +100,76 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     }
   }
 
-  Future<void> _fetchCurrentLocation() async {
+  Future<void> _fetchCurrentLocation({bool userPrompt = false}) async {
     if (_fetchingLocation) return;
     setState(() => _fetchingLocation = true);
     try {
       final user = context.read<SessionController>().user;
-      if (user?.address != null && user!.address!.isNotEmpty) {
+      if (user?.address != null && user!.address!.isNotEmpty && _addressController.text.trim().isEmpty) {
         _addressController.text = user.address!;
+      }
+
+      final enabled = await LocationService.isLocationServiceEnabled();
+      if (!enabled) {
+        if (userPrompt && mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (dlgCtx) => AlertDialog(
+              icon: const Icon(Icons.location_off_outlined, color: LivoraColors.forest, size: 36),
+              title: const Text('Ubicación desactivada', style: TextStyle(fontWeight: FontWeight.w700)),
+              content: const Text(
+                'Para detectar tu ubicación de forma automática, activa el GPS del dispositivo. También puedes ajustar el pin arrastrando el mapa manualmente.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dlgCtx),
+                  child: const Text('Entendido'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(dlgCtx);
+                    LocationService.openLocationSettings();
+                  },
+                  child: const Text('Activar GPS'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      var perm = await LocationService.checkPermission();
+      if (perm == LocationPermission.denied && userPrompt) {
+        perm = await LocationService.requestPermission();
+      }
+      if (perm == LocationPermission.deniedForever && userPrompt) {
+        if (mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (dlgCtx) => AlertDialog(
+              icon: const Icon(Icons.security_outlined, color: LivoraColors.forest, size: 36),
+              title: const Text('Permiso de ubicación requerido', style: TextStyle(fontWeight: FontWeight.w700)),
+              content: const Text(
+                'Livora requiere permiso de ubicación para situar el punto de recojo en el mapa. Puedes habilitarlo en los ajustes de la aplicación.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dlgCtx),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(dlgCtx);
+                    LocationService.openAppSettings();
+                  },
+                  child: const Text('Abrir Ajustes'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
       }
 
       final pos = await LocationService.getCurrentPosition();
@@ -565,6 +633,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             latitude: _latitude,
             longitude: _longitude,
             assignmentMode: _assignmentMode,
+            address: fullAddress.isNotEmpty ? fullAddress : null,
             description: combinedNotes.isNotEmpty ? combinedNotes : null,
             photoUrl: _photoUrl,
             isDonation: isDonation,
@@ -744,7 +813,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                                     backgroundColor: Colors.white,
                                     foregroundColor: LivoraColors.forest,
                                     elevation: 2,
-                                    onPressed: _fetchingLocation ? null : _fetchCurrentLocation,
+                                    onPressed: _fetchingLocation ? null : () => _fetchCurrentLocation(userPrompt: true),
                                     child: _fetchingLocation
                                         ? const SizedBox(
                                             width: 16,
