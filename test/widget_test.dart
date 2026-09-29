@@ -31,6 +31,7 @@ void main() {
 
     expect(find.byType(LivoraWordmark), findsOneWidget);
     expect(find.text('Iniciar sesión'), findsOneWidget);
+    expect(find.text('¿Olvidaste tu contraseña?'), findsOneWidget);
     expect(find.text('¿No tienes cuenta? Regístrate'), findsOneWidget);
   });
 }

@@ -519,37 +519,39 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
                 onPressed: _showIzipayRechargeDialog,
                 icon: const Icon(Icons.credit_card_rounded),
-                label: const Text(
-                  'Recargar Saldo / Comprar LIVOs (Izipay)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                label: Text(
+                  user?.role == Roles.recolector
+                      ? 'Recargar Saldo de Garantía LIVO (Izipay)'
+                      : 'Recargar Saldo / Comprar LIVOs (Izipay)',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ],
-            if (user?.role == Roles.hogar) ...[
-              const SizedBox(height: 16),
+            if (user?.role == Roles.hogar || user?.role == Roles.recolector) ...[
+              const SizedBox(height: 14),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: LivoraColors.forest,
                   foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 52),
+                  minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 2,
                 ),
                 onPressed: _scanAndPay,
-                icon: const Icon(Icons.qr_code_scanner_rounded, size: 22),
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
                 label: const Text(
                   'Pagar con QR en Tiendas y Bodegas',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: LivoraColors.deep,
                   side: const BorderSide(color: LivoraColors.deep, width: 1.5),
-                  minimumSize: const Size(double.infinity, 50),
+                  minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -565,54 +567,9 @@ class _WalletScreenState extends State<WalletScreen> {
                     _scanAndPay(scanned);
                   }
                 },
-                icon: const Icon(Icons.storefront_outlined),
+                icon: const Icon(Icons.storefront_outlined, size: 18),
                 label: const Text(
                   'Explorar Tiendas Cercanas y Descuentos',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ] else if (user?.role != Roles.tienda && user?.role != Roles.centroAcopio) ...[
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: LivoraColors.forest,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: _scanAndPay,
-                icon: const Icon(Icons.qr_code_scanner),
-                label: const Text(
-                  'Escanear y Pagar QR',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: LivoraColors.deep,
-                  side: const BorderSide(color: LivoraColors.deep),
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () async {
-                  final scanned = await Navigator.push<String>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const StoresCatalogScreen(),
-                    ),
-                  );
-                  if (scanned != null && mounted) {
-                    _scanAndPay(scanned);
-                  }
-                },
-                icon: const Icon(Icons.storefront_outlined),
-                label: const Text(
-                  'Explorar Tiendas Aliadas y Canjes',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),

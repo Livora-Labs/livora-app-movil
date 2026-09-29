@@ -12,6 +12,7 @@ import '../../core/app_theme.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 
 /// Pantalla exclusiva de Verificación de Identidad (KYC) para el rol Hogar.
@@ -194,6 +195,8 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
           context,
           'Permiso denegado para acceder a la cámara o galería.',
           error: true,
+          actionLabel: 'Ajustes',
+          onAction: () => LocationService.openAppSettings(),
         );
       }
     } catch (_) {
@@ -277,6 +280,8 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
           context,
           'No se pudo acceder a la cámara frontal para la selfie.',
           error: true,
+          actionLabel: 'Ajustes',
+          onAction: () => LocationService.openAppSettings(),
         );
       }
     } catch (_) {

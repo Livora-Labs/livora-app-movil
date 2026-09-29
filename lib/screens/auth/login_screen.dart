@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -164,7 +165,35 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ? 'Mínimo 8 caracteres'
                                           : null,
                                 ),
-                                const SizedBox(height: 20),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ForgotPasswordScreen(),
+                                      ),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 4, vertical: 2),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text(
+                                      '¿Olvidaste tu contraseña?',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: LivoraColors.forest,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
                                 BusyButton(
                                   label: 'Iniciar sesión',
                                   busy: _busy,

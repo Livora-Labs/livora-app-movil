@@ -718,11 +718,21 @@ class LivoraApi {
     return raw as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> changePassword(String newPassword) async {
+  Future<Map<String, dynamic>> changePassword({
+    required String newPassword,
+    String? currentPassword,
+  }) async {
     final raw = await client.patch('/users/me/password', body: {
       'newPassword': newPassword,
+      if (currentPassword != null && currentPassword.isNotEmpty)
+        'currentPassword': currentPassword,
     });
     return raw as Map<String, dynamic>;
+  }
+
+  /// Solicita un correo de recuperación de contraseña con enlace web para el usuario.
+  Future<void> forgotPassword(String email) async {
+    await client.post('/auth/forgot-password', body: {'email': email});
   }
 
   Future<Map<String, dynamic>?> getStoreProfile() async {

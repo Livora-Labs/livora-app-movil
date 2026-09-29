@@ -266,6 +266,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           context,
           'No se pudo acceder a la ${source == ImageSource.camera ? "cámara" : "galería"}. Revisa los permisos.',
           error: true,
+          actionLabel: 'Ajustes',
+          onAction: () => LocationService.openAppSettings(),
         );
       }
     } catch (_) {

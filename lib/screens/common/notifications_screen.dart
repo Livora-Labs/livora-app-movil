@@ -109,13 +109,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final explicitReqId = item.data?['requestId']?.toString() ??
         item.data?['collectionId']?.toString();
     if (explicitReqId != null && explicitReqId.isNotEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RequestDetailScreen(requestId: explicitReqId),
-        ),
-      );
-      return;
+      if (role == Roles.recolector) {
+        HomeShell.switchTab(context, 0); // Radar de Recolección
+        return;
+      }
+      if (role == Roles.hogar) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RequestDetailScreen(requestId: explicitReqId),
+          ),
+        );
+        return;
+      }
     }
 
     if (role == Roles.hogar) {

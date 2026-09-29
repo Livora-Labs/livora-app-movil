@@ -20,6 +20,7 @@ import '../tienda/store_profile_screen.dart';
 import 'complaints_screen.dart';
 import 'onboarding_screen.dart';
 import '../../widgets/kyc_shield_button.dart';
+import '../recolector/widgets/collector_vehicle_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -49,8 +50,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Password fields
   final _passwordFormKey = GlobalKey<FormState>();
+  final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _obscureCurrentPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
   bool _updatingPassword = false;
 
   @override
@@ -76,6 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -430,26 +436,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _changePassword() async {
     if (!_passwordFormKey.currentState!.validate()) return;
     
+    final currentPassword = _currentPasswordController.text.trim();
     final newPassword = _newPasswordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
     
+    if (currentPassword.isEmpty) {
+      showAppSnack(context, 'Ingresa tu contraseña actual', error: true);
+      return;
+    }
+
     if (newPassword != confirmPassword) {
       showAppSnack(context, 'Las contraseñas no coinciden', error: true);
       return;
     }
 
+    if (currentPassword == newPassword) {
+      showAppSnack(context, 'La nueva contraseña debe ser diferente a la actual', error: true);
+      return;
+    }
+
     final passwordRegex = RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_+\-=\[\]\\/])[A-Za-z\d!@#$%^&*(),.?":{}|<>_+\-=\[\]\\/]{8,}$');
     if (!passwordRegex.hasMatch(newPassword)) {
-      showAppSnack(context, 'La contraseña debe incluir mayúsculas, minúsculas, números y caracteres especiales', error: true);
+      showAppSnack(context, 'La contraseña debe incluir mayúsculas, minúsculas, números y caracteres especiales (mínimo 8 caracteres)', error: true);
       return;
     }
 
     setState(() => _updatingPassword = true);
     final api = context.read<LivoraApi>();
     try {
-      await api.changePassword(newPassword);
+      await api.changePassword(
+        newPassword: newPassword,
+        currentPassword: currentPassword,
+      );
       if (mounted) {
         showAppSnack(context, 'Contraseña cambiada con éxito');
+        _currentPasswordController.clear();
         _newPasswordController.clear();
         _confirmPasswordController.clear();
       }
@@ -814,78 +835,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _addressController,
-                              decoration: const InputDecoration(
-                                labelText: 'Dirección de Recojo',
-                                border: OutlineInputBorder(),
+                              decoration: InputDecoration(
+                                labelText: user.role == Roles.hogar
+                                    ? 'Dirección de Recojo'
+                                    : 'Dirección Domiciliaria',
+                                border: const OutlineInputBorder(),
                               ),
                               validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                             ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(0, 36),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  ),
-                                  onPressed: _fetchingGps ? null : _geolocalizar,
-                                  icon: _fetchingGps
-                                      ? const SizedBox(
-                                          width: 14,
-                                          height: 14,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: LivoraColors.forest,
-                                          ),
-                                        )
-                                      : Icon(
-                                          _gpsCaptured ? Icons.check_circle : Icons.gps_fixed,
-                                          size: 16,
-                                          color: _gpsCaptured ? LivoraColors.green : null,
-                                        ),
-                                  label: Text(
-                                    _fetchingGps
-                                        ? 'Obteniendo GPS…'
-                                        : _gpsCaptured
-                                            ? 'GPS Actualizado'
-                                            : 'Capturar GPS',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: _gpsCaptured ? FontWeight.bold : FontWeight.normal,
-                                      color: _gpsCaptured ? LivoraColors.green : null,
+                            if (user.role == Roles.hogar) ...[
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 36),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                if (_latitude != null && _longitude != null)
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.check_circle_outline_rounded,
-                                          size: 14,
-                                          color: LivoraColors.green,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            _addressController.text.trim().isNotEmpty
-                                                ? 'Ubicación vinculada a tu dirección'
-                                                : 'Ubicación GPS sincronizada',
-                                            style: const TextStyle(
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: LivoraColors.green,
+                                    onPressed: _fetchingGps ? null : _geolocalizar,
+                                    icon: _fetchingGps
+                                        ? const SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: LivoraColors.forest,
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                          )
+                                        : Icon(
+                                            _gpsCaptured ? Icons.check_circle : Icons.gps_fixed,
+                                            size: 16,
+                                            color: _gpsCaptured ? LivoraColors.green : null,
                                           ),
-                                        ),
-                                      ],
+                                    label: Text(
+                                      _fetchingGps
+                                          ? 'Obteniendo GPS…'
+                                          : _gpsCaptured
+                                              ? 'GPS Actualizado'
+                                              : 'Capturar GPS',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: _gpsCaptured ? FontWeight.bold : FontWeight.normal,
+                                        color: _gpsCaptured ? LivoraColors.green : null,
+                                      ),
                                     ),
                                   ),
-                              ],
-                            ),
+                                  const SizedBox(width: 10),
+                                  if (_latitude != null && _longitude != null)
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.check_circle_outline_rounded,
+                                            size: 14,
+                                            color: LivoraColors.green,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              _addressController.text.trim().isNotEmpty
+                                                  ? 'Ubicación vinculada a tu dirección'
+                                                  : 'Ubicación GPS sincronizada',
+                                              style: const TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: LivoraColors.green,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
                             const SizedBox(height: 16),
                             FilledButton(
                               style: FilledButton.styleFrom(
@@ -978,34 +1003,111 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.shield_outlined, color: LivoraColors.forest, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Seguridad de la Cuenta',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: LivoraColors.deep,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
                             const Text(
-                              'Seguridad',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: LivoraColors.deep),
+                              'Actualiza tu contraseña periódicamente para proteger tu billetera y datos personales.',
+                              style: TextStyle(fontSize: 12, color: LivoraColors.slate),
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _currentPasswordController,
+                              obscureText: _obscureCurrentPassword,
+                              decoration: InputDecoration(
+                                labelText: 'Contraseña Actual',
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureCurrentPassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(
+                                      () => _obscureCurrentPassword = !_obscureCurrentPassword),
+                                ),
+                              ),
+                              validator: (val) =>
+                                  val == null || val.isEmpty ? 'Ingresa tu contraseña actual' : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _newPasswordController,
-                              obscureText: true,
-                              decoration: const InputDecoration(
+                              obscureText: _obscureNewPassword,
+                              decoration: InputDecoration(
                                 labelText: 'Nueva Contraseña',
-                                border: OutlineInputBorder(),
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureNewPassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 20,
+                                  ),
+                                  onPressed: () =>
+                                      setState(() => _obscureNewPassword = !_obscureNewPassword),
+                                ),
                               ),
-                              validator: (val) => val == null || val.length < 8 ? 'Mínimo 8 caracteres' : null,
+                              validator: (val) =>
+                                  val == null || val.length < 8 ? 'Mínimo 8 caracteres' : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _confirmPasswordController,
-                              obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Confirmar Contraseña',
-                                border: OutlineInputBorder(),
+                              obscureText: _obscureConfirmPassword,
+                              decoration: InputDecoration(
+                                labelText: 'Confirmar Nueva Contraseña',
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureConfirmPassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(
+                                      () => _obscureConfirmPassword = !_obscureConfirmPassword),
+                                ),
                               ),
-                              validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
+                              validator: (val) =>
+                                  val == null || val.isEmpty ? 'Confirma la nueva contraseña' : null,
                             ),
                             const SizedBox(height: 16),
-                            OutlinedButton(
+                            FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: LivoraColors.forest,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
                               onPressed: _updatingPassword ? null : _changePassword,
-                              child: Text(_updatingPassword ? 'Cambiando...' : 'Cambiar Contraseña'),
+                              icon: _updatingPassword
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.lock_outline, size: 16),
+                              label: Text(
+                                _updatingPassword
+                                    ? 'Actualizando...'
+                                    : 'Actualizar Contraseña',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ],
                         ),
@@ -1078,6 +1180,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ],
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (user.role == Roles.recolector) ...[
+                    CollectorVehicleCard(
+                      user: user,
+                      kycStatus: session.kycStatus,
                     ),
                     const SizedBox(height: 16),
                   ],

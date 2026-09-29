@@ -55,32 +55,6 @@ class BatchDetailModal extends StatelessWidget {
     showAppSnack(context, 'Hash de transacción copiado al portapapeles');
   }
 
-  Future<void> _settleFiat(BuildContext context) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Confirmar Pago Fiat',
-      message:
-          '¿Confirmas que se ha realizado la entrega del pago en efectivo o transferencia en soles (PEN) al recolector por los materiales de este lote?',
-      confirmLabel: 'Sí, marcar como pagado',
-      cancelLabel: 'Cancelar',
-    );
-    if (!confirmed || !context.mounted) return;
-
-    try {
-      await context.read<LivoraApi>().settleBatchFiat(batch.id);
-      if (context.mounted) {
-        try {
-          context.read<SessionController>().notifyBatchesChanged();
-        } catch (_) {}
-        showAppSnack(context, 'Pago fiat registrado exitosamente');
-        Navigator.pop(context, true);
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) showAppSnack(context, e.message, error: true);
-    } catch (_) {
-      if (context.mounted) showAppSnack(context, 'Error al registrar el pago fiat', error: true);
-    }
-  }
 
   Future<void> _disputeBatch(BuildContext context) async {
     final reasonController = TextEditingController();
@@ -151,7 +125,6 @@ class BatchDetailModal extends StatelessWidget {
       session = context.watch<SessionController>();
     } catch (_) {}
     final userRole = session?.user?.role;
-    final isAcopio = userRole == Roles.centroAcopio;
     final isRecolector = userRole == Roles.recolector;
 
     final centerLabel = sanitizedCenterName(
@@ -469,7 +442,7 @@ class BatchDetailModal extends StatelessWidget {
                               onPressed: () => _disputeBatch(context),
                               icon: const Icon(Icons.shield_outlined, size: 16),
                               label: const Text(
-                                'Impugnar Pesaje (Disputa B2B)',
+                                'Impugnar Pesaje en Acopio',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -533,71 +506,49 @@ class BatchDetailModal extends StatelessWidget {
                 ],
 
                 if (batch.status == 'RECEIVED' || batch.status == 'CONSOLIDATED') ...[
-                  const SectionTitle(text: 'Liquidación Contable Dual (Fiat / Soles)'),
+                  const SectionTitle(text: 'Estado en Centro de Acopio'),
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: batch.fiatSettled ? Colors.green.shade50 : Colors.amber.shade50,
+                      color: Colors.green.shade50,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: batch.fiatSettled ? Colors.green.shade200 : Colors.amber.shade300,
-                      ),
+                      border: Border.all(color: Colors.green.shade200),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(
-                              batch.fiatSettled ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                              color: batch.fiatSettled ? LivoraColors.green : Colors.amber.shade900,
+                            const Icon(
+                              Icons.verified_rounded,
+                              color: LivoraColors.green,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
-                            Expanded(
+                            const Expanded(
                               child: Text(
-                                batch.fiatSettled ? 'Pago Fiat Liquidado' : 'Pago Fiat Pendiente',
+                                'Lote Entregado y Verificado en Planta',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 13.5,
-                                  color: batch.fiatSettled ? LivoraColors.forest : Colors.amber.shade900,
+                                  color: LivoraColors.forest,
                                 ),
                               ),
                             ),
                             StatusChip(
-                              label: batch.fiatSettled ? 'PAGADO' : 'PENDIENTE',
-                              color: batch.fiatSettled ? LivoraColors.green : Colors.amber.shade800,
+                              label: batch.status == 'CONSOLIDATED' ? 'CONSOLIDADO' : 'RECIBIDO',
+                              color: LivoraColors.green,
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          batch.fiatSettled
-                              ? 'La liquidación física en soles (PEN) fue confirmada por el centro de acopio${batch.fiatSettledAt != null ? ' el ${fmtDate(batch.fiatSettledAt)}' : ''}.'
-                              : 'La entrega de soles en efectivo o por transferencia al recolector aún no ha sido marcada como completada.',
+                          'El pesaje oficial y la clasificación de materiales han sido registrados exitosamente por el Centro de Acopio.',
                           style: TextStyle(
                             fontSize: 12,
-                            color: batch.fiatSettled ? Colors.green.shade900 : Colors.brown.shade800,
+                            color: Colors.green.shade900,
                           ),
                         ),
-                        if (!batch.fiatSettled && isAcopio) ...[
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: LivoraColors.forest,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                              onPressed: () => _settleFiat(context),
-                              icon: const Icon(Icons.payments_outlined, size: 18),
-                              label: const Text(
-                                'Marcar Pago Fiat Realizado',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/app_theme.dart';
+import '../../services/location_service.dart';
 
 /// Pantalla reusable para escanear códigos QR con la cámara,
 /// soporte para validación contextual de formato y overlay animado de error.
@@ -111,6 +112,23 @@ class _QRScannerViewState extends State<QRScannerView> {
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12.5,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: LivoraColors.forest,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => LocationService.openAppSettings(),
+                      icon: const Icon(Icons.settings, size: 18),
+                      label: const Text(
+                        'Abrir Ajustes de Cámara',
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],

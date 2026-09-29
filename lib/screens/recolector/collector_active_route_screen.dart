@@ -12,6 +12,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
@@ -19,6 +20,7 @@ import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_map_tile_layer.dart';
 import '../../widgets/verification_otp_modal.dart';
+import 'widgets/collector_incident_dialog.dart';
 
 /// Consola de Navegación Vehicular Turn-by-Turn para el Recolector.
 ///
@@ -279,29 +281,67 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
     } catch (_) {}
   }
 
-  Future<void> _onRecenterPressed() async {
-    HapticFeedback.lightImpact();
-    if (_collectorPos != null) {
-      _fitBounds();
-      return;
-    }
-
+  Future<bool> _ensureGpsAndPermission({
+    required String title,
+    required String reason,
+  }) async {
     final isGpsOn = await LocationService.isLocationServiceEnabled();
     if (!isGpsOn) {
-      if (!mounted) return;
-      showDialog(
+      if (!mounted) return false;
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.location_off_outlined, color: Color(0xFFF59E0B)),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(
+            reason,
+            style: const TextStyle(fontSize: 14, color: LivoraColors.slate),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+              onPressed: () {
+                Navigator.pop(ctx, true);
+                LocationService.openLocationSettings();
+              },
+              icon: const Icon(Icons.settings, size: 16),
+              label: const Text('Activar GPS'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return false;
+    }
+
+    var permission = await LocationService.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await LocationService.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return false;
+      await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
             children: [
-              Icon(Icons.location_off_outlined, color: Color(0xFFF59E0B)),
+              Icon(Icons.settings_outlined, color: LivoraColors.forest),
               SizedBox(width: 8),
-              Text('GPS Desactivado', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              Text('Permiso de Ubicación', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
             ],
           ),
           content: const Text(
-            'El servicio de ubicación (GPS) está desactivado. Actívalo para posicionar tu vehículo y calcular la ruta hacia el domicilio.',
+            'Livora necesita acceso a la ubicación para calcular la ruta en vivo y transmitir la telemetría al hogar. Por favor, habilítalo en los ajustes.',
             style: TextStyle(fontSize: 14, color: LivoraColors.slate),
           ),
           actions: [
@@ -313,16 +353,40 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
               style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
               onPressed: () {
                 Navigator.pop(ctx);
-                LocationService.openLocationSettings();
+                LocationService.openAppSettings();
               },
               icon: const Icon(Icons.settings, size: 16),
-              label: const Text('Activar GPS'),
+              label: const Text('Abrir Ajustes'),
             ),
           ],
         ),
       );
+      return false;
+    }
+
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
+      if (mounted) {
+        showAppSnack(context, 'Permiso de ubicación denegado.', error: true);
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _onRecenterPressed() async {
+    HapticFeedback.lightImpact();
+    if (_collectorPos != null) {
+      _fitBounds();
       return;
     }
+
+    final hasGpsAndPerm = await _ensureGpsAndPermission(
+      title: 'GPS Desactivado',
+      reason: 'El servicio de ubicación (GPS) está desactivado. Actívalo para posicionar tu vehículo y calcular la ruta hacia el domicilio.',
+    );
+    if (!hasGpsAndPerm) return;
 
     final pos = await LocationService.getCurrentPosition();
     if (pos != null && mounted) {
@@ -338,43 +402,11 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
   }
 
   Future<void> _startRoute() async {
-    final isGpsOn = await LocationService.isLocationServiceEnabled();
-    if (!isGpsOn) {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.location_off_outlined, color: Color(0xFFF59E0B)),
-              SizedBox(width: 8),
-              Text('GPS Requerido', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: const Text(
-            'Para iniciar el viaje vehicular debes tener activado el GPS en tu dispositivo. De esta forma el hogar podrá ver tu llegada en tiempo real.',
-            style: TextStyle(fontSize: 14, color: LivoraColors.slate),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
-              onPressed: () {
-                Navigator.pop(ctx);
-                LocationService.openLocationSettings();
-              },
-              icon: const Icon(Icons.settings, size: 16),
-              label: const Text('Activar GPS'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
+    final hasGpsAndPerm = await _ensureGpsAndPermission(
+      title: 'GPS Requerido',
+      reason: 'Para iniciar el viaje vehicular debes tener activado el GPS en tu dispositivo. De esta forma el hogar podrá ver tu llegada en tiempo real.',
+    );
+    if (!hasGpsAndPerm) return;
 
     if (!mounted) return;
     HapticFeedback.mediumImpact();
@@ -461,6 +493,32 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
     }
   }
 
+  Future<void> _callHousehold() async {
+    final phone = _request.householdPhone;
+    if (phone == null || phone.trim().isEmpty) {
+      showAppSnack(context, 'El hogar no tiene número telefónico registrado.');
+      return;
+    }
+    final uri = Uri.parse('tel:${phone.trim()}');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) showAppSnack(context, 'No se pudo abrir el discador.');
+      }
+    } catch (_) {
+      if (mounted) showAppSnack(context, 'Error al intentar realizar la llamada.');
+    }
+  }
+
+  Future<void> _openIncidentModal() async {
+    final resolved = await CollectorIncidentDialog.show(context, request: _request);
+    if (resolved == true && mounted) {
+      context.read<SessionController>().notifyBatchesChanged();
+      Navigator.pop(context, true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dest = LatLng(_request.latitude, _request.longitude);
@@ -484,95 +542,97 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
       child: Scaffold(
         body: Stack(
           children: [
-          // 1. Lienzo de Mapa OSRM
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _collectorPos ?? dest,
-              initialZoom: 15.5,
-              maxZoom: 19,
-              minZoom: 11,
-            ),
-            children: [
-              const LivoraMapTileLayer(),
-
-              // Geocerca de arribo (50 metros alrededor del hogar)
-              CircleLayer(
-                circles: [
-                  CircleMarker(
-                    point: dest,
-                    radius: 50,
-                    useRadiusInMeter: true,
-                    color: LivoraColors.forest.withValues(alpha: 0.15),
-                    borderColor: LivoraColors.forest,
-                    borderStrokeWidth: 2.0,
-                  ),
-                ],
+          // 1. Lienzo de Mapa OSRM (aislado en RepaintBoundary)
+          RepaintBoundary(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _collectorPos ?? dest,
+                initialZoom: 15.5,
+                maxZoom: 19,
+                minZoom: 11,
               ),
+              children: [
+                const LivoraMapTileLayer(),
 
-              // Polilínea de ruta OSRM
-              if (_polylinePoints.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _polylinePoints,
-                      color: _isFallback
-                          ? Colors.orange.shade700
-                          : const Color(0xFF2E7D32),
-                      strokeWidth: 5.0,
-                      strokeCap: StrokeCap.round,
-                      strokeJoin: StrokeJoin.round,
+                // Geocerca de arribo (50 metros alrededor del hogar)
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: dest,
+                      radius: 50,
+                      useRadiusInMeter: true,
+                      color: LivoraColors.forest.withValues(alpha: 0.15),
+                      borderColor: LivoraColors.forest,
+                      borderStrokeWidth: 2.0,
                     ),
                   ],
                 ),
 
-              // Marcadores (Recolector y Hogar)
-              MarkerLayer(
-                markers: [
-                  // Pin del Hogar
-                  Marker(
-                    point: dest,
-                    width: 48,
-                    height: 48,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Color(0xFFC53030),
-                      size: 44,
-                    ),
+                // Polilínea de ruta OSRM
+                if (_polylinePoints.isNotEmpty)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: _polylinePoints,
+                        color: _isFallback
+                            ? Colors.orange.shade700
+                            : const Color(0xFF2E7D32),
+                        strokeWidth: 5.0,
+                        strokeCap: StrokeCap.round,
+                        strokeJoin: StrokeJoin.round,
+                      ),
+                    ],
                   ),
 
-                  // Marcador Vehicular del Recolector con Heading
-                  if (_collectorPos != null)
+                // Marcadores (Recolector y Hogar)
+                MarkerLayer(
+                  markers: [
+                    // Pin del Hogar
                     Marker(
-                      point: _collectorPos!,
-                      width: 44,
-                      height: 44,
-                      child: Transform.rotate(
-                        angle: _heading * (pi / 180),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
-                            Icons.navigation,
-                            color: Color(0xFF2E7D32),
-                            size: 26,
+                      point: dest,
+                      width: 48,
+                      height: 48,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Color(0xFFC53030),
+                        size: 44,
+                      ),
+                    ),
+
+                    // Marcador Vehicular del Recolector con Heading
+                    if (_collectorPos != null)
+                      Marker(
+                        point: _collectorPos!,
+                        width: 44,
+                        height: 44,
+                        child: Transform.rotate(
+                          angle: _heading * (pi / 180),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(4),
+                            child: const Icon(
+                              Icons.navigation,
+                              color: Color(0xFF2E7D32),
+                              size: 26,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
 
           // 2. Barra Superior de Control
@@ -718,7 +778,7 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
             ),
           ),
 
-          // 3. Tarjeta Flotante Inferior de Navegación (Bottom Card)
+          // 3. Consola Flotante Inferior de Conducción Profesional
           Positioned(
             left: 16,
             right: 16,
@@ -734,16 +794,13 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Métricas OSRM: ETA y Distancia
+                    // Fila 1: ETA + Distancia + Llamada Telefónica + GPS Externo
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF2E7D32).withValues(alpha: 0.12),
+                            color: LivoraColors.forest.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -751,14 +808,14 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
                               const Icon(
                                 Icons.access_time_filled,
                                 size: 16,
-                                color: Color(0xFF2E7D32),
+                                color: LivoraColors.forest,
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 _etaMinutes != null ? '$_etaMinutes min' : '-- min',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF2E7D32),
+                                  color: LivoraColors.forest,
                                   fontSize: 14,
                                 ),
                               ),
@@ -767,46 +824,80 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: LivoraColors.paper,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             distKmStr,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade800,
+                              color: LivoraColors.deep,
                               fontSize: 14,
                             ),
                           ),
                         ),
                         const Spacer(),
-                        if (_isFallback)
-                          Tooltip(
-                            message: 'Estimación geodésica resiliente (OSRM en espera)',
-                            child: Chip(
-                              label: const Text('Haversine', style: TextStyle(fontSize: 10)),
-                              backgroundColor: Colors.orange.shade50,
-                              labelStyle: TextStyle(color: Colors.orange.shade900),
-                              padding: EdgeInsets.zero,
-                            ),
+
+                        // Botón de Llamada Telefónica Nativa al Hogar
+                        IconButton.filledTonal(
+                          tooltip: 'Llamar al Hogar',
+                          style: IconButton.styleFrom(
+                            backgroundColor: LivoraColors.forest.withValues(alpha: 0.12),
+                            foregroundColor: LivoraColors.forest,
                           ),
-                        IconButton(
-                          icon: const Icon(Icons.open_in_new, size: 20),
+                          icon: const Icon(Icons.phone_in_talk_rounded, size: 20),
+                          onPressed: _callHousehold,
+                        ),
+                        const SizedBox(width: 6),
+
+                        // Botón de Navegación Externa (Google Maps / Waze)
+                        IconButton.filledTonal(
                           tooltip: 'Abrir en Google Maps / Waze',
+                          style: IconButton.styleFrom(
+                            backgroundColor: LivoraColors.blue.withValues(alpha: 0.1),
+                            foregroundColor: LivoraColors.blue,
+                          ),
+                          icon: const Icon(Icons.open_in_new, size: 20),
                           onPressed: _openExternalMap,
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
 
-                    // Destino
+                    // Fila 2: Resumen Visual de Materiales a Recoger
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: LivoraColors.mint.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: LivoraColors.forest.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.recycling_rounded, size: 16, color: LivoraColors.forest),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'A recoger: ${materialsSummary(_request.itemsEstimated)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: LivoraColors.forest,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Destino y Contacto
                     Text(
-                      _request.householdAddress ?? 'Dirección no especificada',
+                      _request.householdAddress ?? 'Dirección fijada vía GPS',
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -815,14 +906,14 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
-                      'Contacto: ${_request.householdName ?? 'Hogar'} • Solicitud #${_request.id.substring(0, 8)}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      'Contacto: ${_request.householdName ?? 'Hogar'} · Solicitud #${_request.shortId}',
+                      style: const TextStyle(fontSize: 12, color: LivoraColors.slate),
                     ),
                     const SizedBox(height: 16),
 
-                    // Botones según Estado
+                    // Botón Primario según Estado
                     if (isAccepted) ...[
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
@@ -842,7 +933,7 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.play_arrow),
+                            : const Icon(Icons.navigation_rounded),
                         label: const Text(
                           'INICIAR VIAJE HACIA EL DOMICILIO',
                           style: TextStyle(fontWeight: FontWeight.w800),
@@ -880,7 +971,7 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
                     ] else if (isArrived) ...[
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E7D32),
+                          backgroundColor: LivoraColors.forest,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -894,6 +985,23 @@ class _CollectorActiveRouteScreenState extends State<CollectorActiveRouteScreen>
                         ),
                       ),
                     ],
+                    const SizedBox(height: 6),
+
+                    // Botón Secundario: Reportar Incidencia / No responde
+                    Center(
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: LivoraColors.slate,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: const Icon(Icons.report_problem_outlined, size: 16),
+                        label: const Text(
+                          'Reportar problema en ruta (Hogar ausente / Cancelar)',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        onPressed: _busy ? null : _openIncidentModal,
+                      ),
+                    ),
                   ],
                 ),
               ),

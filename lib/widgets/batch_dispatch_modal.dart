@@ -340,7 +340,7 @@ class _BatchDispatchModalState extends State<BatchDispatchModal>
                               controller: _centerIdController,
                               decoration: livoraInput(
                                 'ID del Centro de Acopio',
-                                hint: 'UUID del centro',
+                                hint: 'Código del centro (ej. ACOPIO-SUR)',
                               ),
                             ),
                           ),

@@ -3,16 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:geolocator/geolocator.dart';
 
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
-import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
@@ -21,20 +19,21 @@ import '../../services/livora_realtime.dart';
 import '../../widgets/active_route_hero_card.dart';
 import '../../widgets/collection_request_detail_bottom_sheet.dart';
 import '../../widgets/common.dart';
-
 import '../../widgets/live_indicator.dart';
 import '../../widgets/livora_map_tile_layer.dart';
-import '../../widgets/view_toggle_segmented_button.dart';
 import '../../widgets/collector_request_marker.dart';
 import '../../widgets/livora_shimmer.dart';
-import '../../widgets/view_state_scaffold.dart';
-import '../common/profile.dart';
+import '../../widgets/livora_empty_state.dart';
 import '../common/wallet_screen.dart';
 import 'kyc_screen.dart';
+import 'widgets/collector_first_steps_dialog.dart';
+import 'widgets/collector_kyc_status_banner.dart';
+import 'widgets/collector_radar_filters_bar.dart';
+import 'widgets/collector_request_card.dart';
 
-/// Solicitudes PENDING disponibles para el recolector con radar GPS integrado,
-/// control de acceso limpio según máquina de estados KYC/Escrow,
-/// tarjeta héroe En Ruta priorizada y Tap-to-Expand para detalles.
+/// Pantalla principal del Recolector: Radar GPS y Solicitudes Disponibles
+/// Arquitectura 'Map-Sheet' (Mapa interactivo de fondo + Panel deslizable inferior)
+/// con selección ágil de pedidos, decisión en < 3s y Zero-Data-Leakage.
 class AvailableRequestsScreen extends StatefulWidget {
   const AvailableRequestsScreen({super.key});
 
@@ -47,7 +46,6 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   double? _userLat;
   double? _userLng;
   double _selectedRadiusKm = 5.0;
-  bool _nearbyFilter = true;
   bool _locatingGps = false;
 
   String? _selectedCenterId;
@@ -56,24 +54,25 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
 
   List<CollectionRequest>? _requests;
   List<CollectionRequest> _inRouteRequests = [];
-  int _currentStopIndex = 0;
   double _walletEcoBalance = 0.0;
   String? _error;
   String? _acceptingId;
-  MapListViewMode _viewMode = MapListViewMode.list;
   final MapController _mapController = MapController();
   StreamSubscription<Map<String, dynamic>>? _liveSubscription;
   StreamSubscription<Map<String, dynamic>>? _updateSubscription;
   int? _lastBatchesVersion;
   bool _loadInProgress = false;
 
-  static const List<double> _radiusPresets = [2.0, 5.0, 10.0, 20.0];
-
   @override
   void initState() {
     super.initState();
     _subscribeRealtime();
     _initLocationAndLoad();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        CollectorFirstStepsDialog.checkAndShow(context);
+      }
+    });
   }
 
   void _subscribeRealtime() {
@@ -88,68 +87,108 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     });
   }
 
-  Future<void> _activateGps() async {
+  Future<void> _activateGps({bool silentIfAlreadyLocated = false}) async {
     final enabled = await LocationService.isLocationServiceEnabled();
-    if (!enabled) {
-      if (mounted) {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (dlgCtx) => AlertDialog(
-            icon: const Icon(Icons.location_off_outlined, color: LivoraColors.forest, size: 36),
-            title: const Text('GPS requerido para el radar', style: TextStyle(fontWeight: FontWeight.w700)),
-            content: const Text(
-              'Para calcular distancias precisas y listar solicitudes dentro de tu radio de recolección, activa el servicio de ubicación del dispositivo.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dlgCtx, false),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(dlgCtx, true);
-                  LocationService.openLocationSettings();
-                },
-                child: const Text('Activar GPS'),
-              ),
-            ],
+    if (!enabled && mounted) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (dlgCtx) => AlertDialog(
+          icon: const Icon(Icons.location_off_outlined, color: LivoraColors.forest, size: 36),
+          title: const Text('GPS requerido para el radar', style: TextStyle(fontWeight: FontWeight.w700)),
+          content: const Text(
+            'Para calcular distancias precisas y listar solicitudes dentro de tu radio de recolección, activa el servicio de ubicación del dispositivo.',
           ),
-        );
-        if (proceed != true) return;
-      }
-    } else {
-      var perm = await LocationService.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await LocationService.requestPermission();
-      }
-      if (perm == LocationPermission.deniedForever && mounted) {
-        await showDialog<void>(
-          context: context,
-          builder: (dlgCtx) => AlertDialog(
-            icon: const Icon(Icons.security_outlined, color: LivoraColors.forest, size: 36),
-            title: const Text('Permiso de ubicación denegado', style: TextStyle(fontWeight: FontWeight.w700)),
-            content: const Text(
-              'Livora necesita permiso de ubicación para operar el radar satelital. Puedes habilitarlo en los ajustes de la aplicación.',
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx, false),
+              child: const Text('Cancelar'),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dlgCtx),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(dlgCtx);
-                  LocationService.openAppSettings();
-                },
-                child: const Text('Abrir Ajustes'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dlgCtx, true);
+                LocationService.openLocationSettings();
+              },
+              child: const Text('Activar GPS'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
     }
-    await _initLocationAndLoad();
+
+    var permission = await LocationService.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever && mounted) {
+      final openSettings = await showDialog<bool>(
+        context: context,
+        builder: (dlgCtx) => AlertDialog(
+          icon: const Icon(Icons.settings_outlined, color: LivoraColors.forest, size: 36),
+          title: const Text('Permiso de ubicación denegado', style: TextStyle(fontWeight: FontWeight.w700)),
+          content: const Text(
+            'Livora necesita acceso a tu ubicación para centrar el radar y mostrar las solicitudes cercanas a tu vehículo. Habilítalo en los ajustes de la aplicación.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dlgCtx, true);
+                LocationService.openAppSettings();
+              },
+              child: const Text('Abrir Ajustes'),
+            ),
+          ],
+        ),
+      );
+      if (openSettings != true) return;
+    }
+
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
+      if (!silentIfAlreadyLocated && mounted) {
+        showAppSnack(
+          context,
+          'Permiso de ubicación no concedido. No se puede calcular el radar.',
+          error: true,
+        );
+      }
+      return;
+    }
+
+    setState(() => _locatingGps = true);
+    try {
+      final pos = await LocationService.getCurrentPosition();
+      if (mounted) {
+        if (pos != null) {
+          setState(() {
+            _userLat = pos.latitude;
+            _userLng = pos.longitude;
+          });
+          _mapController.move(LatLng(pos.latitude, pos.longitude), 15.0);
+          _load();
+        } else if (!silentIfAlreadyLocated) {
+          showAppSnack(
+            context,
+            'No se pudo obtener la posición GPS actual. Verifica que tu señal satelital esté activa.',
+            error: true,
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _locatingGps = false);
+    }
+  }
+
+  Future<void> _recenterOnUser() async {
+    HapticFeedback.lightImpact();
+    if (_userLat != null && _userLng != null) {
+      _mapController.move(LatLng(_userLat!, _userLng!), 15.0);
+    }
+    await _activateGps(silentIfAlreadyLocated: _userLat != null);
   }
 
   Future<void> _initLocationAndLoad() async {
@@ -157,31 +196,33 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     setState(() => _locatingGps = true);
     try {
       final pos = await LocationService.getCurrentPosition();
-      if (pos != null && mounted) {
+      if (mounted && pos != null) {
         _userLat = pos.latitude;
         _userLng = pos.longitude;
       }
-    } catch (_) {
-      // Si falla el GPS, se continúa sin coordenadas para ver la lista completa
-    } finally {
-      if (mounted) {
-        setState(() => _locatingGps = false);
-        _load();
-      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() => _locatingGps = false);
+      _load();
     }
   }
 
   void _onCollectionCreated(Map<String, dynamic> data) {
     if (!mounted) return;
+    HapticFeedback.mediumImpact();
+    showAppSnack(
+      context,
+      '¡Nueva solicitud de reciclaje cercana en el radar!',
+      actionLabel: 'Ver',
+      onAction: _load,
+    );
     _load();
-    showAppSnack(context, 'Llegó una nueva solicitud al radar');
   }
 
   @override
   void dispose() {
     _liveSubscription?.cancel();
     _updateSubscription?.cancel();
-    _mapController.dispose();
     super.dispose();
   }
 
@@ -190,22 +231,22 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     _loadInProgress = true;
     final api = context.read<LivoraApi>();
     final session = context.read<SessionController>();
-    final lat = (_nearbyFilter && _userLat != null) ? _userLat : null;
-    final lng = (_nearbyFilter && _userLng != null) ? _userLng : null;
-    final radius = _nearbyFilter ? _selectedRadiusKm : null;
+
+    final lat = _userLat ?? -12.0464;
+    final lng = _userLng ?? -77.0428;
 
     try {
-      Future<List<CollectionRequest>> fetchReqs;
+      final Future<List<CollectionRequest>> fetchReqs;
       if (_userLat != null && _userLng != null) {
         fetchReqs = api.availableCollectionRequests(
-          lat: _userLat!,
-          lng: _userLng!,
-          radiusKm: radius,
+          lat: lat,
+          lng: lng,
+          radiusKm: _selectedRadiusKm,
           centerId: _selectedCenterId,
-          onlyActiveBatches: _onlyActiveBatches ? true : null,
+          onlyActiveBatches: _onlyActiveBatches,
         );
       } else {
-        fetchReqs = api.collectionRequests(lat: lat, lng: lng, radiusKm: radius);
+        fetchReqs = api.collectionRequests(lat: lat, lng: lng, radiusKm: _selectedRadiusKm);
       }
 
       final results = await Future.wait([
@@ -216,20 +257,12 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
       ]);
 
       if (!mounted) return;
-
-      final requests = results[0] as List<CollectionRequest>;
-      final availableRequests = requests.where((r) {
-        final isAvailableStatus =
-            r.status == 'PENDING' || r.status == 'AUCTION_ASSIGNED';
-        final isUnassigned = r.collectorId == null || r.collectorId!.isEmpty;
-        return isAvailableStatus && isUnassigned;
-      }).toList();
+      final allAvailable = results[0] as List<CollectionRequest>;
       final openBatches = results[1] as List<Batch>;
       final balanceStr = results[2] as String;
-      final balanceVal =
-          double.tryParse(balanceStr.replaceAll(',', '.')) ?? 0.0;
+      final balanceVal = double.tryParse(balanceStr.replaceAll(',', '.')) ?? 0.0;
 
-      final activeStops = openBatches
+      final inRoute = openBatches
           .expand((b) => b.requests)
           .where((r) =>
               r.status == 'ACCEPTED' ||
@@ -237,33 +270,40 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
               r.status == 'ARRIVED')
           .toList();
 
+      final activeAcopioIds = openBatches
+          .map((b) => b.destinationCenterId)
+          .whereType<String>()
+          .toSet();
+
+      List<CollectionRequest> filtered = allAvailable;
+      if (_onlyActiveBatches && activeAcopioIds.isNotEmpty) {
+        filtered = filtered
+            .where((r) =>
+                r.assignedCenterId != null &&
+                activeAcopioIds.contains(r.assignedCenterId))
+            .toList();
+      }
+
       setState(() {
-        _requests = availableRequests;
+        _requests = filtered;
+        _inRouteRequests = inRoute;
         _openBatches = openBatches;
-        _inRouteRequests = activeStops;
         _walletEcoBalance = balanceVal;
         _error = null;
-        if (_currentStopIndex >= activeStops.length) {
-          _currentStopIndex = 0;
-        }
       });
-    } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) {
-        setState(() => _error = 'No se pudieron sincronizar las solicitudes');
-      }
+      if (mounted) setState(() => _error = 'No se pudieron sincronizar las solicitudes');
     } finally {
-      if (mounted) {
-        setState(() => _loadInProgress = false);
-      }
+      _loadInProgress = false;
     }
   }
 
   Future<void> _accept(CollectionRequest request) async {
     HapticFeedback.lightImpact();
-    final kycStatus = context.read<SessionController>().kycStatus;
-    if (kycStatus != KycStatus.approved) {
+    final session = context.read<SessionController>();
+    if (session.kycStatus != KycStatus.approved) {
       Navigator.push(
         context,
         MaterialPageRoute<void>(builder: (_) => const KycScreen()),
@@ -271,7 +311,8 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
       return;
     }
 
-    if (_walletEcoBalance < request.requiredEscrow) {
+    final hasEnoughEscrow = _walletEcoBalance >= request.requiredEscrow;
+    if (!hasEnoughEscrow && !request.isDonation) {
       _showInsufficientEscrowDialog(request);
       return;
     }
@@ -282,25 +323,13 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
           .read<LivoraApi>()
           .updateCollectionStatus(request.id, 'ACCEPTED');
       if (!mounted) return;
-      showAppSnack(
-        context,
-        'Recolección aceptada. Se fijó en tu ruta y se agregó a "Mi lote".',
-      );
-      setState(() {
-        _requests?.removeWhere((r) => r.id == request.id);
-      });
-      await _load();
-    } on ApiException catch (error) {
-      if (mounted) {
-        final raw = error.message;
-        final msg = (raw.contains('PENDING') ||
-                raw.contains('AUCTION_ASSIGNED') ||
-                raw.contains('no está disponible'))
-            ? 'Esta solicitud ya no está disponible para recolección'
-            : raw;
-        showAppSnack(context, msg, error: true);
-        await _load();
-      }
+      showAppSnack(context, '¡Solicitud asignada a tu vehículo!');
+      context.read<SessionController>().notifyBatchesChanged();
+      _load();
+    } on ApiException catch (e) {
+      if (mounted) showAppSnack(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) showAppSnack(context, 'Error al aceptar la solicitud', error: true);
     } finally {
       if (mounted) setState(() => _acceptingId = null);
     }
@@ -311,62 +340,63 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 40),
-        title: const Text('Garantía Temporal Insuficiente'),
+        icon: const Icon(
+          Icons.shield_outlined,
+          color: LivoraColors.blue,
+          size: 38,
+        ),
+        title: const Text(
+          'Garantía Temporal Requerida',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Para aceptar esta orden requieres contar con ${request.requiredEscrow.toStringAsFixed(2)} LIVO de garantía (40% Hogar + 10% Comisión Livora). Al vender el material en el centro de acopio recibirás el 100% en efectivo, recuperando tu adelanto y asegurando tu ganancia del 50%.',
-              style: const TextStyle(fontSize: 12.5),
+              'Para aceptar esta orden requieres contar con ${request.requiredEscrow.toStringAsFixed(2)} LIVO en tu billetera como garantía temporal de cumplimiento.',
+              style: const TextStyle(fontSize: 13),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.shade200),
+                color: LivoraColors.paper,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: LivoraColors.border),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Tu saldo disponible:', style: TextStyle(fontSize: 12)),
-                  Text(
-                    '${_walletEcoBalance.toStringAsFixed(2)} LIVO',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: LivoraColors.deep),
-                  ),
-                ],
+              child: const Text(
+                'Esta garantía se desbloquea y se te compensa en Soles (PEN) al entregar el lote en el Centro de Acopio.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: LivoraColors.deep,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Recarga saldo al instante mediante Izipay con tarjeta de débito/crédito (1 PEN = 1 LIVO).',
-              style: TextStyle(fontSize: 11.5, color: LivoraColors.slate),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Cancelar'),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Entendido'),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+            style: FilledButton.styleFrom(
+              backgroundColor: LivoraColors.forest,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () {
-              HapticFeedback.lightImpact();
               Navigator.pop(dialogContext);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const WalletScreen()),
-              ).then((_) => _load());
+                MaterialPageRoute<void>(builder: (_) => const WalletScreen()),
+              );
             },
-            icon: const Icon(Icons.credit_card, size: 18),
-            label: const Text('Recargar vía Izipay'),
+            icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+            label: const Text('Recargar LIVO'),
           ),
         ],
       ),
@@ -379,145 +409,71 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
       context,
       request: request,
       walletBalance: _walletEcoBalance,
-      userLat: _userLat,
-      userLng: _userLng,
       kycStatus: kycStatus,
-      onKycRequired: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute<void>(builder: (_) => const KycScreen()),
-        );
-      },
       onAccept: () => _accept(request),
       onRechargeNeeded: () => _showInsufficientEscrowDialog(request),
     );
   }
 
-  Widget _buildFilterChipsBar(List<CollectionRequest>? requests) {
-    // Extraer centros únicos disponibles
-    final Map<String, ({String name, double rate})> availableCenters = {};
-
-    if (requests != null) {
-      for (final req in requests) {
-        final cid = req.assignedCenterId;
-        if (cid != null && cid.isNotEmpty) {
-          final cName = sanitizedCenterName(
-            req.assignedCenterName,
-            req.assignedCenterEmail,
-            defaultLabel: 'Acopio',
-          );
-          availableCenters[cid] = (
-            name: cName,
-            rate: req.averageRatePerKg,
-          );
-        }
-      }
-    }
-
-    // También agregar centros de lotes abiertos
-    for (final b in _openBatches) {
-      final cid = b.destinationCenterId;
-      if (cid != null && cid.isNotEmpty && !availableCenters.containsKey(cid)) {
-        final cName = sanitizedCenterName(
-          b.destinationCenterName,
-          b.destinationCenterEmail,
-          defaultLabel: 'Acopio',
-        );
-        availableCenters[cid] = (
-          name: cName,
-          rate: 1.0,
-        );
-      }
-    }
-
-    final isAllSelected = _selectedCenterId == null && !_onlyActiveBatches;
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          // Chip 1: [Todos los Acopios]
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              visualDensity: VisualDensity.compact,
-              label: const Text('Todos los Acopios'),
-              selected: isAllSelected,
-              selectedColor: LivoraColors.forest,
-              labelStyle: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: isAllSelected ? Colors.white : LivoraColors.deep,
+  Future<void> _showReputation(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    try {
+      final rep = await context.read<LivoraApi>().collectorReputation();
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.star_rounded, color: Colors.amber, size: 40),
+          title: const Text('Tu Reputación', textAlign: TextAlign.center),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    rep.score.toStringAsFixed(1),
+                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.star_rounded, color: Colors.amber, size: 30),
+                ],
               ),
-              onSelected: (sel) {
-                if (sel) {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _selectedCenterId = null;
-                    _onlyActiveBatches = false;
-                  });
-                  _load();
-                }
-              },
-            ),
+              const SizedBox(height: 4),
+              Text(
+                'Basado en ${rep.ratingCount} calificaciones ciudadanas',
+                style: const TextStyle(fontSize: 12, color: LivoraColors.slate),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: LivoraColors.mint.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${rep.totalPickups} servicios completados exitosamente',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: LivoraColors.forest,
+                  ),
+                ),
+              ),
+            ],
           ),
-
-          // Chip 2: [Mis Acopios en Ruta] (solo si hay lotes abiertos en el camión)
-          if (_openBatches.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                visualDensity: VisualDensity.compact,
-                avatar: const Icon(Icons.route_outlined, size: 14),
-                label: Text('Mis Acopios en Ruta (${_openBatches.length})'),
-                selected: _onlyActiveBatches,
-                selectedColor: LivoraColors.forest,
-                labelStyle: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _onlyActiveBatches ? Colors.white : LivoraColors.deep,
-                ),
-                onSelected: (sel) {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _onlyActiveBatches = sel;
-                    if (sel) _selectedCenterId = null;
-                  });
-                  _load();
-                },
-              ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
             ),
-
-          // Chips individuales por Centro de Acopio con su tarifa promedio
-          ...availableCenters.entries.map((entry) {
-            final isCenterSelected = _selectedCenterId == entry.key;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                visualDensity: VisualDensity.compact,
-                label: Text('${entry.value.name} · S/ ${entry.value.rate.toStringAsFixed(2)}/kg'),
-                selected: isCenterSelected,
-                selectedColor: LivoraColors.forest,
-                labelStyle: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isCenterSelected ? Colors.white : LivoraColors.deep,
-                ),
-                onSelected: (sel) {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _selectedCenterId = sel ? entry.key : null;
-                    _onlyActiveBatches = false;
-                  });
-                  _load();
-                },
-              ),
-            );
-          }),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    } catch (_) {
+      if (context.mounted) showAppSnack(context, 'No se pudo cargar la reputación.');
+    }
   }
 
   @override
@@ -539,982 +495,339 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     final inRouteRequests = _inRouteRequests;
     final kycStatus = session.kycStatus;
 
+    final centerPos = LatLng(_userLat ?? -12.0464, _userLng ?? -77.0428);
+
+    // Marcadores para el mapa
+    final markers = <Marker>[
+      // Marcador de posición del recolector
+      if (_userLat != null && _userLng != null)
+        Marker(
+          point: centerPos,
+          width: 36,
+          height: 36,
+          child: Container(
+            decoration: BoxDecoration(
+              color: LivoraColors.forest,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.navigation, color: Colors.white, size: 18),
+          ),
+        ),
+
+      // Marcadores de solicitudes
+      if (requests != null)
+        ...requests.map(
+          (req) => Marker(
+            point: LatLng(req.latitude, req.longitude),
+            width: 44,
+            height: 44,
+            child: CollectorRequestMarker(
+              request: req,
+              onTap: () => _openDetail(req, kycStatus),
+            ),
+          ),
+        ),
+    ];
+
     return Scaffold(
-      appBar: livoraAppBar(
-        context,
-        'Solicitudes',
+      appBar: AppBar(
+        title: const Text('Radar de Recolección'),
         actions: [
           const LiveIndicator(),
           IconButton(
             tooltip: 'Mi reputación',
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _showReputation(context);
-            },
-            icon: const Icon(Icons.star_outline),
+            onPressed: () => _showReputation(context),
+            icon: const Icon(Icons.star_outline_rounded),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-          children: [
-            // 1. TARJETA HÉROE EN RUTA (Fijada en la cima por encima del radar)
-            if (inRouteRequests.isNotEmpty) ...[
-              ActiveRouteHeroCard(
-                requests: inRouteRequests,
-                userLat: _userLat,
-                userLng: _userLng,
-                onVerificationCompleted: _load,
+      body: Stack(
+        children: [
+          // 1. CAPA INFERIOR: Mapa Interactivo a Pantalla Completa (aislado en RepaintBoundary)
+          RepaintBoundary(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: centerPos,
+                initialZoom: 14.0,
+                maxZoom: 18.0,
+                minZoom: 10.0,
               ),
-              const SizedBox(height: 14),
-            ],
+              children: [
+                const LivoraMapTileLayer(),
 
-            // 2. Barra de Filtros Inteligentes por Acopio
-            _buildFilterChipsBar(requests),
-            const SizedBox(height: 12),
+                // Anillo de radio radar en metros
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: centerPos,
+                      radius: _selectedRadiusKm * 1000,
+                      useRadiusInMeter: true,
+                      color: LivoraColors.forest.withValues(alpha: 0.08),
+                      borderColor: LivoraColors.forest.withValues(alpha: 0.4),
+                      borderStrokeWidth: 1.5,
+                    ),
+                  ],
+                ),
 
-            // 2. Banner delgado informativo superior (Únicamente en estado PENDING)
-            if (kycStatus == KycStatus.pending) ...[
-              const _SlimKycPendingBanner(),
-              const SizedBox(height: 14),
-            ],
-
-            // 3. Radar de Recolección con Control Unificado de GPS
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: LivoraColors.border),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: LivoraColors.forest.withValues(alpha: 0.12),
-                          child: Icon(
-                            _nearbyFilter ? Icons.near_me_rounded : Icons.explore_outlined,
-                            color: LivoraColors.forest,
-                            size: 18,
+                // Marcadores agrupados por cluster
+                MarkerClusterLayerWidget(
+                  options: MarkerClusterLayerOptions(
+                    maxClusterRadius: 45,
+                    size: const Size(40, 40),
+                    markers: markers,
+                    builder: (context, clusterMarkers) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: LivoraColors.forest,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: Center(
+                          child: Text(
+                            clusterMarkers.length.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Radar de Recolección',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: LivoraColors.deep,
-                                ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. BARRA FLOTANTE SUPERIOR: Filtros de Radio y Acopio
+          Positioned(
+            top: 10,
+            left: 14,
+            right: 14,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Tarjeta de Ruta Activa (Hero Banner) si hay pedidos en curso
+                if (inRouteRequests.isNotEmpty) ...[
+                  ActiveRouteHeroCard(
+                    requests: inRouteRequests,
+                    userLat: _userLat,
+                    userLng: _userLng,
+                    onVerificationCompleted: _load,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+
+                // Filtros de Radio y Acopio en contenedor semitransparente
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: CollectorRadarFiltersBar(
+                    selectedRadiusKm: _selectedRadiusKm,
+                    onRadiusChanged: (r) {
+                      setState(() => _selectedRadiusKm = r);
+                      _load();
+                    },
+                    selectedCenterId: _selectedCenterId,
+                    onlyActiveBatches: _onlyActiveBatches,
+                    openBatches: _openBatches,
+                    availableRequests: requests,
+                    onCenterFilterChanged: (cid, onlyBatches) {
+                      setState(() {
+                        _selectedCenterId = cid;
+                        _onlyActiveBatches = onlyBatches;
+                      });
+                      _load();
+                    },
+                    locatingGps: _locatingGps,
+                    onCalibrateGps: _activateGps,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 3. BOTÓN FLOTANTE DE CENTRADO GPS
+          Positioned(
+            right: 16,
+            bottom: MediaQuery.of(context).size.height * 0.38 + 16,
+            child: FloatingActionButton.small(
+              heroTag: 'recenter_gps_fab',
+              backgroundColor: Colors.white,
+              foregroundColor: LivoraColors.forest,
+              elevation: 3,
+              tooltip: 'Centrar en mi ubicación',
+              onPressed: _locatingGps ? null : _recenterOnUser,
+              child: _locatingGps
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: LivoraColors.forest,
+                      ),
+                    )
+                  : Icon(
+                      _userLat != null
+                          ? Icons.my_location
+                          : Icons.location_searching,
+                    ),
+            ),
+          ),
+
+          // 4. PANEL INFERIOR DESLIZABLE (DraggableScrollableSheet - Estilo Conductor)
+          DraggableScrollableSheet(
+            initialChildSize: 0.38,
+            minChildSize: 0.16,
+            maxChildSize: 0.88,
+            snap: true,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: LivoraColors.paper,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 16,
+                      offset: const Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: ListView(
+                  controller: scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                  children: [
+                    // Tirador de arrastre (Grab Handle)
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade400,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Cabecera: Título y Contador
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Solicitudes Disponibles',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: LivoraColors.deep,
                               ),
-                              const SizedBox(height: 2),
-                              if (_userLat != null && _userLng != null)
-                                Text(
-                                  'GPS activo · Cobertura ${_selectedRadiusKm.toInt()} km',
+                            ),
+                            const SizedBox(width: 8),
+                            if (requests != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: LivoraColors.forest.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${requests.length}',
                                   style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
                                     color: LivoraColors.forest,
                                   ),
-                                )
-                              else
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'GPS desactivado',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFFD97706),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    if (_locatingGps)
-                                      const SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 1.5,
-                                          color: LivoraColors.forest,
-                                        ),
-                                      )
-                                    else
-                                      InkWell(
-                                        onTap: () {
-                                          HapticFeedback.lightImpact();
-                                          _activateGps();
-                                        },
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: LivoraColors.forest.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.my_location, size: 12, color: LivoraColors.forest),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'Activar GPS',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: LivoraColors.forest,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                  ],
                                 ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
-                        if (_userLat != null && _userLng != null)
-                          IconButton(
-                            tooltip: 'Recalibrar GPS actual',
-                            icon: _locatingGps
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.my_location, size: 20, color: LivoraColors.forest),
-                            onPressed: _locatingGps ? null : _initLocationAndLoad,
-                          ),
-                        Switch(
-                          value: _nearbyFilter,
-                          activeTrackColor: LivoraColors.forest,
-                          onChanged: (val) {
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded, size: 20),
+                          tooltip: 'Actualizar solicitudes',
+                          onPressed: () {
                             HapticFeedback.lightImpact();
-                            if (val && _userLat == null) {
-                              _activateGps();
-                            }
-                            setState(() => _nearbyFilter = val);
                             _load();
                           },
                         ),
                       ],
                     ),
-                    if (_nearbyFilter) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          const Text(
-                            'Radio:',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: LivoraColors.deep,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: _radiusPresets.map((r) {
-                                  final selected = _selectedRadiusKm == r;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: ChoiceChip(
-                                      visualDensity: VisualDensity.compact,
-                                      label: Text('${r.toInt()} km'),
-                                      selected: selected,
-                                      selectedColor: LivoraColors.forest,
-                                      labelStyle: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: selected ? Colors.white : LivoraColors.deep,
-                                      ),
-                                      onSelected: (sel) {
-                                        if (sel) {
-                                          HapticFeedback.lightImpact();
-                                          setState(() => _selectedRadiusKm = r);
-                                          _load();
-                                        }
-                                      },
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
+                    const SizedBox(height: 8),
 
-            // Selector Dual: Lista vs Mapa Radar
-            ViewToggleSegmentedButton(
-              selectedMode: _viewMode,
-              onChanged: (mode) => setState(() => _viewMode = mode),
-            ),
-            const SizedBox(height: 10),
+                    // Banner de estado KYC y acceso directo (solo si no está aprobado)
+                    CollectorKycStatusBanner(kycStatus: kycStatus),
 
-            if (_viewMode == MapListViewMode.map && requests != null && requests.isNotEmpty) ...[
-              _buildRadarMap(requests, kycStatus),
-            ] else
-              ViewStateScaffold(
-                isLoading: requests == null,
-                hasError: _error != null,
-                errorMessage: _error,
-                isEmpty: requests != null && requests.isEmpty,
-                onRetry: _load,
-                emptyIcon: Icons.travel_explore_rounded,
-                emptyTitle: 'No hay solicitudes pendientes',
-                emptyMessage:
-                    'Desliza hacia abajo para actualizar o amplía el radio del radar.',
-                emptyActionLabel: 'Actualizar Radar',
-                onEmptyAction: _load,
-                skeleton: const LivoraShimmerList(
-                  itemCount: 4,
-                  padding: EdgeInsets.zero,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8, left: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Disponibles en el área (${requests?.length ?? 0})',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: LivoraColors.deep,
-                            ),
-                          ),
-                          const Text(
-                            'Toca para ver detalle',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: LivoraColors.forest,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    for (final request in requests ?? <CollectionRequest>[])
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _AvailableCard(
-                          request: request,
+                    // Estado de Carga o Lista de Tarjetas
+                    if (_error != null)
+                      LivoraEmptyState(
+                        icon: Icons.cloud_off,
+                        title: 'No se pudieron sincronizar las solicitudes',
+                        message: _error!,
+                        onAction: _load,
+                        actionLabel: 'Reintentar',
+                      )
+                    else if (requests == null)
+                      const LivoraShimmerList(itemCount: 4, padding: EdgeInsets.zero)
+                    else if (requests.isEmpty)
+                      LivoraEmptyState(
+                        icon: Icons.radar_outlined,
+                        title: 'No hay pedidos en este radio',
+                        message:
+                            'Prueba ampliando el radio a 10 km o 20 km en la barra superior. Te notificaremos cuando un hogar solicite recolección.',
+                        actionLabel: 'Ampliar a 10 km',
+                        onAction: () {
+                          setState(() => _selectedRadiusKm = 10.0);
+                          _load();
+                        },
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                      )
+                    else
+                      ...requests.map(
+                        (req) => CollectorRequestCard(
+                          request: req,
                           walletBalance: _walletEcoBalance,
                           kycStatus: kycStatus,
-                          accepting: _acceptingId == request.id,
-                          onDetail: () => _openDetail(request, kycStatus),
-                          onAccept: () => _accept(request),
-                          onRechargeNeeded: () => _showInsufficientEscrowDialog(request),
+                          accepting: _acceptingId == req.id,
+                          onAccept: () => _accept(req),
+                          onRechargeNeeded: () => _showInsufficientEscrowDialog(req),
+                          onKycNeeded: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(builder: (_) => const KycScreen()),
+                            );
+                          },
                         ),
                       ),
                   ],
                 ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRadarMap(List<CollectionRequest> requests, KycStatus kycStatus) {
-    final centerLat = _userLat ?? -12.0864;
-    final centerLng = _userLng ?? -77.0351;
-    final centerPoint = LatLng(centerLat, centerLng);
-
-    final validRequests = requests.where((r) => r.latitude != 0 && r.longitude != 0).toList();
-
-    return Container(
-      height: 440,
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: LivoraColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: centerPoint,
-              initialZoom: _getZoomForRadius(_selectedRadiusKm),
-              maxZoom: 18,
-              minZoom: 9,
-            ),
-            children: [
-              const LivoraMapTileLayer(),
-
-              // Círculo de cobertura del radar
-              CircleLayer(
-                circles: [
-                  CircleMarker(
-                    point: centerPoint,
-                    radius: _selectedRadiusKm * 1000,
-                    useRadiusInMeter: true,
-                    color: LivoraColors.forest.withValues(alpha: 0.12),
-                    borderColor: LivoraColors.forest.withValues(alpha: 0.6),
-                    borderStrokeWidth: 2,
-                  ),
-                ],
-              ),
-
-              // Marcador de posición del Recolector (sin cluster para mantenerlo fijo)
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: centerPoint,
-                    width: 44,
-                    height: 44,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: LivoraColors.blue.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(4),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: LivoraColors.blue,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: LivoraColors.blue.withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                           Icons.person_pin_circle_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Clúster de solicitudes disponibles con conteo visual
-              MarkerClusterLayerWidget(
-                options: MarkerClusterLayerOptions(
-                  maxClusterRadius: 45,
-                  size: const Size(42, 42),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.all(40),
-                  maxZoom: 16,
-                  markers: validRequests.map(
-                    (req) => Marker(
-                      point: LatLng(req.latitude, req.longitude),
-                      width: 86,
-                      height: 68,
-                      child: CollectorRequestMarker(
-                        request: req,
-                        onTap: () => _openDetail(req, kycStatus),
-                      ),
-                    ),
-                  ).toList(),
-                  builder: (context, markers) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: LivoraColors.forest,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 6,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${markers.length}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-
-          // Botón flotante para recentrar GPS
-          Positioned(
-            top: 12,
-            right: 12,
-            child: FloatingActionButton.small(
-              heroTag: 'recenter_collector_map_fab',
-              backgroundColor: Colors.white,
-              foregroundColor: LivoraColors.forest,
-              elevation: 3,
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                if (_userLat != null && _userLng != null) {
-                  _mapController.move(centerPoint, _getZoomForRadius(_selectedRadiusKm));
-                } else {
-                  _activateGps();
-                }
-              },
-              child: const Icon(Icons.my_location_rounded, size: 20),
-            ),
-          ),
-
-          // Atribución legal de OpenStreetMap
-          const Positioned(
-            bottom: 0,
-            right: 0,
-            child: OsmAttributionWidget(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  double _getZoomForRadius(double radiusKm) {
-    if (radiusKm <= 2.0) return 14.5;
-    if (radiusKm <= 5.0) return 13.0;
-    if (radiusKm <= 10.0) return 11.8;
-    return 10.5;
-  }
-
-  Future<void> _showReputation(BuildContext context) async {
-    final api = context.read<LivoraApi>();
-    try {
-      final reputation = await api.collectorReputation();
-      if (!context.mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          icon: const Icon(Icons.star, color: Color(0xFFE0A400), size: 36),
-          title: Text('Reputación: ${reputation.score}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InfoRow(
-                label: 'Recolecciones',
-                value: '${reputation.totalPickups}',
-              ),
-              InfoRow(
-                label: 'Calificaciones',
-                value: '${reputation.ratingCount}',
-              ),
-              InfoRow(
-                label: 'Insignia',
-                value: reputation.badge == 'VERIFIED_COLLECTOR'
-                    ? 'Recolector verificado'
-                    : reputation.badge,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Cerrar'),
-            ),
-          ],
-        ),
-      );
-    } on ApiException catch (error) {
-      if (context.mounted) showAppSnack(context, error.message, error: true);
-    }
-  }
-}
-
-/// Banner delgado informativo superior exclusivo para estado PENDING
-class _SlimKycPendingBanner extends StatelessWidget {
-  const _SlimKycPendingBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFBFDBFE)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.hourglass_top_rounded, size: 18, color: Color(0xFF1D4ED8)),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Documentos en proceso de validación',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E3A8A),
-              ),
-            ),
-          ),
-          InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(builder: (_) => const KycScreen()),
               );
             },
-            borderRadius: BorderRadius.circular(4),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Text(
-                'Ver estado',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1D4ED8),
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ),
           ),
         ],
       ),
     );
-  }
-}
-
-
-
-/// Tarjeta de solicitud disponible con Tap-to-Expand para detalle completo
-/// y reacción limpia de máquina de estados (UNVERIFIED, PENDING, INSUFFICIENT_BALANCE, APPROVED).
-class _AvailableCard extends StatelessWidget {
-  const _AvailableCard({
-    required this.request,
-    required this.walletBalance,
-    required this.kycStatus,
-    required this.accepting,
-    required this.onDetail,
-    required this.onAccept,
-    required this.onRechargeNeeded,
-  });
-
-  final CollectionRequest request;
-  final double walletBalance;
-  final KycStatus kycStatus;
-  final bool accepting;
-  final VoidCallback onDetail;
-  final VoidCallback onAccept;
-  final VoidCallback onRechargeNeeded;
-
-  @override
-  Widget build(BuildContext context) {
-    final distance = request.distanceMeters;
-    final hasEnoughEscrow = walletBalance >= request.requiredEscrow;
-
-    final householdLabel = sanitizedPersonName(
-      request.householdName,
-      request.householdEmail,
-      defaultLabel: 'Hogar',
-    );
-    final householdAddress = request.householdAddress?.isNotEmpty == true
-        ? request.householdAddress!
-        : 'Dirección física registrada vía GPS';
-    final centerLabel = sanitizedCenterName(
-      request.assignedCenterName,
-      request.assignedCenterEmail,
-      defaultLabel: 'Centro de Acopio Asignado',
-    );
-
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: LivoraColors.border),
-      ),
-      child: InkWell(
-        onTap: onDetail,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (request.photoUrl != null) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: request.photoUrl!,
-                    height: 130,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 600,
-                    memCacheHeight: 400,
-                    placeholder: (context, url) => Container(
-                      height: 130,
-                      color: LivoraColors.forest.withValues(alpha: 0.08),
-                      child: const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      height: 130,
-                      color: LivoraColors.paper,
-                      child: const Center(
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          color: LivoraColors.ink,
-                          size: 32,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      materialsSummary(request.itemsEstimated),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: LivoraColors.deep,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  if (distance != null)
-                    StatusChip(
-                      label: '${(distance / 1000).toStringAsFixed(1)} km',
-                      color: LivoraColors.blue,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              if (request.description?.isNotEmpty == true)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    request.description!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      color: LivoraColors.ink,
-                    ),
-                  ),
-                ),
-
-              // Formateo del Hogar (Nombre, Dirección y Fecha)
-              Row(
-                children: [
-                  const Icon(Icons.location_on_outlined, size: 15, color: LivoraColors.forest),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      '$householdLabel · $householdAddress',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: LivoraColors.deep,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Padding(
-                padding: const EdgeInsets.only(left: 19),
-                child: Text(
-                  'Publicado: ${fmtDate(request.createdAt)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: LivoraColors.ink.withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Badge destacado con el Nombre del Centro de Acopio Comprador y su tarifa por kg
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: LivoraColors.mint.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: LivoraColors.forest.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.storefront, size: 15, color: LivoraColors.forest),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        '$centerLabel · S/ ${request.averageRatePerKg.toStringAsFixed(2)}/kg',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: LivoraColors.forest,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Caja de Desglose Financiero Claro y Garantía Escrow
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade100),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Margen Neto Recolector (50%):',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: LivoraColors.deep,
-                          ),
-                        ),
-                        Text(
-                          'S/ ${request.collectorMarginPEN.toStringAsFixed(2)} PEN',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            color: LivoraColors.forest,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Divider(height: 1, color: Color(0xFFBFDBFE)),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              request.isDonation
-                                  ? 'Donación Ecológica:'
-                                  : 'Garantía requerida en LIVOs:',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: request.isDonation
-                                    ? const Color(0xFF2E7D32)
-                                    : LivoraColors.deep,
-                              ),
-                            ),
-                            Text(
-                              request.isDonation
-                                  ? '0 LIVOs (Ganancia 100% en Centro de Acopio)'
-                                  : '40% Hogar + 10% Comisión Livora',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: request.isDonation
-                                    ? const Color(0xFF2E7D32)
-                                    : Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          request.isDonation
-                              ? '0.00 LIVO'
-                              : '${request.requiredEscrow.toStringAsFixed(2)} LIVO',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            color: request.isDonation
-                                ? const Color(0xFF2E7D32)
-                                : LivoraColors.blue,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // CTA Adaptativo según Jerarquía y Máquina de Estados
-              SizedBox(
-                width: double.infinity,
-                child: _buildCardCta(context, hasEnoughEscrow),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardCta(BuildContext context, bool hasEnoughEscrow) {
-    if ((request.status != 'PENDING' && request.status != 'AUCTION_ASSIGNED') ||
-        (request.collectorId != null && request.collectorId!.isNotEmpty)) {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 46),
-          backgroundColor: Colors.grey.shade400,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: null,
-        icon: const Icon(Icons.check_circle_outline, size: 18),
-        label: const Text(
-          'Solicitud no disponible',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    if (kycStatus == KycStatus.unverified) {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 46),
-          backgroundColor: const Color(0xFFD97706),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute<void>(builder: (_) => const KycScreen()),
-          );
-        },
-        icon: const Icon(Icons.shield_outlined, size: 18),
-        label: const Text(
-          'Verificar Identidad para Aceptar',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    if (kycStatus == KycStatus.pending) {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 46),
-          backgroundColor: Colors.grey.shade300,
-          foregroundColor: Colors.grey.shade700,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: null,
-        icon: const Icon(Icons.hourglass_top_rounded, size: 18),
-        label: const Text(
-          'Verificación en Revisión',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    if (kycStatus == KycStatus.rejected) {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 46),
-          backgroundColor: const Color(0xFFC0392B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute<void>(builder: (_) => const KycScreen()),
-          );
-        },
-        icon: const Icon(Icons.gpp_bad_rounded, size: 18),
-        label: const Text(
-          'Reintentar Verificación',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    // kycStatus == KycStatus.approved
-    if (hasEnoughEscrow) {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 46),
-          backgroundColor: LivoraColors.forest,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: accepting ? null : onAccept,
-        icon: accepting
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Icon(Icons.check_circle_outline, size: 18),
-        label: Text(
-          accepting
-              ? 'Aceptando…'
-              : (request.isDonation
-                  ? 'Aceptar (Donación Ecológica)'
-                  : 'Aceptar Recolección'),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-      );
-    } else {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 46),
-          backgroundColor: const Color(0xFFD97706),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          onRechargeNeeded();
-        },
-        icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-        label: const Text(
-          'Saldo insuficiente (Recargar por Izipay)',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      );
-    }
   }
 }

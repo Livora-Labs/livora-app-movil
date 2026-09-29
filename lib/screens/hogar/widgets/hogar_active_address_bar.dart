@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/app_theme.dart';
@@ -297,6 +298,46 @@ class AddressSelectorBottomSheet extends StatelessWidget {
                 if (choice != 'MANUAL') return;
               }
 
+              var permission = await LocationService.checkPermission();
+              if (permission == LocationPermission.denied) {
+                permission = await LocationService.requestPermission();
+              }
+              if (permission == LocationPermission.deniedForever) {
+                if (!context.mounted) return;
+                await showDialog<void>(
+                  context: context,
+                  builder: (dlgCtx) => AlertDialog(
+                    icon: const Icon(Icons.settings_outlined, color: LivoraColors.forest, size: 36),
+                    title: const Text('Permiso de ubicación denegado', style: TextStyle(fontWeight: FontWeight.w700)),
+                    content: const Text(
+                      'Livora requiere acceso a tu ubicación para geolocalizar tu domicilio de recojo. Por favor, habilítalo en los ajustes de la aplicación.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dlgCtx),
+                        child: const Text('Cancelar'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dlgCtx);
+                          LocationService.openAppSettings();
+                        },
+                        child: const Text('Abrir Ajustes'),
+                      ),
+                    ],
+                  ),
+                );
+                return;
+              }
+
+              if (permission != LocationPermission.always &&
+                  permission != LocationPermission.whileInUse) {
+                if (context.mounted) {
+                  showAppSnack(context, 'Permiso de ubicación denegado.', error: true);
+                }
+                return;
+              }
+
               final pos = await LocationService.getCurrentPosition();
               if (pos == null) {
                 if (context.mounted) {
@@ -541,6 +582,95 @@ class _InteractiveMapPickerModalState extends State<InteractiveMapPickerModal> {
     }
   }
 
+  bool _locatingGps = false;
+
+  Future<void> _recenterOnGps() async {
+    HapticFeedback.lightImpact();
+    final enabled = await LocationService.isLocationServiceEnabled();
+    if (!enabled) {
+      if (!mounted) return;
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (dlgCtx) => AlertDialog(
+          icon: const Icon(Icons.location_off_outlined, color: LivoraColors.forest, size: 36),
+          title: const Text('GPS desactivado', style: TextStyle(fontWeight: FontWeight.w700)),
+          content: const Text(
+            'Para centrar el mapa en tu posición exacta, activa el servicio de ubicación del dispositivo.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dlgCtx, true);
+                LocationService.openLocationSettings();
+              },
+              child: const Text('Activar GPS'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+
+    var permission = await LocationService.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await LocationService.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dlgCtx) => AlertDialog(
+          icon: const Icon(Icons.settings_outlined, color: LivoraColors.forest, size: 36),
+          title: const Text('Permiso de ubicación denegado', style: TextStyle(fontWeight: FontWeight.w700)),
+          content: const Text(
+            'Livora requiere acceso a la ubicación para posicionar el pin en tu domicilio. Por favor, habilítalo en los ajustes.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dlgCtx);
+                LocationService.openAppSettings();
+              },
+              child: const Text('Abrir Ajustes'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
+      if (mounted) {
+        showAppSnack(context, 'Permiso de ubicación denegado.', error: true);
+      }
+      return;
+    }
+
+    setState(() => _locatingGps = true);
+    try {
+      final pos = await LocationService.getCurrentPosition();
+      if (pos != null && mounted) {
+        _lat = pos.latitude;
+        _lng = pos.longitude;
+        _mapController.move(LatLng(_lat, _lng), 17);
+        _resolveAddress(_lat, _lng);
+      } else if (mounted) {
+        showAppSnack(context, 'No se pudo obtener la posición satelital en este momento.', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _locatingGps = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -738,21 +868,18 @@ class _InteractiveMapPickerModalState extends State<InteractiveMapPickerModal> {
                     heroTag: 'map_picker_gps_fab',
                     backgroundColor: Colors.white,
                     foregroundColor: LivoraColors.forest,
-                    onPressed: () async {
-                      final enabled = await LocationService.isLocationServiceEnabled();
-                      if (!enabled) {
-                        LocationService.openLocationSettings();
-                        return;
-                      }
-                      final pos = await LocationService.getCurrentPosition();
-                      if (pos != null && mounted) {
-                        _lat = pos.latitude;
-                        _lng = pos.longitude;
-                        _mapController.move(LatLng(_lat, _lng), 17);
-                        _resolveAddress(_lat, _lng);
-                      }
-                    },
-                    child: const Icon(Icons.my_location),
+                    tooltip: 'Centrar en mi ubicación GPS',
+                    onPressed: _locatingGps ? null : _recenterOnGps,
+                    child: _locatingGps
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: LivoraColors.forest,
+                            ),
+                          )
+                        : const Icon(Icons.my_location),
                   ),
                 ),
                 if (_searchResults.isNotEmpty)

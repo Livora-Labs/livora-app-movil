@@ -108,11 +108,7 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
       defaultLabel: 'Centro de Acopio Asignado',
     );
 
-    final totalPEN = request.totalEstimatedValuePEN;
-    final isDonation = request.isDonation;
-    final hogarPEN = isDonation ? 0.0 : totalPEN * 0.40;
-    final livoraPEN = isDonation ? 0.0 : totalPEN * 0.10;
-    final recolectorPEN = isDonation ? totalPEN : totalPEN * 0.50;
+    final recolectorPEN = request.collectorMarginPEN;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
@@ -435,8 +431,8 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Desglose Transparente de Garantía de Recolección
-                const SectionTitle(text: 'Garantía Temporal de Recolección'),
+                // Desglose de Compensación y Garantía de Recolección
+                const SectionTitle(text: 'Compensación y Garantía Operativa'),
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -449,67 +445,48 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Valor bruto estimado:', style: TextStyle(fontSize: 12.5)),
-                          Text(
-                            'S/ ${totalPEN.toStringAsFixed(2)} PEN',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
                           const Row(
                             children: [
-                              Icon(Icons.home_outlined, size: 14, color: LivoraColors.forest),
-                              SizedBox(width: 6),
-                              Text('Pago al Hogar (40%):', style: TextStyle(fontSize: 12)),
-                            ],
-                          ),
-                          Text(
-                            'S/ ${hogarPEN.toStringAsFixed(2)} PEN',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.shield_outlined, size: 14, color: LivoraColors.blue),
-                              SizedBox(width: 6),
-                              Text('Tarifa plataforma Livora (10%):', style: TextStyle(fontSize: 12)),
-                            ],
-                          ),
-                          Text(
-                            'S/ ${livoraPEN.toStringAsFixed(2)} PEN',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.local_shipping_outlined, size: 14, color: Color(0xFF2E7D32)),
+                              Icon(Icons.payments_outlined, size: 16, color: LivoraColors.forest),
                               SizedBox(width: 6),
                               Text(
-                                'Margen neto recolector (50%):',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                                'Ganancia Neta Estimada:',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: LivoraColors.deep),
                               ),
                             ],
                           ),
                           Text(
-                            'S/ ${recolectorPEN.toStringAsFixed(2)} PEN',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF2E7D32)),
+                            '+${recolectorPEN.toStringAsFixed(1)} LIVO (S/ ${recolectorPEN.toStringAsFixed(2)})',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              color: LivoraColors.forest,
+                            ),
                           ),
                         ],
                       ),
+                      if (request.isDonation) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.volunteer_activism_rounded, size: 14, color: Color(0xFF2E7D32)),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Donación solidaria: 100% de la recompensa para el recolector',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2E7D32)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const Divider(height: 18),
                       Container(
                         padding: const EdgeInsets.all(10),
@@ -540,7 +517,7 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Nota: Esta garantía temporal se retiene de tu monedero y se devuelve íntegramente al validar la entrega en el centro de acopio mediante el PIN de 4 dígitos.',
+                  'Nota: Esta garantía temporal se retiene de tu monedero como respaldo y se desbloquea íntegramente al validar el retiro mediante el PIN de 4 dígitos proporcionado por el hogar.',
                   style: TextStyle(
                     fontSize: 11,
                     color: LivoraColors.ink.withValues(alpha: 0.65),

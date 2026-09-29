@@ -14,6 +14,7 @@ import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 
 /// Verificación de identidad del recolector (KYC):
@@ -169,6 +170,8 @@ class _KycScreenState extends State<KycScreen> {
           context,
           'No se pudo acceder a la ${source == ImageSource.camera ? "cámara" : "galería"}. Verifica los permisos del dispositivo.',
           error: true,
+          actionLabel: 'Ajustes',
+          onAction: () => LocationService.openAppSettings(),
         );
       }
     } catch (_) {
@@ -270,6 +273,8 @@ class _KycScreenState extends State<KycScreen> {
           context,
           'No se pudo acceder a la cámara frontal para la selfie.',
           error: true,
+          actionLabel: 'Ajustes',
+          onAction: () => LocationService.openAppSettings(),
         );
       }
     } catch (_) {
@@ -564,7 +569,35 @@ class _KycScreenState extends State<KycScreen> {
                       if (val != null) setState(() => _transportType = val);
                     },
                   ),
-                  if (_transportType == 'MOTO_CARGA' || _transportType == 'CAMIONETA') ...[
+                  if (_transportType == 'TRICICLO' ||
+                      _transportType == 'BICICLETA' ||
+                      _transportType == 'A_PIE') ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: LivoraColors.mint.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: LivoraColors.forest.withValues(alpha: 0.25)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 18, color: LivoraColors.forest),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Para tracción humana o manual no requieres placa vehicular ni brevete. Solo tu DNI y foto de perfil.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: LivoraColors.forest,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (_transportType == 'MOTO_CARGA' || _transportType == 'CAMIONETA') ...[
                     const SizedBox(height: 14),
                     TextField(
                       controller: _plateCtrl,
@@ -574,6 +607,26 @@ class _KycScreenState extends State<KycScreen> {
                         hintText: 'Ej. 4521-7B o ABC-123',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: LivoraColors.paper,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.badge_outlined, size: 16, color: LivoraColors.slate),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Vehículo motorizado: Requiere brevete vigente (Clase B-IIc o A-I) y placa de rodaje.',
+                              style: TextStyle(fontSize: 11, color: LivoraColors.slate),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
