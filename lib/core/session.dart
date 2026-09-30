@@ -115,7 +115,7 @@ class SessionController extends ChangeNotifier {
   Future<void> refreshKycStatus(LivoraApi api) async {
     if (!isAuthenticated) return;
     try {
-      if (_user?.role == Roles.recolector) {
+      if (_user?.role == Roles.recolector || _user?.role == Roles.tienda) {
         final app = await api.kycApplication();
         updateKycStatus(app.kycStatus);
       } else {

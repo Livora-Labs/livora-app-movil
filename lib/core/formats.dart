@@ -48,6 +48,13 @@ String? validateCci(String? value) {
   return null;
 }
 
+/// Validador para CCI bancario cuando el campo es opcional:
+/// Si está vacío retorna null; si contiene texto, exige exactamente 20 dígitos numéricos.
+String? validateOptionalCci(String? value) {
+  if (value == null || value.trim().isEmpty) return null;
+  return validateCci(value);
+}
+
 /// Validador estricto para peso mayor a 0 kg:
 String? validatePositiveWeight(String? value) {
   return validateWeightKg(value, min: 0.01);

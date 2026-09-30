@@ -18,7 +18,9 @@ import '../hogar/hogar_dashboard.dart';
 import '../recolector/available_requests_screen.dart';
 import '../recolector/my_batch_screen.dart';
 import '../acopio/inventory_screen.dart';
+import '../tienda/store_dashboard.dart';
 import '../tienda/store_history_screen.dart';
+import '../tienda/store_onboarding_screen.dart';
 import '../tienda/store_qr_generator_screen.dart';
 import '../tienda/store_wallet_screen.dart';
 
@@ -104,6 +106,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             );
           }
         });
+
+        // Guard de Onboarding Comercial para Rol Tienda
+        final session = context.read<SessionController>();
+        if (session.user?.role == Roles.tienda) {
+          final api = context.read<LivoraApi>();
+          api.getStoreProfile().then((profile) {
+            if (mounted) {
+              final ruc = profile?['ruc']?.toString().trim();
+              final address = profile?['address']?.toString().trim();
+              final isComplete = profile != null && (ruc != null && ruc.isNotEmpty) && (address != null && address.isNotEmpty);
+              if (!isComplete) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const StoreOnboardingScreen()),
+                );
+              }
+            }
+          }).catchError((_) {});
+        }
       }
     });
   }
@@ -239,10 +259,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           alerts,
         ],
       Roles.tienda => const [
+          _TabSpec('Inicio', Icons.dashboard_outlined, StoreDashboard()),
           _TabSpec('Cobrar', Icons.qr_code_scanner_outlined, StoreQrGeneratorScreen()),
           _TabSpec('Historial', Icons.history_outlined, StoreHistoryScreen()),
           _TabSpec('Billetera', Icons.account_balance_wallet_outlined, StoreWalletScreen()),
-          alerts,
         ],
       _ => const [wallet, alerts],
     };

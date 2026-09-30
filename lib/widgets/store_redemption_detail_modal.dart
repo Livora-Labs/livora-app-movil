@@ -1,14 +1,12 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/api_client.dart';
 import '../core/app_theme.dart';
 import '../core/formats.dart';
 import '../core/stellar.dart';
-import '../services/livora_api.dart';
+import '../screens/tienda/widgets/store_refund_pin_modal.dart';
 import 'common.dart';
 
 /// Modal BottomSheet deslizable para visualizar el detalle de un cobro POS / canje en tienda.
@@ -48,31 +46,13 @@ class StoreRedemptionDetailModal extends StatelessWidget {
   }
 
   Future<void> _handleRefund(BuildContext context, String redemptionId, double tokenAmount) async {
-    final confirmed = await confirmDialog(
+    final success = await StoreRefundPinModal.show(
       context,
-      title: 'Anular Canje',
-      message:
-          '¿Estás seguro de que deseas anular este canje de ${tokenAmount.toStringAsFixed(2)} LIVOs?\n\n'
-          'Los LIVOs serán debitados de tu balance comercial y restituidos a la billetera del cliente.',
-      confirmLabel: 'Sí, anular canje',
-      cancelLabel: 'Volver',
+      redemptionId: redemptionId,
+      tokenAmount: tokenAmount,
     );
-    if (!confirmed || !context.mounted) return;
-
-    try {
-      await context.read<LivoraApi>().refundRedemption(redemptionId);
-      if (context.mounted) {
-        showAppSnack(context, 'Canje anulado y LIVOs restituidos al cliente');
-        Navigator.pop(context);
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) {
-        showAppSnack(context, e.message, error: true);
-      }
-    } catch (_) {
-      if (context.mounted) {
-        showAppSnack(context, 'Error al procesar la anulación del canje', error: true);
-      }
+    if (success == true && context.mounted) {
+      Navigator.pop(context);
     }
   }
 

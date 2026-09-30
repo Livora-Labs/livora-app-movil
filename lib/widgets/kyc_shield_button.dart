@@ -7,6 +7,7 @@ import '../core/session.dart';
 import '../models/models.dart';
 import '../screens/hogar/hogar_kyc_screen.dart';
 import '../screens/recolector/kyc_screen.dart';
+import '../screens/tienda/store_profile_screen.dart';
 
 /// Botón con ícono de escudo profesional para consultar y gestionar el estado KYC.
 class KycShieldButton extends StatelessWidget {
@@ -99,39 +100,69 @@ Future<void> showKycInfoModal(BuildContext context) {
     case KycStatus.approved:
       icon = Icons.verified_user_rounded;
       color = const Color(0xFF2E7D32);
-      title = 'Identidad Verificada';
-      subtitle = 'Cumplimiento normativo acreditado (Ley N° 29733)';
-      description =
-          'Tu documento de identidad está validado formalmente. Tu cuenta cuenta con habilitación total para acumular recompensas en tokens LIVO, participar en canjes comerciales y operar en la red Stellar / Soroban.';
+      if (session.user?.role == Roles.tienda) {
+        title = 'Comercio Verificado';
+        subtitle = 'Habilitado para cobros y liquidaciones';
+        description =
+            'Tu perfil comercial, RUC y cuenta interbancaria (CCI) están plenamente verificados. Tu negocio está habilitado para recibir pagos en LIVOs y solicitar liquidaciones a tu cuenta bancaria.';
+      } else {
+        title = 'Identidad Verificada';
+        subtitle = 'Cumplimiento normativo acreditado (Ley N° 29733)';
+        description =
+            'Tu documento de identidad está validado formalmente. Tu cuenta cuenta con habilitación total para acumular recompensas en tokens LIVO, participar en canjes comerciales y operar en la red Stellar / Soroban.';
+      }
       break;
     case KycStatus.pending:
       icon = Icons.pending_actions_rounded;
       color = const Color(0xFFE65100);
-      title = 'Verificación en Revisión';
-      subtitle = 'Auditoría regulatoria en curso';
-      description =
-          'Tus documentos de identidad han sido remitidos y se encuentran en proceso de validación por el equipo de cumplimiento. Te notificaremos en cuanto el registro sea confirmado.';
+      if (session.user?.role == Roles.tienda) {
+        title = 'Verificación Comercial en Revisión';
+        subtitle = 'Auditoría fiscal en curso';
+        description =
+            'Tus datos fiscales y comerciales han sido remitidos y se encuentran en validación. Te notificaremos en cuanto la verificación sea confirmada.';
+      } else {
+        title = 'Verificación en Revisión';
+        subtitle = 'Auditoría regulatoria en curso';
+        description =
+            'Tus documentos de identidad han sido remitidos y se encuentran en proceso de validación por el equipo de cumplimiento. Te notificaremos en cuanto el registro sea confirmado.';
+      }
       break;
     case KycStatus.rejected:
       icon = Icons.gpp_bad_rounded;
       color = const Color(0xFFC62828);
-      title = 'Verificación Observada';
-      subtitle = 'Documentación observada o no legible';
-      description =
-          'No se pudo autenticar tu documento de identidad con los estándares requeridos. Por favor, sube una foto o copia más nítida para reactivar tus beneficios en tokens.';
+      if (session.user?.role == Roles.tienda) {
+        title = 'Verificación Comercial Observada';
+        subtitle = 'Datos fiscales o fachada observados';
+        description =
+            'No se pudo autenticar tu información comercial con los estándares requeridos. Por favor, actualiza tu RUC, CCI o foto del local para habilitar liquidaciones.';
+        actionText = 'Actualizar Datos Comerciales';
+      } else {
+        title = 'Verificación Observada';
+        subtitle = 'Documentación observada o no legible';
+        description =
+            'No se pudo autenticar tu documento de identidad con los estándares requeridos. Por favor, sube una foto o copia más nítida para reactivar tus beneficios en tokens.';
+        actionText = 'Actualizar Documento';
+      }
       canAction = true;
-      actionText = 'Actualizar Documento';
       break;
     case KycStatus.unverified:
     default:
       icon = Icons.shield_outlined;
       color = LivoraColors.forest;
-      title = 'Verifica tu Identidad';
-      subtitle = 'Seguridad y transparencia garantizada';
-      description =
-          'Para recibir recompensas en tokens LIVO por tus aportes de reciclaje y habilitar transferencias Web3, es necesario validar tu DNI o Carné de Extranjería conforme a ley.';
+      if (session.user?.role == Roles.tienda) {
+        title = 'Verifica tu Comercio';
+        subtitle = 'Seguridad y habilitación bancaria';
+        description =
+            'Para cobrar con POS en mostrador y solicitar liquidaciones a tu cuenta bancaria CCI en Soles, completa tu RUC, CCI y foto de fachada del local.';
+        actionText = 'Completar Perfil Comercial';
+      } else {
+        title = 'Verifica tu Identidad';
+        subtitle = 'Seguridad y transparencia garantizada';
+        description =
+            'Para recibir recompensas en tokens LIVO por tus aportes de reciclaje y habilitar transferencias Web3, es necesario validar tu DNI o Carné de Extranjería conforme a ley.';
+        actionText = 'Validar Identidad Ahora';
+      }
       canAction = true;
-      actionText = 'Validar Identidad Ahora';
       break;
   }
 
@@ -226,9 +257,12 @@ Future<void> showKycInfoModal(BuildContext context) {
               ),
               onPressed: () {
                 Navigator.pop(sheetContext);
-                final target = session.user?.role == Roles.hogar
-                    ? const HogarKycScreen()
-                    : const KycScreen();
+                final role = session.user?.role;
+                final Widget target = switch (role) {
+                  Roles.hogar => const HogarKycScreen(),
+                  Roles.tienda => const StoreProfileScreen(),
+                  _ => const KycScreen(),
+                };
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => target),

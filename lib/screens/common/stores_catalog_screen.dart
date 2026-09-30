@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
-import '../../services/location_service.dart';
 import '../../services/livora_api.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common.dart';
-import '../../widgets/livora_map_tile_layer.dart';
 import '../../widgets/view_toggle_segmented_button.dart';
-import '../../widgets/store_category_marker.dart';
 import 'qr_scanner_view.dart';
+import 'stores/widgets/store_detail_bottom_sheet.dart';
+import 'stores/widgets/store_filter_chips_bar.dart';
+import 'stores/widgets/store_list_item_card.dart';
+import 'stores/widgets/store_map_view.dart';
 
-/// Catálogo interactivo completo de comercios aliados donde el Hogar
-/// puede canjear sus LIVOs por productos, descuentos y beneficios.
+/// Catálogo interactivo y geolocalizado de comercios aliados donde el Hogar
+/// puede canjear sus tokens LIVO por compras y beneficios.
 class StoresCatalogScreen extends StatefulWidget {
   const StoresCatalogScreen({super.key});
 
@@ -80,11 +80,11 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
           _loading = false;
         });
       }
-    } catch (err) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = 'No se pudo cargar el catálogo de tiendas.';
+          _error = 'No se pudo cargar el directorio de comercios aliados.';
         });
       }
     }
@@ -114,7 +114,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
         }
       }
 
-      // Filtro por búsqueda
+      // Filtro por texto
       if (query.isNotEmpty) {
         final matchName = name.contains(query);
         final matchCategory = category.contains(query);
@@ -127,440 +127,6 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
 
       return true;
     }).toList();
-  }
-
-  IconData _iconForCategory(String category) {
-    final cat = category.toLowerCase();
-    if (cat.contains('alimento') || cat.contains('vívere')) return Icons.restaurant;
-    if (cat.contains('bio') || cat.contains('orgánico')) return Icons.eco;
-    if (cat.contains('ferreter') || cat.contains('hogar')) return Icons.build;
-    if (cat.contains('café') || cat.contains('panader')) return Icons.local_cafe;
-    if (cat.contains('super')) return Icons.local_grocery_store;
-    return Icons.storefront;
-  }
-
-  Future<void> _scanAndRedeem([String? preferredStoreName]) async {
-    final scannedCode = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const QRScannerView()),
-    );
-    if (scannedCode == null || !mounted) return;
-    Navigator.pop(context, scannedCode);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _filteredStores;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tiendas Aliadas'),
-        actions: [
-          IconButton(
-            tooltip: 'Actualizar',
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadStores,
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _scanAndRedeem,
-        icon: const Icon(Icons.qr_code_scanner),
-        label: const Text('Escanear QR en Tienda'),
-      ),
-      body: Column(
-        children: [
-          // Barra de Búsqueda
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Buscar tienda por nombre o distrito…',
-                prefixIcon: const Icon(Icons.search, color: LivoraColors.forest),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: LivoraColors.paper,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: LivoraColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: LivoraColors.border),
-                ),
-              ),
-            ),
-          ),
-
-          // Chips de Categorías Horizontales
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              scrollDirection: Axis.horizontal,
-              itemCount: _categories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final cat = _categories[index];
-                final selected = _selectedCategory == cat;
-                return ChoiceChip(
-                  label: Text(cat),
-                  selected: selected,
-                  selectedColor: LivoraColors.forest,
-                  labelStyle: TextStyle(
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                    color: selected ? Colors.white : LivoraColors.deep,
-                  ),
-                  onSelected: (val) {
-                    if (val) setState(() => _selectedCategory = cat);
-                  },
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          // Selector Dual: Lista vs Mapa de Comercios
-          ViewToggleSegmentedButton(
-            selectedMode: _viewMode,
-            onChanged: (mode) => setState(() => _viewMode = mode),
-            mapLabel: 'Mapa de Comercios',
-            listLabel: 'Lista',
-          ),
-          const SizedBox(height: 4),
-
-          // Listado o Mapa de Comercios
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? EmptyState(
-                        icon: Icons.cloud_off,
-                        title: 'No se pudo conectar',
-                        message: _error!,
-                        actions: [
-                          FilledButton.icon(
-                            onPressed: _loadStores,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Reintentar'),
-                          ),
-                        ],
-                      )
-                    : _viewMode == MapListViewMode.map
-                        ? _buildStoresMap(filtered)
-                        : filtered.isEmpty
-                            ? EmptyState(
-                                icon: Icons.storefront_outlined,
-                                title: 'No encontramos comercios',
-                                message: _searchController.text.isNotEmpty
-                                    ? 'No hay tiendas aliadas que coincidan con "${_searchController.text}".'
-                                    : 'No hay tiendas disponibles en la categoría seleccionada.',
-                              )
-                            : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final store = filtered[index];
-                              final name = store['name']?.toString() ?? store['businessName']?.toString() ?? 'Comercio Aliado';
-                              final category = store['category']?.toString() ?? 'General';
-                              final address = store['address']?.toString() ?? 'Lima, Perú';
-                              final perk = store['description']?.toString() ?? 'Canje de productos con saldo LIVOs';
-                              final icon = _iconForCategory(category);
-                              final dist = _distanceMeters(store);
-
-                              return Card(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          CircleAvatar(
-                                            radius: 20,
-                                            backgroundColor: LivoraColors.forest.withValues(alpha: 0.12),
-                                            child: Icon(icon, color: LivoraColors.forest, size: 20),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  name,
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: LivoraColors.deep,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Row(
-                                                  children: [
-                                                    Text(
-                                                      category,
-                                                      style: const TextStyle(
-                                                        fontSize: 11.5,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: LivoraColors.slate,
-                                                      ),
-                                                    ),
-                                                    if (dist != null) ...[
-                                                      const SizedBox(width: 6),
-                                                      Text(
-                                                        '· ${(dist / 1000).toStringAsFixed(1)} km',
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color: LivoraColors.blue,
-                                                          fontWeight: FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: LivoraColors.green.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.verified, size: 12, color: LivoraColors.green),
-                                                SizedBox(width: 4),
-                                                Text(
-                                                  'Aliado',
-                                                  style: TextStyle(
-                                                    fontSize: 10.5,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: LivoraColors.green,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.location_on_outlined,
-                                            size: 14,
-                                            color: LivoraColors.ink.withValues(alpha: 0.6),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              address,
-                                              style: TextStyle(
-                                                fontSize: 11.5,
-                                                color: LivoraColors.ink.withValues(alpha: 0.75),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: LivoraColors.paper,
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: LivoraColors.border),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.local_offer_outlined, size: 13, color: LivoraColors.forest),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text(
-                                                perk,
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: LivoraColors.deep,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: FilledButton.tonalIcon(
-                                          style: FilledButton.styleFrom(
-                                            visualDensity: VisualDensity.compact,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                          ),
-                                          onPressed: () => _scanAndRedeem(name),
-                                          icon: const Icon(Icons.qr_code_scanner, size: 16),
-                                          label: const Text('Canjear aquí (Escanear QR)', style: TextStyle(fontSize: 12.5)),
-                                         ),
-                                       ),
-                                     ],
-                                   ),
-                                 ),
-                               );
-                             },
-                           ),
-           ),
-         ],
-       ),
-     );
-   }
-
-  Widget _buildStoresMap(List<Map<String, dynamic>> stores) {
-    final centerLat = _userLat ?? -12.0864;
-    final centerLng = _userLng ?? -77.0351;
-    final centerPoint = LatLng(centerLat, centerLng);
-
-    final storesWithCoords = stores.where((s) {
-      final lat = double.tryParse(s['latitude']?.toString() ?? '');
-      final lng = double.tryParse(s['longitude']?.toString() ?? '');
-      return lat != null && lng != null && lat != 0 && lng != 0;
-    }).toList();
-
-    return Stack(
-      children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: centerPoint,
-            initialZoom: 13.5,
-            maxZoom: 18,
-            minZoom: 10,
-          ),
-          children: [
-            const LivoraMapTileLayer(),
-            MarkerLayer(
-              markers: [
-                // Marcador del usuario
-                Marker(
-                  point: centerPoint,
-                  width: 38,
-                  height: 38,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: LivoraColors.blue.withValues(alpha: 0.25),
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(3),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: LivoraColors.blue,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.my_location_rounded,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            // Agrupamiento profesional de comercios (Marker Clustering a 60/120 FPS)
-            MarkerClusterLayerWidget(
-              options: MarkerClusterLayerOptions(
-                maxClusterRadius: 45,
-                size: const Size(42, 42),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.all(40),
-                maxZoom: 16,
-                markers: storesWithCoords.map((store) {
-                  final lat = double.parse(store['latitude'].toString());
-                  final lng = double.parse(store['longitude'].toString());
-                  return Marker(
-                    point: LatLng(lat, lng),
-                    width: 90,
-                    height: 60,
-                    child: StoreCategoryMarker(
-                      store: store,
-                      onTap: () => _showStoreDetail(store),
-                    ),
-                  );
-                }).toList(),
-                builder: (context, markers) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: LivoraColors.forest,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${markers.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-
-        // Botón flotante para centrar en mi posición GPS
-        Positioned(
-          top: 12,
-          right: 12,
-          child: FloatingActionButton.small(
-            heroTag: 'recenter_stores_map_fab',
-            backgroundColor: Colors.white,
-            foregroundColor: LivoraColors.forest,
-            elevation: 3,
-            onPressed: _recenterOnUser,
-            child: const Icon(Icons.my_location_rounded, size: 20),
-          ),
-        ),
-
-        // Atribución OpenStreetMap
-        const Positioned(
-          bottom: 0,
-          right: 0,
-          child: OsmAttributionWidget(),
-        ),
-      ],
-    );
   }
 
   Future<void> _recenterOnUser() async {
@@ -585,7 +151,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
             ],
           ),
           content: const Text(
-            'El servicio de ubicación (GPS) está desactivado en tu dispositivo. Actívalo para ubicar tu posición y calcular la distancia a los comercios aliados.',
+            'El servicio de ubicación (GPS) está desactivado en tu dispositivo. Actívalo para ubicar comercios cercanos en el mapa.',
             style: TextStyle(fontSize: 14, color: LivoraColors.slate),
           ),
           actions: [
@@ -608,80 +174,6 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
       return;
     }
 
-    final permission = await LocationService.checkPermission();
-    if (permission == LocationPermission.denied) {
-      final req = await LocationService.requestPermission();
-      if (req == LocationPermission.denied || req == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Row(
-              children: [
-                Icon(Icons.security, color: Color(0xFFF59E0B)),
-                SizedBox(width: 8),
-                Text('Permiso de Ubicación', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: const Text(
-              'La aplicación requiere permisos de ubicación para mostrar comercios cercanos a tu posición actual.',
-              style: TextStyle(fontSize: 14, color: LivoraColors.slate),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  LocationService.openAppSettings();
-                },
-                child: const Text('Abrir Ajustes'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-    } else if (permission == LocationPermission.deniedForever) {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.security, color: Color(0xFFF59E0B)),
-              SizedBox(width: 8),
-              Text('Permiso Denegado', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: const Text(
-            'Los permisos de ubicación fueron denegados permanentemente. Habilítalos en los ajustes del sistema para posicionarte en el mapa.',
-            style: TextStyle(fontSize: 14, color: LivoraColors.slate),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
-              onPressed: () {
-                Navigator.pop(ctx);
-                LocationService.openAppSettings();
-              },
-              child: const Text('Abrir Ajustes'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
     final pos = await LocationService.getCurrentPosition();
     if (pos != null && mounted) {
       setState(() {
@@ -689,161 +181,164 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
         _userLng = pos.longitude;
       });
       _mapController.move(LatLng(pos.latitude, pos.longitude), 14.5);
-    } else if (mounted) {
-      showAppSnack(context, 'No se pudo obtener la posición actual del dispositivo.', error: true);
     }
   }
 
-  void _showStoreDetail(Map<String, dynamic> store) {
-    HapticFeedback.selectionClick();
-    final name = store['name']?.toString() ?? store['businessName']?.toString() ?? 'Comercio Aliado';
-    final category = store['category']?.toString() ?? 'General';
-    final address = store['address']?.toString() ?? 'Lima, Perú';
-    final perk = store['description']?.toString() ?? 'Canje de productos con saldo LIVOs';
-    final icon = _iconForCategory(category);
-    final dist = _distanceMeters(store);
+  Future<void> _scanAndRedeem([String? preferredStoreName]) async {
+    final scannedCode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QRScannerView()),
+    );
+    if (scannedCode == null || !mounted) return;
+    Navigator.pop(context, scannedCode);
+  }
 
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  void _showStoreDetail(Map<String, dynamic> store) {
+    StoreDetailBottomSheet.show(
+      context,
+      store: store,
+      distanceMeters: _distanceMeters(store),
+      onPayTap: () {
+        final name = store['name']?.toString() ?? store['businessName']?.toString();
+        _scanAndRedeem(name);
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filteredStores;
+
+    final storesWithCoords = filtered.where((s) {
+      final lat = double.tryParse(s['latitude']?.toString() ?? '');
+      final lng = double.tryParse(s['longitude']?.toString() ?? '');
+      return lat != null && lng != null && lat != 0 && lng != 0;
+    }).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Comercios Aliados'),
+        actions: [
+          IconButton(
+            tooltip: 'Actualizar directorio',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadStores,
+          ),
+        ],
       ),
-      builder: (bottomSheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: LivoraColors.forest,
+        foregroundColor: Colors.white,
+        onPressed: _scanAndRedeem,
+        icon: const Icon(Icons.qr_code_scanner_rounded),
+        label: const Text('Escanear QR en Tienda', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: Column(
+        children: [
+          // Barra de Búsqueda
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Buscar tienda por nombre o distrito…',
+                prefixIcon: const Icon(Icons.search_rounded, color: LivoraColors.forest),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: LivoraColors.paper,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: LivoraColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: LivoraColors.border),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: LivoraColors.forest.withValues(alpha: 0.12),
-                  child: Icon(icon, color: LivoraColors.forest, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: LivoraColors.deep,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text(
-                            category,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: LivoraColors.slate,
-                            ),
+          ),
+
+          // Chips de Categorías Horizontales
+          StoreFilterChipsBar(
+            categories: _categories,
+            selectedCategory: _selectedCategory,
+            onSelected: (cat) => setState(() => _selectedCategory = cat),
+          ),
+          const SizedBox(height: 6),
+
+          // Selector Dual: Lista vs Mapa de Comercios
+          ViewToggleSegmentedButton(
+            selectedMode: _viewMode,
+            onChanged: (mode) => setState(() => _viewMode = mode),
+            mapLabel: 'Mapa de Tiendas',
+            listLabel: 'Lista',
+          ),
+          const SizedBox(height: 4),
+
+          // Listado o Mapa de Comercios
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? EmptyState(
+                        icon: Icons.cloud_off_rounded,
+                        title: 'No se pudo conectar',
+                        message: _error!,
+                        actions: [
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+                            onPressed: _loadStores,
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Reintentar'),
                           ),
-                          if (dist != null) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              '· ${(dist / 1000).toStringAsFixed(1)} km',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: LivoraColors.blue,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
                         ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on_outlined,
-                  size: 15,
-                  color: LivoraColors.ink.withValues(alpha: 0.6),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    address,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: LivoraColors.ink.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: LivoraColors.paper,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: LivoraColors.border),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.local_offer_outlined, size: 15, color: LivoraColors.forest),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      perk,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: LivoraColors.deep,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: LivoraColors.forest,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.pop(bottomSheetContext);
-                  _scanAndRedeem(name);
-                },
-                icon: const Icon(Icons.qr_code_scanner, size: 18),
-                label: const Text(
-                  'Canjear aquí (Escanear QR)',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
+                      )
+                    : _viewMode == MapListViewMode.map
+                        ? StoreMapView(
+                            mapController: _mapController,
+                            storesWithCoords: storesWithCoords,
+                            userLat: _userLat,
+                            userLng: _userLng,
+                            onStoreTap: _showStoreDetail,
+                            onRecenter: _recenterOnUser,
+                          )
+                        : filtered.isEmpty
+                            ? EmptyState(
+                                icon: Icons.storefront_outlined,
+                                title: 'No encontramos comercios',
+                                message: _searchController.text.isNotEmpty
+                                    ? 'No hay comercios que coincidan con "${_searchController.text}".'
+                                    : 'No hay comercios registrados en esta categoría.',
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final store = filtered[index];
+                                  final dist = _distanceMeters(store);
+                                  final name = store['name']?.toString() ?? store['businessName']?.toString();
+
+                                  return StoreListItemCard(
+                                    store: store,
+                                    distanceMeters: dist,
+                                    onTap: () => _showStoreDetail(store),
+                                    onRedeemTap: () => _scanAndRedeem(name),
+                                  );
+                                },
+                              ),
+          ),
+        ],
       ),
     );
   }

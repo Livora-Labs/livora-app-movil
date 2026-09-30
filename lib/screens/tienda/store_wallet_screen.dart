@@ -7,6 +7,7 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../core/stellar.dart';
+import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/cash_out_modal.dart';
 import '../../widgets/common.dart';
@@ -15,6 +16,7 @@ import '../common/profile.dart';
 import '../common/wallet_screen.dart';
 import 'store_history_screen.dart';
 import 'store_profile_screen.dart';
+import 'widgets/store_counter_qr_flyer_dialog.dart';
 
 /// Billetera comercial dedicada para comercios aliados (Rol TIENDA).
 /// Centraliza la custodia de tokens de cobro POS y la solicitud de liquidación FIAT a cuenta CCI.
@@ -55,7 +57,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
         });
       }
     } on ApiException catch (e) {
-      if (mounted) showAppSnack(context, e.message, error: true);
+      if (e.statusCode != 404 && mounted) showAppSnack(context, e.message, error: true);
     } catch (_) {
       // Ignorar fallos de red silenciosos
     } finally {
@@ -70,6 +72,50 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
   String? get _bankAccount => _storeProfile?['bankAccount']?.toString();
 
   Future<void> _openCashOut() async {
+    final user = context.read<SessionController>().user;
+    if (user?.kycStatus != KycStatus.approved) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.lock_outline_rounded, color: Color(0xFFD97706), size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Liquidación Bloqueada',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Tu cuenta se encuentra en proceso de evaluación administrativa por el equipo de Livora.\n\nUna vez verificada la documentación de tu local comercial, podrás solicitar liquidaciones interbancarias a Soles en cualquier momento.',
+            style: TextStyle(fontSize: 13, height: 1.5, color: LivoraColors.slate),
+          ),
+          actions: [
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: LivoraColors.forest,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final success = await CashOutModal.show(
       context,
       availableBalance: _balanceNumber,
@@ -270,6 +316,35 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
               icon: const Icon(Icons.add_card_rounded, size: 20),
               label: const Text(
                 'Recargar LIVOs con Izipay',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // BOTÓN PARA VER Y EXPORTAR EL CARTEL QR DE MOSTRADOR
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: LivoraColors.blue,
+                side: const BorderSide(color: LivoraColors.blue, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: () {
+                final businessName = _storeProfile?['businessName']?.toString() ?? user?.name ?? 'Mi Comercio';
+                final walletAddress = user?.walletAddress ?? '';
+                final ruc = _storeProfile?['ruc']?.toString() ?? '';
+                final addr = _storeProfile?['address']?.toString() ?? '';
+                StoreCounterQrFlyerDialog.show(
+                  context,
+                  businessName: businessName,
+                  walletAddress: walletAddress,
+                  ruc: ruc,
+                  address: addr,
+                );
+              },
+              icon: const Icon(Icons.storefront_rounded, size: 20),
+              label: const Text(
+                'Ver Mi Cartel QR de Mostrador (Imprimible)',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
               ),
             ),

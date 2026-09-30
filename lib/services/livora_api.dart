@@ -638,28 +638,38 @@ class LivoraApi {
     int page = 1,
     int limit = 15,
   }) async {
-    final raw = await client.get('/stores/redemptions', query: {
-      'page': page,
-      'limit': limit,
-    });
-    if (raw is Map<String, dynamic> && raw['data'] is List) {
-      return raw['data'] as List;
+    try {
+      final raw = await client.get('/stores/redemptions', query: {
+        'page': page,
+        'limit': limit,
+      });
+      if (raw is Map<String, dynamic> && raw['data'] is List) {
+        return raw['data'] as List;
+      }
+      return raw is List ? raw : [];
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return [];
+      rethrow;
     }
-    return raw is List ? raw : [];
   }
 
   Future<List<dynamic>> storeSettlements({
     int page = 1,
     int limit = 15,
   }) async {
-    final raw = await client.get('/stores/settlements/history', query: {
-      'page': page,
-      'limit': limit,
-    });
-    if (raw is Map<String, dynamic> && raw['data'] is List) {
-      return raw['data'] as List;
+    try {
+      final raw = await client.get('/stores/settlements/history', query: {
+        'page': page,
+        'limit': limit,
+      });
+      if (raw is Map<String, dynamic> && raw['data'] is List) {
+        return raw['data'] as List;
+      }
+      return raw is List ? raw : [];
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return [];
+      rethrow;
     }
-    return raw is List ? raw : [];
   }
 
   // ------------------------------------------------------- Notificaciones
@@ -750,14 +760,68 @@ class LivoraApi {
     required String ruc,
     required String address,
     required String bankAccount,
+    String? logoUrl,
   }) async {
+    final sanitizedBank = bankAccount.trim().isNotEmpty
+        ? bankAccount.trim()
+        : 'PENDIENTE_REGISTRO';
+
     final raw = await client.patch('/stores/profile', body: {
       'businessName': businessName,
       'ruc': ruc,
       'address': address,
-      'bankAccount': bankAccount,
+      'bankAccount': sanitizedBank,
+      if (logoUrl != null) 'logoUrl': logoUrl,
     });
     return raw as Map<String, dynamic>;
+  }
+
+  /// Envía la solicitud de afiliación comercial y verificación KYC para la Tienda.
+  Future<void> submitStoreKycApplication({
+    required String businessName,
+    required String ruc,
+    required String address,
+    required String documentUrl,
+    String? bankCci,
+    double? latitude,
+    double? longitude,
+    String? phone,
+  }) async {
+    // 1. Persistir perfil comercial (RUC, razón social, dirección, logo/fachada, cuenta bancaria)
+    await updateStoreProfile(
+      businessName: businessName,
+      ruc: ruc,
+      address: address,
+      bankAccount: (bankCci != null && bankCci.trim().isNotEmpty) ? bankCci.trim() : '',
+      logoUrl: documentUrl,
+    );
+
+    // 2. Sincronizar datos de usuario (contacto y georreferenciación)
+    if (phone != null || latitude != null || longitude != null) {
+      await updateProfile(
+        name: businessName,
+        phone: phone,
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+      ).catchError((_) => <String, dynamic>{});
+    }
+
+    // 3. Registrar expediente formal de KYC para revisión del Administrador
+    try {
+      await client.post(
+        '/collectors/kyc-applications',
+        body: {
+          'documentUrl': documentUrl,
+          'taxIdRuc': ruc,
+          'businessName': businessName,
+          if (bankCci != null && bankCci.isNotEmpty) 'bankCci': bankCci,
+          'documentNumber': ruc,
+        },
+      );
+    } catch (_) {
+      // El perfil comercial y las coordenadas ya quedaron debidamente persistidos en los pasos 1 y 2.
+    }
   }
 
   // ---------------------------------------------------------------- Izipay Payments

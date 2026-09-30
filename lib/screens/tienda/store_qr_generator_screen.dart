@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/session.dart';
+import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/store_qr_modal.dart';
@@ -79,6 +81,50 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
     final amount = _currentAmount;
     if (amount < 0.10) {
       showAppSnack(context, 'El monto mínimo de cobro es 0.10 LIVO', error: true);
+      return;
+    }
+
+    final session = context.read<SessionController>();
+    if (session.user?.kycStatus != KycStatus.approved) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.lock_outline_rounded, color: Color(0xFFD97706), size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Cobro POS Bloqueado',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Tu cuenta de comercio se encuentra en proceso de evaluación administrativa por el equipo de Livora.\n\nUna vez validado tu RUC y local físico (24-48h hábiles), podrás generar códigos QR para cobrar en caja.',
+            style: TextStyle(fontSize: 13, height: 1.5, color: LivoraColors.slate),
+          ),
+          actions: [
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: LivoraColors.forest,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
       return;
     }
 

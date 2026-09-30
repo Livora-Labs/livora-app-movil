@@ -103,7 +103,7 @@ class _CashOutModalState extends State<CashOutModal> {
   Future<void> _submitSettlement() async {
     if (!_formKey.currentState!.validate()) return;
     final amount = _enteredAmount;
-    if (amount <= 0 || amount > widget.availableBalance) return;
+    if (amount < 20.0 || amount > widget.availableBalance) return;
 
     final api = context.read<LivoraApi>();
     await HapticFeedback.lightImpact();
@@ -135,7 +135,7 @@ class _CashOutModalState extends State<CashOutModal> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final hasCci = _hasValidCci;
     final amount = _enteredAmount;
-    final isAmountValid = amount > 0 && amount <= widget.availableBalance;
+    final isAmountValid = amount >= 20.0 && amount <= widget.availableBalance;
 
     return Container(
       padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + bottomInset),
@@ -358,16 +358,45 @@ class _CashOutModalState extends State<CashOutModal> {
                       validator: (value) {
                         final val = double.tryParse((value ?? '').replaceAll(',', '.'));
                         if (val == null || val <= 0) {
-                          return 'Ingresa un monto mayor a 0';
+                          return 'Ingresa un monto válido';
                         }
-                        if (val < 0.10) {
-                          return 'El monto mínimo de liquidación es 0.10 LIVO';
+                        if (val < 20.0) {
+                          return 'El monto mínimo de liquidación a cuenta bancaria es 20.00 LIVO';
                         }
                         if (val > widget.availableBalance) {
                           return 'El monto supera tu saldo disponible';
                         }
                         return null;
                       },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Banner de Tiempos de Compensación CCE
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: LivoraColors.blue.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: LivoraColors.blue.withValues(alpha: 0.25)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.schedule_rounded, size: 16, color: LivoraColors.blue),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Plazo de abono bancario: 24 a 48 horas hábiles mediante compensación interbancaria (CCE) directa a tu cuenta CCI.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: LivoraColors.deep,
+                          fontWeight: FontWeight.w500,
+                          height: 1.3,
+                        ),
+                      ),
                     ),
                   ],
                 ),

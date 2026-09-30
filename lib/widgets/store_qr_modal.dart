@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_client.dart';
 import '../core/app_theme.dart';
@@ -142,7 +143,8 @@ class _StoreQrModalState extends State<StoreQrModal> {
     _fallbackPollTimer?.cancel();
     _wsSub?.cancel();
 
-    HapticFeedback.vibrate();
+    SystemSound.play(SystemSoundType.click);
+    HapticFeedback.heavyImpact();
 
     setState(() {
       _state = _QrModalState.success;
@@ -422,10 +424,10 @@ class _StoreQrModalState extends State<StoreQrModal> {
         ),
         const SizedBox(height: 16),
         const Text(
-          '¡Cobro Exitoso!',
+          'Cobro Confirmado con Éxito',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 22,
             fontWeight: FontWeight.w900,
             color: LivoraColors.deep,
           ),
@@ -505,10 +507,36 @@ class _StoreQrModalState extends State<StoreQrModal> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: LivoraColors.forest),
+            foregroundColor: LivoraColors.forest,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onPressed: () async {
+            final cleanRef = _qrRef.replaceAll(RegExp(r'^LIVORA-QR-|^LIV-'), '');
+            final msg = Uri.encodeComponent(
+              '*COMPROBANTE DE PAGO EN TIENDA ALIADA - LIVORA*\n'
+              'Monto: S/ ${_amount.toStringAsFixed(2)} (${_amount.toStringAsFixed(2)} LIVOs)\n'
+              'Código: $cleanRef\n'
+              'Estado: Pago Confirmado en Red Stellar',
+            );
+            final uri = Uri.parse('https://wa.me/?text=$msg');
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+          icon: const Icon(Icons.share_rounded, size: 18),
+          label: const Text('Compartir Comprobante (WhatsApp)', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 10),
         BusyButton(
           label: 'Realizar nuevo cobro',
-          icon: Icons.refresh_rounded,
+          icon: Icons.add_rounded,
           onPressed: () => Navigator.pop(context, true),
         ),
       ],

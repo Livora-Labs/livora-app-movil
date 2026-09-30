@@ -705,7 +705,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               Text(
                                 session.user?.role == Roles.hogar
                                     ? 'Hogar Eco-Responsable'
-                                    : 'Identidad & KYC',
+                                    : session.user?.role == Roles.tienda
+                                        ? 'Comercio Aliado'
+                                        : 'Identidad & KYC',
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
@@ -762,13 +764,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         : (session.kycStatus == KycStatus.rejected
                                             ? 'Documentación observada. Toca para reenviar.'
                                             : 'Valida tu DNI/CE para mayores beneficios y canjes.')))
-                                : (session.kycStatus == KycStatus.approved
-                                    ? 'Documento autenticado conforme a Ley N° 29733. Recompensas y transferencias Web3 activas.'
-                                    : session.kycStatus == KycStatus.pending
-                                        ? 'Documentación en auditoría regulatoria.'
-                                        : session.kycStatus == KycStatus.rejected
-                                            ? 'Toca para volver a subir tu documento de identidad.'
-                                            : 'Toca para validar tu DNI/CE y habilitar recompensas.'),
+                                : session.user?.role == Roles.tienda
+                                    ? (session.kycStatus == KycStatus.approved
+                                        ? 'Comercio 100% verificado. Cobros POS y liquidaciones bancarias habilitadas.'
+                                        : (session.kycStatus == KycStatus.pending
+                                            ? 'Verificación comercial en auditoría regulatoria.'
+                                            : (session.kycStatus == KycStatus.rejected
+                                                ? 'Datos comerciales observados. Toca para actualizar.'
+                                                : 'Completa tu RUC, CCI y foto del local para habilitar cobros.')))
+                                    : (session.kycStatus == KycStatus.approved
+                                        ? 'Documento autenticado conforme a Ley N° 29733. Recompensas y transferencias Web3 activas.'
+                                        : session.kycStatus == KycStatus.pending
+                                            ? 'Documentación en auditoría regulatoria.'
+                                            : session.kycStatus == KycStatus.rejected
+                                                ? 'Toca para volver a subir tu documento de identidad.'
+                                                : 'Toca para validar tu DNI/CE y habilitar recompensas.'),
                             style: TextStyle(
                               fontSize: 12,
                               color: LivoraColors.ink.withValues(alpha: 0.7),
@@ -838,7 +848,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               decoration: InputDecoration(
                                 labelText: user.role == Roles.hogar
                                     ? 'Dirección de Recojo'
-                                    : 'Dirección Domiciliaria',
+                                    : (user.role == Roles.tienda
+                                        ? 'Dirección Comercial del Local'
+                                        : 'Dirección Domiciliaria'),
                                 border: const OutlineInputBorder(),
                               ),
                               validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
