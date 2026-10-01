@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../core/api_client.dart';
 import '../core/media_compressor.dart';
 import '../models/models.dart';
@@ -819,8 +821,9 @@ class LivoraApi {
           'documentNumber': ruc,
         },
       );
-    } catch (_) {
+    } catch (e) {
       // El perfil comercial y las coordenadas ya quedaron debidamente persistidos en los pasos 1 y 2.
+      debugPrint('[LivoraApi] Aviso en registro KYC directo: $e');
     }
   }
 

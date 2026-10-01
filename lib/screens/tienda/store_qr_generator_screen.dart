@@ -26,6 +26,16 @@ class _StoreQrGeneratorScreenState extends State<StoreQrGeneratorScreen> {
 
   static const List<double> _quickChips = [5.0, 10.0, 20.0, 50.0];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<SessionController>().refreshKycStatus(context.read<LivoraApi>());
+      }
+    });
+  }
+
   double get _currentAmount {
     if (_amountRaw.isEmpty) return 0.0;
     return double.tryParse(_amountRaw) ?? 0.0;

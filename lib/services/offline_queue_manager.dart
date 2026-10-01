@@ -6,6 +6,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../core/api_client.dart';
 import 'livora_api.dart';
+import 'network_connectivity_service.dart';
 
 /// Motor de sincronización offline para confirmaciones de recolección en campo.
 /// Implementa un patrón Store & Forward reactivo, resiliente y atómico.
@@ -15,6 +16,7 @@ class OfflineQueueManager {
   static const _boxName = 'offline_verifications';
   static late Box _box;
   static LivoraApi? _api;
+  static NetworkConnectivityService? _connectivityService;
   static bool _processing = false;
 
   /// Notificador reactivo en tiempo real con el conteo de elementos pendientes en la cola.
@@ -39,8 +41,13 @@ class OfflineQueueManager {
   }
 
   /// Inicializa Hive, abre la caja y configura la escucha reactiva de red.
-  static Future<void> init(LivoraApi api, {Box? box}) async {
+  static Future<void> init(
+    LivoraApi api, {
+    Box? box,
+    NetworkConnectivityService? connectivityService,
+  }) async {
     _api = api;
+    _connectivityService = connectivityService;
     if (box != null) {
       _box = box;
     } else {
@@ -50,13 +57,21 @@ class OfflineQueueManager {
 
     _updatePendingCount();
 
-    // Iniciar escucha de cambios en la conectividad del dispositivo
-    Connectivity().onConnectivityChanged.listen((results) {
-      final hasNetwork = _hasNetworkConnection(results);
-      if (hasNetwork) {
-        processQueue();
-      }
-    });
+    // Iniciar escucha de cambios en la conectividad centralizada o nativa
+    if (_connectivityService != null) {
+      _connectivityService!.addListener(() {
+        if (_connectivityService!.isOnline) {
+          processQueue();
+        }
+      });
+    } else {
+      Connectivity().onConnectivityChanged.listen((results) {
+        final hasNetwork = _hasNetworkConnection(results);
+        if (hasNetwork) {
+          processQueue();
+        }
+      });
+    }
 
     // Intentar sincronizar elementos pendientes acumulados al inicio
     processQueue();
@@ -118,10 +133,17 @@ class OfflineQueueManager {
 
     try {
       // Verificar si hay conexión activa antes de realizar peticiones de red
-      final connectivity = await Connectivity().checkConnectivity();
-      if (!_hasNetworkConnection(connectivity)) {
-        debugPrint('[OfflineQueue] Sin conexión de red. Sincronización aplazada.');
-        return;
+      if (_connectivityService != null) {
+        if (!_connectivityService!.isOnline) {
+          debugPrint('[OfflineQueue] Sin conexión a internet verificada. Sincronización aplazada.');
+          return;
+        }
+      } else {
+        final connectivity = await Connectivity().checkConnectivity();
+        if (!_hasNetworkConnection(connectivity)) {
+          debugPrint('[OfflineQueue] Sin conexión de red. Sincronización aplazada.');
+          return;
+        }
       }
 
       debugPrint('[OfflineQueue] Iniciando sincronización de cola offline (${_box.length} elementos)...');

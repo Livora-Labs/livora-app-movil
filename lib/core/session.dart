@@ -396,10 +396,14 @@ class SessionController extends ChangeNotifier {
     LocationService.stopCollectorTracking();
 
     try {
-      final fcmToken = await FirebaseMessaging.instance.getToken();
-      await _api.delete('/users/me/device-tokens', query: {
-        if (fcmToken != null && fcmToken.isNotEmpty) 'token': fcmToken,
-      });
+      final fcmToken = await FirebaseMessaging.instance
+          .getToken()
+          .timeout(const Duration(milliseconds: 1500), onTimeout: () => null);
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await _api.delete('/users/me/device-tokens', query: {
+          'token': fcmToken,
+        }).timeout(const Duration(milliseconds: 2000), onTimeout: () => null);
+      }
     } catch (_) {
       // Ignorar fallos de red al desregistrar el token FCM en el backend
     }

@@ -10,6 +10,8 @@ import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
 import '../../services/notification_router.dart';
 import '../../services/push_notification_service.dart';
+import '../../services/network_connectivity_service.dart';
+import '../../services/offline_queue_manager.dart';
 import '../acopio/center_batches_screen.dart';
 import '../acopio/center_prices_screen.dart';
 import '../common/notifications_screen.dart';
@@ -51,30 +53,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
   StreamSubscription<String>? _tokenRefreshSub;
   StreamSubscription<Map<String, dynamic>>? _realtimeNotifSub;
-  bool _showOfflineBanner = false;
-  Timer? _offlineDebounceTimer;
+  bool _bannerDismissed = false;
+  bool _lastKnownOnline = true;
   LivoraRealtime? _realtime;
 
   void setTabIndex(int index) {
     if (mounted) {
       setState(() => _index = index);
-    }
-  }
-
-  void _onRealtimeConnectionChanged() {
-    final connected = _realtime?.isConnected ?? false;
-    if (connected) {
-      _offlineDebounceTimer?.cancel();
-      if (_showOfflineBanner && mounted) {
-        setState(() => _showOfflineBanner = false);
-      }
-    } else {
-      _offlineDebounceTimer?.cancel();
-      _offlineDebounceTimer = Timer(const Duration(milliseconds: 2500), () {
-        if (mounted && !(_realtime?.isConnected ?? false)) {
-          setState(() => _showOfflineBanner = true);
-        }
-      });
     }
   }
 
@@ -88,17 +73,36 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _realtime = context.read<LivoraRealtime>();
-        _realtime?.addListener(_onRealtimeConnectionChanged);
         _realtime?.connect();
-        _onRealtimeConnectionChanged();
         context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
 
         _realtimeNotifSub?.cancel();
         _realtimeNotifSub = _realtime?.on(RealtimeEvents.notificationCreated).listen((data) {
           if (mounted) {
-            context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+            final api = context.read<LivoraApi>();
+            final session = context.read<SessionController>();
+            session.checkUnreadNotifications(api);
+
             final title = data['title'] as String? ?? 'Nueva notificación';
             final body = data['body'] as String? ?? '';
+            final type = data['type']?.toString().toUpperCase();
+
+            // Reactividad en tiempo real: sincronizar estado KYC automáticamente
+            if (type == 'KYC_STATUS_UPDATED' ||
+                type == 'KYC_APPROVED' ||
+                title.toLowerCase().contains('kyc') ||
+                title.toLowerCase().contains('verificación') ||
+                title.toLowerCase().contains('aprobad')) {
+              session.refreshKycStatus(api);
+            }
+
+            // Sincronizar lotes y saldos en tiempo real ante transacciones
+            if (type == 'REDEMPTION_COMPLETED' ||
+                type == 'BATCH_COMPLETED' ||
+                type == 'PAYMENT_CONFIRMED') {
+              session.notifyBatchesChanged();
+            }
+
             NotificationRouter.showInAppToast(
               title: title,
               body: body,
@@ -139,8 +143,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _offlineDebounceTimer?.cancel();
-    _realtime?.removeListener(_onRealtimeConnectionChanged);
     _fcmSubscription?.cancel();
     _onMessageOpenedAppSub?.cancel();
     _tokenRefreshSub?.cancel();
@@ -278,6 +280,22 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final tabs = _tabsFor(user.role);
     final index = _index < tabs.length ? _index : 0;
 
+    final netService = context.watch<NetworkConnectivityService>();
+    final isOnline = netService.isOnline;
+    final wasRestored = netService.wasOffline;
+
+    // Al restaurarse el internet tras haber estado offline:
+    if (isOnline && !_lastKnownOnline) {
+      _bannerDismissed = false;
+      _realtime?.connect();
+      OfflineQueueManager.processQueue();
+    }
+    _lastKnownOnline = isOnline;
+
+    final isOffline = !isOnline;
+    final isBannerVisible = (isOffline || wasRestored) && !_bannerDismissed;
+    final topOffset = MediaQuery.paddingOf(context).top + kToolbarHeight + 6;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -288,34 +306,82 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           AnimatedPositioned(
             duration: const Duration(milliseconds: 320),
             curve: Curves.easeOutCubic,
-            top: _showOfflineBanner ? MediaQuery.paddingOf(context).top + 8 : -80,
-            left: 16,
-            right: 16,
+            top: isBannerVisible ? topOffset : -80,
+            left: 14,
+            right: 14,
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 250),
-              opacity: _showOfflineBanner ? 1.0 : 0.0,
+              opacity: isBannerVisible ? 1.0 : 0.0,
               child: IgnorePointer(
-                ignoring: !_showOfflineBanner,
+                ignoring: !isBannerVisible,
                 child: Material(
-                  elevation: 6,
-                  borderRadius: BorderRadius.circular(12),
-                  color: const Color(0xFFD97706),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(10),
+                  color: wasRestored
+                      ? const Color(0xFF059669) // Emerald 600
+                      : const Color(0xFFB45309), // Amber 700
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     child: Row(
                       children: [
-                        Icon(Icons.wifi_off_rounded, size: 16, color: Colors.white),
-                        SizedBox(width: 10),
+                        Icon(
+                          wasRestored
+                              ? Icons.check_circle_outline_rounded
+                              : Icons.wifi_off_rounded,
+                          size: 15,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Modo sin conexión • Reintentando enlace...',
-                            style: TextStyle(
+                            wasRestored
+                                ? 'Conexión a internet restablecida'
+                                : 'Sin conexión a internet • Modo sin conexión',
+                            style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
+                        if (!wasRestored) ...[
+                          InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () {
+                              netService.checkReachabilityNow();
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.refresh_rounded, size: 13, color: Colors.white),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Reintentar',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              setState(() => _bannerDismissed = true);
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.all(3),
+                              child: Icon(Icons.close_rounded, size: 15, color: Colors.white70),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

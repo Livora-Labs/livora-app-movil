@@ -17,6 +17,7 @@ import 'services/livora_api.dart';
 import 'services/offline_queue_manager.dart';
 import 'services/livora_realtime.dart';
 import 'services/notification_router.dart';
+import 'services/network_connectivity_service.dart';
 import 'dart:ui';
 
 import 'firebase_options.dart';
@@ -71,8 +72,10 @@ Future<void> main() async {
       final session = SessionController(api, prefs);
       await session.restore();
 
+      final connectivityService = NetworkConnectivityService();
+
       final livoraApi = LivoraApi(api);
-      await OfflineQueueManager.init(livoraApi);
+      await OfflineQueueManager.init(livoraApi, connectivityService: connectivityService);
 
       final realtime = LivoraRealtime(api);
       session.onLogout = () => realtime.disconnect();
@@ -95,6 +98,7 @@ Future<void> main() async {
         session: session,
         livoraApi: livoraApi,
         realtime: realtime,
+        connectivityService: connectivityService,
         hasSeenOnboarding: hasSeenOnboarding,
       ));
     },
@@ -108,6 +112,7 @@ class LivoraApp extends StatefulWidget {
     required this.session,
     required this.livoraApi,
     required this.realtime,
+    required this.connectivityService,
     required this.hasSeenOnboarding,
   });
 
@@ -115,6 +120,7 @@ class LivoraApp extends StatefulWidget {
   final SessionController session;
   final LivoraApi livoraApi;
   final LivoraRealtime realtime;
+  final NetworkConnectivityService connectivityService;
   final bool hasSeenOnboarding;
 
   @override
@@ -138,6 +144,7 @@ class _LivoraAppState extends State<LivoraApp> {
         Provider.value(value: widget.livoraApi),
         ChangeNotifierProvider.value(value: widget.session),
         ChangeNotifierProvider.value(value: widget.realtime),
+        ChangeNotifierProvider.value(value: widget.connectivityService),
       ],
       child: Consumer<SessionController>(
         builder: (context, session, _) => MaterialApp(

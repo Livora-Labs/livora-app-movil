@@ -84,18 +84,29 @@ class LivoraRealtime extends ChangeNotifier {
       .stream;
 
   /// Abre la conexión con el token de sesión actual. Es idempotente: si ya
-  /// hay un socket vivo no hace nada.
+  /// hay un socket vivo y conectado no hace nada; si está desconectado fuerza la reconexión.
   void connect() {
-    if (_socket != null) return;
+    if (_socket != null) {
+      if (!(_socket?.connected ?? false)) {
+        final current = _api.authToken;
+        if (current != null) _socket?.auth = {'token': current};
+        _socket?.connect();
+      }
+      return;
+    }
     final token = _api.authToken;
     if (token == null) return;
 
     final socket = io.io(
       _api.baseUrl,
       io.OptionBuilder()
-          // Sin polling: el proxy HTTPS del backend soporta el upgrade directo
-          // a WebSocket y así evitamos el handshake doble.
-          .setTransports(['websocket'])
+          // Permite websocket directo con fallback automático a polling para redes móviles
+          // donde proxies o NAT de operadoras celulares bloquean upgrades directos WSS.
+          .setTransports(['websocket', 'polling'])
+          .enableReconnection()
+          .setReconnectionAttempts(double.infinity.toInt())
+          .setReconnectionDelay(1000)
+          .setReconnectionDelayMax(5000)
           .disableAutoConnect()
           .setAuth({'token': token})
           .build(),
