@@ -52,12 +52,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
       _batchCompletedSub = realtime
           .on(RealtimeEvents.batchCompleted)
           .listen((_) {
-        if (mounted && !_loadInProgress) _load();
+        if (mounted && !_loadInProgress) {
+          _load();
+          if (widget.canRegisterSale) _loadTransfers();
+        }
       });
       _updateSub = realtime
-          .on(RealtimeEvents.collectionUpdated)
+          .on(RealtimeEvents.batchUpdated)
           .listen((_) {
-        if (mounted && !_loadInProgress) _load();
+        if (mounted && !_loadInProgress) {
+          _load();
+          if (widget.canRegisterSale) _loadTransfers();
+        }
+      });
+      realtime.on(RealtimeEvents.batchDispatched).listen((_) {
+        if (mounted && !_loadInProgress) {
+          _load();
+          if (widget.canRegisterSale) _loadTransfers();
+        }
       });
     });
   }

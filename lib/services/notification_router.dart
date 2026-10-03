@@ -66,7 +66,19 @@ class NotificationRouter {
       return;
     }
 
-    // 2. Fallback a la bandeja de Alertas y Notificaciones
+    // 2. Notificación vinculada a un Lote de Acopio (batchId)
+    if (batchId != null && batchId.isNotEmpty) {
+      HapticFeedback.mediumImpact();
+      // Despacha navegación al lote
+      nav.push(
+        MaterialPageRoute(
+          builder: (_) => const NotificationsScreen(),
+        ),
+      );
+      return;
+    }
+
+    // 3. Fallback a la bandeja de Alertas y Notificaciones
     HapticFeedback.lightImpact();
     nav.push(
       MaterialPageRoute(

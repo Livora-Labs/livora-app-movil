@@ -143,6 +143,7 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
       await context.read<LivoraApi>().updateMyPrices(payload);
       await HapticFeedback.lightImpact();
       if (mounted) {
+        context.read<SessionController>().notifyBatchesChanged();
         showAppSnack(
           context,
           'Tarifario actualizado exitosamente (${payload.length} materiales activos).',
