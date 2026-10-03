@@ -616,18 +616,34 @@ class B2bTransfer {
     final buyer = json['buyer'] as Map<String, dynamic>?;
     final items = json['items'] as List<dynamic>? ?? [];
     final matMap = <String, double>{};
+
+    // 1. Si viene como mapa clave-valor (p.ej. { "PET": 150.0, "CARTON": 80.0 })
+    final rawMaterials = json['materials'] ?? json['requestedMaterials'];
+    if (rawMaterials is Map<String, dynamic>) {
+      for (final entry in rawMaterials.entries) {
+        final kg = _toDouble(entry.value);
+        if (kg > 0) matMap[entry.key.toString()] = kg;
+      }
+    }
+
+    // 2. Si viene como lista de items
     for (final item in items) {
       if (item is Map<String, dynamic>) {
         final mat = item['materialType']?.toString() ?? 'RECICLABLE';
         final kg = _toDouble(item['weightKg'] ?? item['quantityKg']);
-        matMap[mat] = kg;
+        if (kg > 0) matMap[mat] = kg;
       }
+    }
+
+    double totalWeight = _toDouble(json['totalWeightKg'] ?? json['totalWeight']);
+    if (totalWeight <= 0 && matMap.isNotEmpty) {
+      totalWeight = matMap.values.fold(0.0, (sum, w) => sum + w);
     }
 
     return B2bTransfer(
       id: json['id'] as String? ?? '',
       status: json['status'] as String? ?? 'PENDING',
-      totalWeightKg: _toDouble(json['totalWeightKg']),
+      totalWeightKg: totalWeight,
       buyerName: buyer?['name'] as String?,
       buyerEmail: buyer?['email'] as String?,
       driverName: json['driverName'] as String?,

@@ -130,6 +130,141 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  Future<void> _showAcceptTransferModal(B2bTransfer transfer) async {
+    final controllers = <String, TextEditingController>{};
+    final matList = transfer.materials.isNotEmpty
+        ? transfer.materials.keys.toList()
+        : ['PET'];
+
+    for (final mat in matList) {
+      final initialKg = transfer.materials[mat] ?? 0.0;
+      controllers[mat] = TextEditingController(
+        text: initialKg > 0 ? fmtNumber(initialKg) : '',
+      );
+    }
+    final notesController = TextEditingController();
+    bool busy = false;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.handshake_outlined, color: LivoraColors.forest),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Cerrar Trato y Despachar #${transfer.shortId}',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Empresa: ${transfer.buyerLabel}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Ingresa los kilogramos netos reales cargados en camión para descontar del stock físico:',
+                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                ),
+                const SizedBox(height: 12),
+                for (final mat in matList) ...[
+                  TextFormField(
+                    controller: controllers[mat],
+                    decoration: livoraInput(
+                      'Kg reales de ${materialLabel(mat)}',
+                      icon: Icons.scale_outlined,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: kDecimalInputFormatters,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                TextFormField(
+                  controller: notesController,
+                  decoration: livoraInput('Notas de despacho (opcional)', icon: Icons.notes_outlined),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final actuals = <Map<String, dynamic>>[];
+                      for (final entry in controllers.entries) {
+                        final val = double.tryParse(entry.value.text.replaceAll(',', '.')) ?? 0.0;
+                        if (val > 0) {
+                          actuals.add({'material': entry.key, 'weightKg': val});
+                        }
+                      }
+                      if (actuals.isEmpty) {
+                        showAppSnack(ctx, 'Ingresa el peso real de al menos un material', error: true);
+                        return;
+                      }
+
+                      setDialogState(() => busy = true);
+                      try {
+                        await context.read<LivoraApi>().acceptB2bTransfer(
+                          id: transfer.id,
+                          actualMaterials: actuals,
+                          notes: notesController.text.trim(),
+                        );
+                        if (ctx.mounted) Navigator.pop(dialogCtx, true);
+                      } on ApiException catch (e) {
+                        if (ctx.mounted) {
+                          showAppSnack(ctx, e.message, error: true);
+                          setDialogState(() => busy = false);
+                        }
+                      } catch (_) {
+                        if (ctx.mounted) {
+                          showAppSnack(ctx, 'Error al despachar pedido', error: true);
+                          setDialogState(() => busy = false);
+                        }
+                      }
+                    },
+              icon: busy
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.local_shipping_outlined, size: 16),
+              label: const Text('Despachar Lote'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    for (final c in controllers.values) {
+      c.dispose();
+    }
+    notesController.dispose();
+
+    if (accepted == true && mounted) {
+      showAppSnack(context, '¡Pedido aceptado y lote despachado con éxito!');
+      _load();
+      _loadTransfers();
+    }
+  }
+
   Future<void> _showDispatchGuideModal(B2bTransfer transfer) async {
     final qrData = transfer.trackingCode ?? transfer.id;
     await showDialog<void>(
@@ -202,6 +337,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         value: transfer.manifestCid!.length > 12
                             ? '${transfer.manifestCid!.substring(0, 12)}...'
                             : transfer.manifestCid!,
+                      ),
+                    if (transfer.stellarTxHash != null)
+                      InfoRow(
+                        label: 'Stellar On-Chain',
+                        value: transfer.stellarTxHash!.length > 12
+                            ? '${transfer.stellarTxHash!.substring(0, 12)}...'
+                            : transfer.stellarTxHash!,
                       ),
                   ],
                 ),
@@ -508,6 +650,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     child: _B2bTransferCard(
                       transfer: transfer,
                       onShowGuide: () => _showDispatchGuideModal(transfer),
+                      onAccept: transfer.status == 'REQUESTED'
+                          ? () => _showAcceptTransferModal(transfer)
+                          : null,
                     ),
                   ),
             ],
@@ -522,24 +667,28 @@ class _B2bTransferCard extends StatelessWidget {
   const _B2bTransferCard({
     required this.transfer,
     required this.onShowGuide,
+    this.onAccept,
   });
 
   final B2bTransfer transfer;
   final VoidCallback onShowGuide;
+  final VoidCallback? onAccept;
 
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (transfer.status) {
-      'RECEIVED' => LivoraColors.green,
-      'DISPATCHED' => LivoraColors.blue,
+      'DELIVERED' || 'RECEIVED' => LivoraColors.green,
+      'ACCEPTED' || 'DISPATCHED' => LivoraColors.blue,
+      'REQUESTED' => Colors.amber.shade800,
       'REJECTED' => LivoraColors.coral,
-      _ => Colors.amber.shade800,
+      _ => Colors.grey.shade700,
     };
     final statusLabel = switch (transfer.status) {
-      'RECEIVED' => 'Entregado en Planta',
-      'DISPATCHED' => 'En Tránsito',
+      'DELIVERED' || 'RECEIVED' => 'Entregado en Planta',
+      'ACCEPTED' || 'DISPATCHED' => 'En Tránsito a Planta',
+      'REQUESTED' => 'Solicitud Entrante B2B',
       'REJECTED' => 'Rechazado',
-      _ => 'Pendiente',
+      _ => transfer.status,
     };
 
     return Card(
@@ -601,6 +750,22 @@ class _B2bTransferCard extends StatelessWidget {
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 const Spacer(),
+                if (transfer.status == 'REQUESTED' && onAccept != null) ...[
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: LivoraColors.forest,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    ),
+                    onPressed: onAccept,
+                    icon: const Icon(Icons.handshake_outlined, size: 14),
+                    label: const Text(
+                      'Cerrar Trato',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     visualDensity: VisualDensity.compact,

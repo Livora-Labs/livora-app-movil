@@ -534,12 +534,42 @@ class LivoraApi {
     final query = <String, dynamic>{'page': page, 'limit': limit};
     if (status != null && status.isNotEmpty) query['status'] = status;
     final raw = await client.get('/b2b-transfers', query: query);
+    if (raw is Map<String, dynamic> && raw['data'] is List) {
+      return (raw['data'] as List)
+          .map((x) => B2bTransfer.fromJson(x as Map<String, dynamic>))
+          .toList();
+    }
     if (raw is Map<String, dynamic> && raw['transfers'] is List) {
       return (raw['transfers'] as List)
           .map((x) => B2bTransfer.fromJson(x as Map<String, dynamic>))
           .toList();
     }
     return _list(raw, B2bTransfer.fromJson);
+  }
+
+  /// Despacho directo iniciado por el centro a una empresa B2B compradora.
+  Future<Map<String, dynamic>> createB2bTransfer({
+    required String buyerId,
+    required List<Map<String, dynamic>> materials,
+  }) async {
+    final raw = await client.post('/b2b-transfers', body: {
+      'buyerId': buyerId,
+      'materials': materials,
+    });
+    return raw is Map<String, dynamic> ? raw : {};
+  }
+
+  /// Centro acepta un pedido B2B solicitado y registra los kg reales despachados.
+  Future<Map<String, dynamic>> acceptB2bTransfer({
+    required String id,
+    required List<Map<String, dynamic>> actualMaterials,
+    String? notes,
+  }) async {
+    final raw = await client.patch('/b2b-transfers/$id/accept', body: {
+      'actualMaterials': actualMaterials,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    return raw is Map<String, dynamic> ? raw : {};
   }
 
   // -------------------------------------------------- Inventario (tienda / acopio)
