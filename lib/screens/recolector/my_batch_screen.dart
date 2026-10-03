@@ -475,6 +475,29 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
                                   'Destino: ${sanitizedCenterName(item.destinationCenterName, item.destinationCenterEmail, defaultLabel: 'Acopio')} · ${fmtDate(item.createdAt)}',
                                   style: const TextStyle(fontSize: 12),
                                 ),
+                                if (item.status == 'RECEIVED' || item.status == 'CONSOLIDATED' || item.status == 'COMPLETED') ...[
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        item.fiatSettled ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                                        size: 13,
+                                        color: item.fiatSettled ? LivoraColors.green : Colors.amber.shade800,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        item.fiatSettled
+                                            ? 'Pago en efectivo: Entregado en mano'
+                                            : 'Pago en efectivo: Pendiente de cobro en centro',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: item.fiatSettled ? LivoraColors.green : Colors.amber.shade800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                                 if (item.status == 'FLAGGED_FOR_REVIEW') ...[
                                   const SizedBox(height: 4),
                                   const Row(

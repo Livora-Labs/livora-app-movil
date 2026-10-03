@@ -4,6 +4,7 @@ import 'package:livora_labs/core/api_client.dart';
 import 'package:livora_labs/core/session.dart';
 import 'package:livora_labs/services/livora_api.dart';
 import 'package:livora_labs/services/livora_realtime.dart';
+import 'package:livora_labs/services/network_connectivity_service.dart';
 import 'package:livora_labs/main.dart';
 import 'package:livora_labs/widgets/livora_logo.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,12 +20,14 @@ void main() {
     await session.restore();
     final livoraApi = LivoraApi(api);
     final realtime = LivoraRealtime(api);
+    final connectivity = NetworkConnectivityService();
 
     await tester.pumpWidget(LivoraApp(
       api: api,
       session: session,
       livoraApi: livoraApi,
       realtime: realtime,
+      connectivityService: connectivity,
       hasSeenOnboarding: true,
     ));
     await tester.pump();

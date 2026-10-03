@@ -549,6 +549,31 @@ class BatchDetailModal extends StatelessWidget {
                             color: Colors.green.shade900,
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        const Divider(height: 1),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Icon(
+                              batch.fiatSettled ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                              size: 16,
+                              color: batch.fiatSettled ? LivoraColors.green : Colors.amber.shade800,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                batch.fiatSettled
+                                    ? 'Pago en Efectivo (Soles): Entregado en mano'
+                                    : 'Pago en Efectivo (Soles): Pendiente de entrega',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: batch.fiatSettled ? LivoraColors.green : Colors.amber.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),

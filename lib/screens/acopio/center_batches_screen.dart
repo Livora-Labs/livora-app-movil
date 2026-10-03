@@ -45,6 +45,7 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
   List<Batch>? _batches;
   String? _error;
   String? _filter;
+  String? _receptionPin;
   final Set<String> _selected = {};
   bool _consolidating = false;
   String? _settlingBatchId;
@@ -120,11 +121,20 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
     if (_loadInProgress) return;
     _loadInProgress = true;
     try {
-      final batches =
-          await context.read<LivoraApi>().batches(status: _filter);
+      final api = context.read<LivoraApi>();
+      final results = await Future.wait([
+        api.batches(status: _filter),
+        if (_receptionPin == null)
+          api.receptionPin().catchError((_) => '')
+        else
+          Future.value(_receptionPin!),
+      ]);
+      final batches = results[0] as List<Batch>;
+      final pin = results[1] as String;
       if (mounted) {
         setState(() {
           _batches = batches;
+          if (pin.isNotEmpty) _receptionPin = pin;
           _selected.removeWhere(
             (id) => !batches.any(
               (batch) => batch.id == id && batch.status == 'RECEIVED',
@@ -140,13 +150,32 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
     }
   }
 
+  Future<void> _refreshPin() async {
+    try {
+      final newPin = await context.read<LivoraApi>().refreshReceptionPin();
+      if (mounted) {
+        setState(() => _receptionPin = newPin);
+        showAppSnack(context, 'Nuevo PIN generado: $newPin');
+      }
+    } on ApiException catch (e) {
+      if (mounted) showAppSnack(context, e.message, error: true);
+    }
+  }
+
+  Future<void> _copyPin() async {
+    if (_receptionPin == null || _receptionPin!.isEmpty) return;
+    await HapticFeedback.lightImpact();
+    await Clipboard.setData(ClipboardData(text: _receptionPin!));
+    if (mounted) showAppSnack(context, 'PIN $_receptionPin copiado al portapapeles');
+  }
+
   Future<void> _settleFiat(Batch batch) async {
     final confirmed = await confirmDialog(
       context,
-      title: 'Confirmar Pago Fiat',
+      title: 'Confirmar Entrega de Efectivo',
       message:
-          '¿Confirmas que se ha realizado la entrega del pago en soles (PEN) al recolector por los materiales del Lote #${batch.shortId}?',
-      confirmLabel: 'Sí, marcar como pagado',
+          '¿Confirmas que has entregado el pago en efectivo (Soles) en mano al recolector por los materiales del Lote #${batch.shortId}?',
+      confirmLabel: 'Sí, pago entregado',
       cancelLabel: 'Cancelar',
     );
     if (!confirmed || !mounted) return;
@@ -155,13 +184,13 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
     try {
       await context.read<LivoraApi>().settleBatchFiat(batch.id);
       if (mounted) {
-        showAppSnack(context, 'Pago fiat registrado exitosamente');
+        showAppSnack(context, 'Constancia de entrega de efectivo registrada');
         _load();
       }
     } on ApiException catch (e) {
       if (mounted) showAppSnack(context, e.message, error: true);
     } catch (_) {
-      if (mounted) showAppSnack(context, 'Error al registrar el pago fiat', error: true);
+      if (mounted) showAppSnack(context, 'Error al registrar constancia de entrega de efectivo', error: true);
     } finally {
       if (mounted) setState(() => _settlingBatchId = null);
     }
@@ -612,6 +641,24 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
           children: [
+            _OperationalHeader(
+              pin: _receptionPin,
+              onRefreshPin: _refreshPin,
+              onCopyPin: _copyPin,
+              onScan: _scanIncomingBatch,
+              inTransitCount: batches?.where((b) => b.status == 'IN_TRANSIT').length ?? 0,
+              flaggedCount: batches?.where((b) => b.status == 'FLAGGED_FOR_REVIEW').length ?? 0,
+              unsettledCount: batches?.where((b) => b.status == 'RECEIVED' && !b.fiatSettled).length ?? 0,
+              activeFilter: _filter,
+              onSelectFilter: (filterKey) {
+                setState(() {
+                  _filter = filterKey;
+                  _batches = null;
+                });
+                _load();
+              },
+            ),
+            const SizedBox(height: 14),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -806,13 +853,15 @@ class _BatchCard extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      batch.fiatSettled ? Icons.check_circle : Icons.schedule,
+                      batch.fiatSettled ? Icons.check_circle_rounded : Icons.schedule_rounded,
                       size: 14,
                       color: batch.fiatSettled ? LivoraColors.green : Colors.amber.shade800,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Text(
-                      batch.fiatSettled ? 'Pago Fiat: Liquidado' : 'Pago Fiat: Pendiente',
+                      batch.fiatSettled
+                          ? 'Efectivo en mano: Entregado'
+                          : 'Pago en efectivo: Pendiente',
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
@@ -839,7 +888,7 @@ class _BatchCard extends StatelessWidget {
                               )
                             : const Icon(Icons.payments_outlined, size: 14, color: LivoraColors.forest),
                         label: Text(
-                          isSettlingFiat ? 'Pagando...' : 'Pagar Fiat',
+                          isSettlingFiat ? 'Registrando...' : 'Registrar Pago en Mano',
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: LivoraColors.forest),
                         ),
                       ),
@@ -970,4 +1019,208 @@ class _BatchCard extends StatelessWidget {
     );
   }
 }
+
+class _OperationalHeader extends StatelessWidget {
+  const _OperationalHeader({
+    required this.pin,
+    required this.onRefreshPin,
+    required this.onCopyPin,
+    required this.onScan,
+    required this.inTransitCount,
+    required this.flaggedCount,
+    required this.unsettledCount,
+    required this.activeFilter,
+    required this.onSelectFilter,
+  });
+
+  final String? pin;
+  final VoidCallback onRefreshPin;
+  final VoidCallback onCopyPin;
+  final VoidCallback onScan;
+  final int inTransitCount;
+  final int flaggedCount;
+  final int unsettledCount;
+  final String? activeFilter;
+  final ValueChanged<String?> onSelectFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: LivoraColors.paper,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: LivoraColors.forest.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'PIN DE RECEPCIÓN',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: onRefreshPin,
+                          borderRadius: BorderRadius.circular(12),
+                          child: const Padding(
+                            padding: EdgeInsets.all(3),
+                            child: Icon(Icons.refresh_rounded, size: 14, color: LivoraColors.forest),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    GestureDetector(
+                      onTap: onCopyPin,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            pin ?? '••••',
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 4,
+                              color: LivoraColors.forest,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.copy_rounded, size: 15, color: Colors.grey),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: LivoraColors.forest,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: onScan,
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                label: const Text(
+                  'Escanear',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _HeaderStatusChip(
+                  label: 'En camino',
+                  count: inTransitCount,
+                  isSelected: activeFilter == 'IN_TRANSIT',
+                  color: LivoraColors.blue,
+                  icon: Icons.local_shipping_outlined,
+                  onTap: () => onSelectFilter(activeFilter == 'IN_TRANSIT' ? null : 'IN_TRANSIT'),
+                ),
+                const SizedBox(width: 8),
+                _HeaderStatusChip(
+                  label: 'Observados',
+                  count: flaggedCount,
+                  isSelected: activeFilter == 'FLAGGED_FOR_REVIEW',
+                  color: Colors.amber.shade800,
+                  icon: Icons.warning_amber_rounded,
+                  onTap: () => onSelectFilter(activeFilter == 'FLAGGED_FOR_REVIEW' ? null : 'FLAGGED_FOR_REVIEW'),
+                ),
+                const SizedBox(width: 8),
+                _HeaderStatusChip(
+                  label: 'Por liquidar',
+                  count: unsettledCount,
+                  isSelected: activeFilter == 'RECEIVED',
+                  color: LivoraColors.forest,
+                  icon: Icons.payments_outlined,
+                  onTap: () => onSelectFilter(activeFilter == 'RECEIVED' ? null : 'RECEIVED'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderStatusChip extends StatelessWidget {
+  const _HeaderStatusChip({
+    required this.label,
+    required this.count,
+    required this.isSelected,
+    required this.color,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool isSelected;
+  final Color color;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.15) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.withValues(alpha: 0.25),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              '$label: ',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 

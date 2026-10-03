@@ -63,6 +63,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
   }
 
+  int _pendingCenterBatchesCount = 0;
+
+  Future<void> _checkCenterPendingBatches() async {
+    final session = context.read<SessionController>();
+    if (session.user?.role != Roles.centroAcopio) return;
+    try {
+      final api = context.read<LivoraApi>();
+      final batches = await api.batches();
+      if (!mounted) return;
+      final count = batches.where((b) => b.status == 'IN_TRANSIT' || b.status == 'FLAGGED_FOR_REVIEW').length;
+      if (_pendingCenterBatchesCount != count) {
+        setState(() => _pendingCenterBatchesCount = count);
+      }
+    } catch (_) {
+      // Silenciar error en background
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +93,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         _realtime = context.read<LivoraRealtime>();
         _realtime?.connect();
         context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+        _checkCenterPendingBatches();
 
         _realtimeNotifSub?.cancel();
         _realtimeNotifSub = _realtime?.on(RealtimeEvents.notificationCreated).listen((data) {
@@ -99,8 +118,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             // Sincronizar lotes y saldos en tiempo real ante transacciones
             if (type == 'REDEMPTION_COMPLETED' ||
                 type == 'BATCH_COMPLETED' ||
-                type == 'PAYMENT_CONFIRMED') {
+                type == 'PAYMENT_CONFIRMED' ||
+                type == 'BATCH_DISPATCHED') {
               session.notifyBatchesChanged();
+              _checkCenterPendingBatches();
             }
 
             NotificationRouter.showInAppToast(
@@ -108,6 +129,22 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               body: body,
               data: data,
             );
+          }
+        });
+
+        _realtime?.on(RealtimeEvents.batchDispatched).listen((_) {
+          if (mounted) {
+            _checkCenterPendingBatches();
+          }
+        });
+        _realtime?.on(RealtimeEvents.batchCompleted).listen((_) {
+          if (mounted) {
+            _checkCenterPendingBatches();
+          }
+        });
+        _realtime?.on(RealtimeEvents.batchUpdated).listen((_) {
+          if (mounted) {
+            _checkCenterPendingBatches();
           }
         });
 
@@ -137,6 +174,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed && mounted) {
       context.read<LivoraRealtime>().connect();
       context.read<SessionController>().checkUnreadNotifications(context.read<LivoraApi>());
+      _checkCenterPendingBatches();
     }
   }
 
@@ -408,7 +446,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                       smallSize: 8,
                       child: Icon(tab.icon),
                     )
-                  : Icon(tab.icon),
+                  : (tab.label == 'Lotes' && user.role == Roles.centroAcopio && _pendingCenterBatchesCount > 0)
+                      ? Badge.count(
+                          count: _pendingCenterBatchesCount,
+                          backgroundColor: const Color(0xFFD97706), // Amber 600
+                          textColor: Colors.white,
+                          child: Icon(tab.icon),
+                        )
+                      : Icon(tab.icon),
               label: tab.label,
             ),
         ],

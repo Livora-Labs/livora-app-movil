@@ -529,6 +529,19 @@ class LivoraApi {
     return _list(raw, B2bCompany.fromJson);
   }
 
+  /// Obtiene el historial de transferencias/despachos B2B a industrias.
+  Future<List<B2bTransfer>> fetchB2bTransfers({String? status, int page = 1, int limit = 50}) async {
+    final query = <String, dynamic>{'page': page, 'limit': limit};
+    if (status != null && status.isNotEmpty) query['status'] = status;
+    final raw = await client.get('/b2b-transfers', query: query);
+    if (raw is Map<String, dynamic> && raw['transfers'] is List) {
+      return (raw['transfers'] as List)
+          .map((x) => B2bTransfer.fromJson(x as Map<String, dynamic>))
+          .toList();
+    }
+    return _list(raw, B2bTransfer.fromJson);
+  }
+
   // -------------------------------------------------- Inventario (tienda / acopio)
 
   Future<List<InventoryItem>> inventory() async {

@@ -36,6 +36,7 @@ class CenterPricesScreen extends StatefulWidget {
 
 class _CenterPricesScreenState extends State<CenterPricesScreen> {
   final Map<String, TextEditingController> _controllers = {};
+  final Set<String> _enabledMaterials = {};
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -47,6 +48,7 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
       _controllers[mat.code] = TextEditingController(
         text: mat.defaultPrice.toStringAsFixed(2),
       );
+      _enabledMaterials.add(mat.code);
     }
     _loadPrices();
   }
@@ -78,14 +80,18 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
     try {
       final prices = await context.read<LivoraApi>().fetchCenterPrices(centerId);
       if (mounted) {
-        for (final p in prices) {
-          final code = p.materialType.toUpperCase().trim();
-          if (_controllers.containsKey(code)) {
-            _controllers[code]!.text = p.pricePerKg.toStringAsFixed(2);
-          } else {
-            _controllers[code] = TextEditingController(
-              text: p.pricePerKg.toStringAsFixed(2),
-            );
+        if (prices.isNotEmpty) {
+          _enabledMaterials.clear();
+          for (final p in prices) {
+            final code = p.materialType.toUpperCase().trim();
+            _enabledMaterials.add(code);
+            if (_controllers.containsKey(code)) {
+              _controllers[code]!.text = p.pricePerKg.toStringAsFixed(2);
+            } else {
+              _controllers[code] = TextEditingController(
+                text: p.pricePerKg.toStringAsFixed(2),
+              );
+            }
           }
         }
         setState(() => _loading = false);
@@ -105,9 +111,9 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
   }
 
   Future<void> _savePrices() async {
-    // Validar tarifas
     final payload = <Map<String, dynamic>>[];
     for (final entry in _controllers.entries) {
+      if (!_enabledMaterials.contains(entry.key)) continue;
       final parsed = double.tryParse(entry.value.text.replaceAll(',', '.')) ?? 0.0;
       if (parsed < 0.05) {
         showAppSnack(
@@ -123,6 +129,15 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
       });
     }
 
+    if (payload.isEmpty) {
+      showAppSnack(
+        context,
+        'Debes tener al menos un material activo en el tarifario',
+        error: true,
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       await context.read<LivoraApi>().updateMyPrices(payload);
@@ -130,7 +145,7 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
       if (mounted) {
         showAppSnack(
           context,
-          'Tarifario actualizado exitosamente en el sistema.',
+          'Tarifario actualizado exitosamente (${payload.length} materiales activos).',
         );
       }
     } on ApiException catch (e) {
@@ -237,6 +252,16 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
                     _MaterialPriceCard(
                       material: mat,
                       controller: _controllers[mat.code]!,
+                      isEnabled: _enabledMaterials.contains(mat.code),
+                      onToggleEnabled: (val) {
+                        setState(() {
+                          if (val) {
+                            _enabledMaterials.add(mat.code);
+                          } else {
+                            _enabledMaterials.remove(mat.code);
+                          }
+                        });
+                      },
                       onChanged: () => setState(() {}),
                     ),
                     const SizedBox(height: 12),
@@ -252,12 +277,23 @@ class _MaterialPriceCard extends StatelessWidget {
   const _MaterialPriceCard({
     required this.material,
     required this.controller,
+    required this.isEnabled,
+    required this.onToggleEnabled,
     required this.onChanged,
   });
 
   final _MaterialDefault material;
   final TextEditingController controller;
+  final bool isEnabled;
+  final ValueChanged<bool> onToggleEnabled;
   final VoidCallback onChanged;
+
+  void _adjust(double delta) {
+    final current = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
+    final updated = (current + delta).clamp(0.05, 99.99);
+    controller.text = updated.toStringAsFixed(2);
+    onChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -265,16 +301,19 @@ class _MaterialPriceCard extends StatelessWidget {
     final hogarShare = (price * 0.40).toStringAsFixed(2);
     final collectorShare = (price * 0.50).toStringAsFixed(2);
     final livoraShare = (price * 0.10).toStringAsFixed(2);
-    final isValid = price >= 0.05;
+    final isValid = !isEnabled || price >= 0.05;
 
     return Card(
       elevation: 0,
+      color: isEnabled ? null : LivoraColors.paper.withValues(alpha: 0.5),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isValid
-              ? Colors.grey.withValues(alpha: 0.2)
-              : LivoraColors.coral.withValues(alpha: 0.6),
+          color: !isEnabled
+              ? Colors.grey.withValues(alpha: 0.3)
+              : isValid
+                  ? Colors.grey.withValues(alpha: 0.2)
+                  : LivoraColors.coral.withValues(alpha: 0.6),
         ),
       ),
       child: Padding(
@@ -287,15 +326,17 @@ class _MaterialPriceCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: LivoraColors.mint.withValues(alpha: 0.25),
+                    color: isEnabled
+                        ? LivoraColors.mint.withValues(alpha: 0.25)
+                        : Colors.grey.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     material.code,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: LivoraColors.forest,
+                      color: isEnabled ? LivoraColors.forest : Colors.grey[700],
                     ),
                   ),
                 ),
@@ -303,91 +344,140 @@ class _MaterialPriceCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     material.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
-                      color: LivoraColors.deep,
+                      color: isEnabled ? LivoraColors.deep : Colors.grey[600],
                     ),
                   ),
+                ),
+                Switch.adaptive(
+                  value: isEnabled,
+                  activeColor: LivoraColors.forest,
+                  onChanged: onToggleEnabled,
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: controller,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+            if (!isEnabled) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.pause_circle_outline, size: 13, color: Colors.amber.shade900),
+                    const SizedBox(width: 5),
+                    Text(
+                      'En pausa · No se recibe actualmente en planta',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade900),
                     ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                    ],
-                    onChanged: (_) => onChanged(),
-                    decoration: InputDecoration(
-                      prefixText: 'S/ ',
-                      labelText: 'Precio compra / kg',
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Opacity(
+              opacity: isEnabled ? 1.0 : 0.45,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      controller: controller,
+                      enabled: isEnabled,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
                       ),
-                      errorText: isValid ? null : 'Mín. S/ 0.05',
-                    ),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: LivoraColors.deep,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: LivoraColors.paper,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text(
-                          'Equiv. LIVO',
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                        Text(
-                          '${price.toStringAsFixed(2)} LIVO',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: LivoraColors.forest,
-                          ),
-                        ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                       ],
+                      onChanged: (_) => onChanged(),
+                      decoration: InputDecoration(
+                        prefixText: 'S/ ',
+                        labelText: 'Precio compra / kg',
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        errorText: isValid ? null : 'Mín. S/ 0.05',
+                      ),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: LivoraColors.deep,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  if (isEnabled) ...[
+                    IconButton.outlined(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: '- S/ 0.10',
+                      icon: const Icon(Icons.remove, size: 16),
+                      onPressed: () => _adjust(-0.10),
+                    ),
+                    IconButton.outlined(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: '+ S/ 0.10',
+                      icon: const Icon(Icons.add, size: 16),
+                      onPressed: () => _adjust(0.10),
+                    ),
+                  ],
+                  const SizedBox(width: 4),
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: LivoraColors.paper,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Equiv. LIVO',
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                          Text(
+                            '${price.toStringAsFixed(2)} LIVO',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: LivoraColors.forest,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-              decoration: BoxDecoration(
-                color: LivoraColors.paper.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _SplitColumn(label: 'Hogar (40%)', value: 'S/ $hogarShare', color: LivoraColors.forest),
-                  _SplitColumn(label: 'Recolector (50%)', value: 'S/ $collectorShare', color: LivoraColors.blue),
-                  _SplitColumn(label: 'Livora (10%)', value: 'S/ $livoraShare', color: Colors.grey[700]!),
-                ],
+            Opacity(
+              opacity: isEnabled ? 1.0 : 0.45,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                decoration: BoxDecoration(
+                  color: LivoraColors.paper.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _SplitColumn(label: 'Hogar (40%)', value: 'S/ $hogarShare', color: LivoraColors.forest),
+                    _SplitColumn(label: 'Recolector (50%)', value: 'S/ $collectorShare', color: LivoraColors.blue),
+                    _SplitColumn(label: 'Livora (10%)', value: 'S/ $livoraShare', color: Colors.grey[700]!),
+                  ],
+                ),
               ),
             ),
           ],

@@ -593,6 +593,76 @@ class B2bCompany {
       : email.split('@').first;
 }
 
+/// Registro de Despacho / Transferencia B2B a industria compradora.
+class B2bTransfer {
+  B2bTransfer({
+    required this.id,
+    required this.status,
+    required this.totalWeightKg,
+    this.buyerName,
+    this.buyerEmail,
+    this.driverName,
+    this.driverDni,
+    this.licensePlate,
+    this.trackingCode,
+    this.manifestCid,
+    this.stellarTxHash,
+    this.materials = const {},
+    this.createdAt,
+    this.dispatchedAt,
+  });
+
+  factory B2bTransfer.fromJson(Map<String, dynamic> json) {
+    final buyer = json['buyer'] as Map<String, dynamic>?;
+    final items = json['items'] as List<dynamic>? ?? [];
+    final matMap = <String, double>{};
+    for (final item in items) {
+      if (item is Map<String, dynamic>) {
+        final mat = item['materialType']?.toString() ?? 'RECICLABLE';
+        final kg = _toDouble(item['weightKg'] ?? item['quantityKg']);
+        matMap[mat] = kg;
+      }
+    }
+
+    return B2bTransfer(
+      id: json['id'] as String? ?? '',
+      status: json['status'] as String? ?? 'PENDING',
+      totalWeightKg: _toDouble(json['totalWeightKg']),
+      buyerName: buyer?['name'] as String?,
+      buyerEmail: buyer?['email'] as String?,
+      driverName: json['driverName'] as String?,
+      driverDni: json['driverDni'] as String?,
+      licensePlate: json['licensePlate'] as String?,
+      trackingCode: json['trackingCode'] as String?,
+      manifestCid: json['manifestCid'] as String?,
+      stellarTxHash: json['stellarTxHash'] as String?,
+      materials: matMap,
+      createdAt: _toDate(json['createdAt']),
+      dispatchedAt: _toDate(json['dispatchedAt']),
+    );
+  }
+
+  final String id;
+  final String status;
+  final double totalWeightKg;
+  final String? buyerName;
+  final String? buyerEmail;
+  final String? driverName;
+  final String? driverDni;
+  final String? licensePlate;
+  final String? trackingCode;
+  final String? manifestCid;
+  final String? stellarTxHash;
+  final Map<String, double> materials;
+  final DateTime? createdAt;
+  final DateTime? dispatchedAt;
+
+  String get shortId => id.length >= 8 ? id.substring(0, 8) : id;
+  String get buyerLabel => (buyerName != null && buyerName!.isNotEmpty)
+      ? buyerName!
+      : (buyerEmail ?? 'Empresa Compradora B2B');
+}
+
 /// Estados tipados del proceso de verificación de identidad KYC.
 enum KycStatus {
   unverified,
