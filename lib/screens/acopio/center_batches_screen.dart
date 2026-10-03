@@ -385,82 +385,7 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
     }
   }
 
-  Future<void> _showPin() async {
-    final api = context.read<LivoraApi>();
-    try {
-      var pin = await api.receptionPin();
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (builderContext, setDialogState) => AlertDialog(
-            title: const Text('PIN de recepción'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  pin,
-                  style: const TextStyle(
-                    fontSize: 44,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 12,
-                    color: LivoraColors.forest,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Compártelo con los recolectores que entregan lotes en tu centro.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12.5),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton.icon(
-                onPressed: () async {
-                  await HapticFeedback.lightImpact();
-                  await Clipboard.setData(ClipboardData(text: pin));
-                  if (builderContext.mounted) {
-                    showAppSnack(
-                      builderContext,
-                      'PIN $pin copiado al portapapeles',
-                    );
-                  }
-                },
-                icon: const Icon(Icons.copy_rounded, size: 16),
-                label: const Text('Copiar PIN'),
-              ),
-              TextButton.icon(
-                onPressed: () async {
-                  try {
-                    final newPin = await api.refreshReceptionPin();
-                    setDialogState(() => pin = newPin);
-                  } on ApiException catch (error) {
-                    if (builderContext.mounted) {
-                      showAppSnack(
-                        builderContext,
-                        error.message,
-                        error: true,
-                      );
-                    }
-                  }
-                },
-                icon: const Icon(Icons.refresh, size: 16),
-                label: const Text('Regenerar'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          ),
-        ),
-      );
-    } on ApiException catch (error) {
-      if (mounted) showAppSnack(context, error.message, error: true);
-    }
-  }
+
 
   Future<void> _scanIncomingBatch() async {
     // Vista previa explicativa en español (Rationale Modal) antes de pedir permiso de cámara
@@ -604,11 +529,6 @@ class _CenterBatchesScreenState extends State<CenterBatchesScreen> {
             tooltip: 'Escanear QR de Lote',
             onPressed: _scanIncomingBatch,
             icon: const Icon(Icons.qr_code_scanner_rounded),
-          ),
-          IconButton(
-            tooltip: 'PIN de recepción',
-            onPressed: _showPin,
-            icon: const Icon(Icons.pin_outlined),
           ),
         ],
       ),

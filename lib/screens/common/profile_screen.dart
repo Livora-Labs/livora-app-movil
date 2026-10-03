@@ -15,6 +15,7 @@ import '../../services/location_service.dart';
 import '../../widgets/common.dart';
 import '../acopio/center_auctions_screen.dart';
 import '../acopio/center_prices_screen.dart';
+import '../acopio/inventory_screen.dart';
 import '../auth/login_screen.dart';
 import '../tienda/store_profile_screen.dart';
 import 'complaints_screen.dart';
@@ -644,39 +645,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         children: [
           // Tarjeta de Estado de Verificación de Identidad (KYC)
-          Card(
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: session.kycStatus == KycStatus.approved
-                    ? const Color(0xFF2E7D32).withValues(alpha: 0.3)
-                    : session.kycStatus == KycStatus.pending
-                        ? const Color(0xFFE65100).withValues(alpha: 0.3)
-                        : session.kycStatus == KycStatus.rejected
-                            ? const Color(0xFFC62828).withValues(alpha: 0.3)
-                            : Colors.grey.shade300,
+          // Centros de Acopio operan con acreditación empresarial/planta autorizada y no tienen KYC de persona natural.
+          if (user.role != Roles.centroAcopio) ...[
+            Card(
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: session.kycStatus == KycStatus.approved
+                      ? const Color(0xFF2E7D32).withValues(alpha: 0.3)
+                      : session.kycStatus == KycStatus.pending
+                          ? const Color(0xFFE65100).withValues(alpha: 0.3)
+                          : session.kycStatus == KycStatus.rejected
+                              ? const Color(0xFFC62828).withValues(alpha: 0.3)
+                              : Colors.grey.shade300,
+                ),
               ),
-            ),
-            child: InkWell(
-              onTap: () => showKycInfoModal(context),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: (session.kycStatus == KycStatus.approved
-                                ? const Color(0xFF2E7D32)
-                                : session.kycStatus == KycStatus.pending
-                                    ? const Color(0xFFE65100)
-                                    : session.kycStatus == KycStatus.rejected
-                                        ? const Color(0xFFC62828)
-                                        : LivoraColors.slate)
-                            .withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
+              child: InkWell(
+                onTap: () => showKycInfoModal(context),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: (session.kycStatus == KycStatus.approved
+                                  ? const Color(0xFF2E7D32)
+                                  : session.kycStatus == KycStatus.pending
+                                      ? const Color(0xFFE65100)
+                                      : session.kycStatus == KycStatus.rejected
+                                          ? const Color(0xFFC62828)
+                                          : LivoraColors.slate)
+                              .withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
                       child: Icon(
                         session.kycStatus == KycStatus.approved
                             ? Icons.verified_user_rounded
@@ -798,7 +801,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+        ],
+        const SizedBox(height: 12),
           // Datos Personales
           Card(
             child: Padding(
@@ -850,12 +854,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ? 'Dirección de Recojo'
                                     : (user.role == Roles.tienda
                                         ? 'Dirección Comercial del Local'
-                                        : 'Dirección Domiciliaria'),
+                                        : (user.role == Roles.centroAcopio
+                                            ? 'Dirección de Planta de Acopio'
+                                            : 'Dirección Domiciliaria')),
                                 border: const OutlineInputBorder(),
                               ),
                               validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                             ),
-                            if (user.role == Roles.hogar) ...[
+                            if (user.role == Roles.hogar || user.role == Roles.centroAcopio) ...[
                               const SizedBox(height: 10),
                               Row(
                                 children: [
@@ -1299,6 +1305,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 );
                               },
+                            ),
+                            const Divider(height: 12),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: LivoraColors.forest.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.inventory_2_outlined,
+                                  color: LivoraColors.forest,
+                                  size: 20,
+                                ),
+                              ),
+                              title: const Text(
+                                'Inventario y Despachos B2B',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'Stock clasificado, kárdex y venta a empresas transformadoras',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              trailing: const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.grey,
+                              ),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (context) =>
+                                        const InventoryScreen(canRegisterSale: true),
+                                  ),
+                                );
+                              },
+                            ),
+                            const Divider(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2E7D32).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF2E7D32).withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.verified_rounded,
+                                    color: Color(0xFF2E7D32),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Planta Autorizada y Registrada',
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1B5E20),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Habilitado formalmente para recepción, calibración de báscula y liquidación en custodia delegada.',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: LivoraColors.ink.withValues(alpha: 0.8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),

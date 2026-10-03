@@ -105,6 +105,11 @@ Future<void> showKycInfoModal(BuildContext context) {
         subtitle = 'Habilitado para cobros y liquidaciones';
         description =
             'Tu perfil comercial, RUC y cuenta interbancaria (CCI) están plenamente verificados. Tu negocio está habilitado para recibir pagos en LIVOs y solicitar liquidaciones a tu cuenta bancaria.';
+      } else if (session.user?.role == Roles.centroAcopio) {
+        title = 'Planta de Acopio Autorizada';
+        subtitle = 'Acreditación formal para pesaje y custodia';
+        description =
+            'Tu Centro de Acopio cuenta con registro operativo activo para recepción de lotes de recolectores, pesaje en balanza calibrada y despacho consolidado a industrias transformadoras.';
       } else {
         title = 'Identidad Verificada';
         subtitle = 'Cumplimiento normativo acreditado (Ley N° 29733)';
@@ -155,14 +160,21 @@ Future<void> showKycInfoModal(BuildContext context) {
         description =
             'Para cobrar con POS en mostrador y solicitar liquidaciones a tu cuenta bancaria CCI en Soles, completa tu RUC, CCI y foto de fachada del local.';
         actionText = 'Completar Perfil Comercial';
+        canAction = true;
+      } else if (session.user?.role == Roles.centroAcopio) {
+        title = 'Centro de Acopio Registrado';
+        subtitle = 'Acreditación de planta de valorización';
+        description =
+            'Tu Centro de Acopio está configurado para la recepción y pesaje de lotes. Administra tus precios y revisa las subastas disponibles en la plataforma.';
+        canAction = false;
       } else {
         title = 'Verifica tu Identidad';
         subtitle = 'Seguridad y transparencia garantizada';
         description =
             'Para recibir recompensas en tokens LIVO por tus aportes de reciclaje y habilitar transferencias Web3, es necesario validar tu DNI o Carné de Extranjería conforme a ley.';
         actionText = 'Validar Identidad Ahora';
+        canAction = true;
       }
-      canAction = true;
       break;
   }
 
