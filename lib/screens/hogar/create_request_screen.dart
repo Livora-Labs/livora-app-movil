@@ -1121,35 +1121,46 @@ class _PhotoField extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // Miniatura Thumbnail 72x72
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Image.file(
-                    photo!,
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.cover,
-                  ),
-                  if (uploading)
-                    Container(
+            // Miniatura Thumbnail 72x72 con tap para zoom interactivo
+            GestureDetector(
+              onTap: () {
+                if (photo != null) {
+                  showMediaViewerDialog(
+                    context,
+                    photo!.path,
+                    title: 'Vista previa del material',
+                  );
+                }
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Image.file(
+                      photo!,
                       width: 72,
                       height: 72,
-                      color: Colors.black.withValues(alpha: 0.45),
-                      child: const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
+                      fit: BoxFit.cover,
+                    ),
+                    if (uploading)
+                      Container(
+                        width: 72,
+                        height: 72,
+                        color: Colors.black.withValues(alpha: 0.45),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 14),

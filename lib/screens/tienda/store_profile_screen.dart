@@ -357,26 +357,44 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                                 ),
                               )
                             : _localPhotoPath != null
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(15),
-                                    child: Image.file(
-                                      File(_localPhotoPath!),
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
+                                ? GestureDetector(
+                                    onTap: () {
+                                      showMediaViewerDialog(
+                                        context,
+                                        _localPhotoPath!,
+                                        title: 'Fachada del Local',
+                                      );
+                                    },
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(15),
+                                      child: Image.file(
+                                        File(_localPhotoPath!),
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                      ),
                                     ),
                                   )
                                 : _logoUrl != null && _logoUrl!.isNotEmpty
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(15),
-                                        child: CachedNetworkImage(
-                                          imageUrl: _logoUrl!,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          placeholder: (_, __) => const Center(
-                                            child: CircularProgressIndicator(color: LivoraColors.forest),
-                                          ),
-                                          errorWidget: (_, __, ___) => const Center(
-                                            child: Icon(Icons.storefront_rounded, size: 40, color: LivoraColors.slate),
+                                    ? GestureDetector(
+                                        onTap: () {
+                                          showMediaViewerDialog(
+                                            context,
+                                            _logoUrl!,
+                                            title: 'Fachada del Local',
+                                          );
+                                        },
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(15),
+                                          child: CachedNetworkImage(
+                                            imageUrl: _logoUrl!,
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                            placeholder: (_, __) => const Center(
+                                              child: CircularProgressIndicator(color: LivoraColors.forest),
+                                            ),
+                                            errorWidget: (_, __, ___) => const Center(
+                                              child: Icon(Icons.storefront_rounded, size: 40, color: LivoraColors.slate),
+                                            ),
                                           ),
                                         ),
                                       )

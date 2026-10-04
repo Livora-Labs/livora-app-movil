@@ -64,6 +64,7 @@ class LivoraApi {
   Future<String> uploadFile({
     required String filePath,
     required String purpose,
+    void Function(double progress)? onProgress,
   }) async {
     // Comprimir automáticamente imágenes antes de enviarlas a la API
     final originalFile = File(filePath);
@@ -74,6 +75,7 @@ class LivoraApi {
       filePath: processedFile.path,
       fieldName: 'file',
       fields: {'purpose': purpose},
+      onProgress: onProgress,
     );
     final url = (raw is Map<String, dynamic>) ? raw['url'] as String? : null;
     if (url == null || url.isEmpty) {

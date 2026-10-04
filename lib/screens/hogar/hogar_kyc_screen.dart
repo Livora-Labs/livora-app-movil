@@ -114,33 +114,26 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
         _fileName = name;
         _documentUrl = null;
         _uploading = true;
-        _uploadProgress = 0.15;
-      }
-    });
-
-    Timer? progressTimer;
-    progressTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (isBack) {
-        if (!_uploadingBack) {
-          timer.cancel();
-          return;
-        }
-        if (_uploadProgressBack < 0.85) setState(() => _uploadProgressBack += 0.12);
-      } else {
-        if (!_uploading) {
-          timer.cancel();
-          return;
-        }
-        if (_uploadProgress < 0.85) setState(() => _uploadProgress += 0.12);
+        _uploadProgress = 0.05;
       }
     });
 
     try {
-      final url = await api.uploadFile(filePath: path, purpose: 'kyc');
+      final url = await api.uploadFile(
+        filePath: path,
+        purpose: 'kyc',
+        onProgress: (progress) {
+          if (mounted) {
+            setState(() {
+              if (isBack) {
+                _uploadProgressBack = progress;
+              } else {
+                _uploadProgress = progress;
+              }
+            });
+          }
+        },
+      );
       if (mounted) {
         setState(() {
           if (isBack) {
@@ -166,7 +159,6 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
         });
       }
     } finally {
-      progressTimer.cancel();
       if (mounted) {
         setState(() {
           if (isBack) {
@@ -297,22 +289,17 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
       _selfiePath = path;
       _selfieUrl = null;
       _uploadingSelfie = true;
-      _uploadProgressSelfie = 0.2;
-    });
-
-    Timer? progressTimer;
-    progressTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
-      if (!mounted || !_uploadingSelfie) {
-        timer.cancel();
-        return;
-      }
-      if (_uploadProgressSelfie < 0.85) {
-        setState(() => _uploadProgressSelfie += 0.15);
-      }
+      _uploadProgressSelfie = 0.05;
     });
 
     try {
-      final url = await api.uploadFile(filePath: path, purpose: 'kyc');
+      final url = await api.uploadFile(
+        filePath: path,
+        purpose: 'kyc',
+        onProgress: (progress) {
+          if (mounted) setState(() => _uploadProgressSelfie = progress);
+        },
+      );
       if (mounted) {
         setState(() {
           _selfieUrl = url;
@@ -325,7 +312,6 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
         setState(() => _selfiePath = null);
       }
     } finally {
-      progressTimer.cancel();
       if (mounted) setState(() => _uploadingSelfie = false);
     }
   }
@@ -496,13 +482,20 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
             ),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: Image.file(
-                    File(_selfiePath!),
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
+                GestureDetector(
+                  onTap: () {
+                    if (_selfieUrl != null) {
+                      showMediaViewerDialog(context, _selfieUrl!, title: 'Selfie de Verificación');
+                    }
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Image.file(
+                      File(_selfiePath!),
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -573,29 +566,43 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
             ),
             child: Row(
               children: [
-                Icon(
-                  _isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
-                  color: LivoraColors.forest,
-                  size: 36,
+                GestureDetector(
+                  onTap: () {
+                    if (_documentUrl != null && !_isPdf) {
+                      showMediaViewerDialog(context, _documentUrl!, title: 'Documento Anverso');
+                    }
+                  },
+                  child: Icon(
+                    _isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
+                    color: LivoraColors.forest,
+                    size: 36,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _fileName ?? 'Documento Anverso',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (_uploading) ...[
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(value: _uploadProgress, color: LivoraColors.forest),
-                      ] else ...[
-                        const SizedBox(height: 2),
-                        const Text('Cargado con éxito', style: TextStyle(fontSize: 11.5, color: LivoraColors.green)),
+                  child: GestureDetector(
+                    onTap: () {
+                      if (_documentUrl != null && !_isPdf) {
+                        showMediaViewerDialog(context, _documentUrl!, title: 'Documento Anverso');
+                      }
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fileName ?? 'Documento Anverso',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (_uploading) ...[
+                          const SizedBox(height: 6),
+                          LinearProgressIndicator(value: _uploadProgress, color: LivoraColors.forest),
+                        ] else ...[
+                          const SizedBox(height: 2),
+                          const Text('Cargado con éxito (Toca para ampliar)', style: TextStyle(fontSize: 11.5, color: LivoraColors.green)),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
                 IconButton(
@@ -631,25 +638,39 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.flip_to_back_rounded, color: LivoraColors.forest, size: 36),
+                GestureDetector(
+                  onTap: () {
+                    if (_documentBackUrl != null) {
+                      showMediaViewerDialog(context, _documentBackUrl!, title: 'Documento Reverso');
+                    }
+                  },
+                  child: const Icon(Icons.flip_to_back_rounded, color: LivoraColors.forest, size: 36),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _fileBackName ?? 'Documento Reverso',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (_uploadingBack) ...[
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(value: _uploadProgressBack, color: LivoraColors.forest),
-                      ] else ...[
-                        const SizedBox(height: 2),
-                        const Text('Cargado con éxito', style: TextStyle(fontSize: 11.5, color: LivoraColors.green)),
+                  child: GestureDetector(
+                    onTap: () {
+                      if (_documentBackUrl != null) {
+                        showMediaViewerDialog(context, _documentBackUrl!, title: 'Documento Reverso');
+                      }
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fileBackName ?? 'Documento Reverso',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (_uploadingBack) ...[
+                          const SizedBox(height: 6),
+                          LinearProgressIndicator(value: _uploadProgressBack, color: LivoraColors.forest),
+                        ] else ...[
+                          const SizedBox(height: 2),
+                          const Text('Cargado con éxito (Toca para ampliar)', style: TextStyle(fontSize: 11.5, color: LivoraColors.green)),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
                 IconButton(

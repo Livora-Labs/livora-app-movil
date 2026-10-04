@@ -113,25 +113,16 @@ class _KycScreenState extends State<KycScreen> {
       _fileSizeBytes = size;
       _documentUrl = null;
       _uploading = true;
-      _uploadProgress = 0.15;
-    });
-
-    // Simulación reactiva de progreso conectada a la transmisión
-    Timer? progressTimer;
-    progressTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
-      if (!mounted || !_uploading) {
-        timer.cancel();
-        return;
-      }
-      if (_uploadProgress < 0.85) {
-        setState(() => _uploadProgress += 0.12);
-      }
+      _uploadProgress = 0.05;
     });
 
     try {
       final url = await api.uploadFile(
         filePath: path,
         purpose: 'kyc',
+        onProgress: (progress) {
+          if (mounted) setState(() => _uploadProgress = progress);
+        },
       );
       if (mounted) {
         setState(() {
@@ -150,7 +141,6 @@ class _KycScreenState extends State<KycScreen> {
         showAppSnack(context, error.message, error: true);
       }
     } finally {
-      progressTimer.cancel();
       if (mounted) setState(() => _uploading = false);
     }
   }
@@ -290,24 +280,16 @@ class _KycScreenState extends State<KycScreen> {
       _selfiePath = path;
       _selfieUrl = null;
       _uploadingSelfie = true;
-      _uploadProgressSelfie = 0.2;
-    });
-
-    Timer? progressTimer;
-    progressTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
-      if (!mounted || !_uploadingSelfie) {
-        timer.cancel();
-        return;
-      }
-      if (_uploadProgressSelfie < 0.85) {
-        setState(() => _uploadProgressSelfie += 0.15);
-      }
+      _uploadProgressSelfie = 0.05;
     });
 
     try {
       final url = await api.uploadFile(
         filePath: path,
         purpose: 'kyc_selfie',
+        onProgress: (progress) {
+          if (mounted) setState(() => _uploadProgressSelfie = progress);
+        },
       );
       if (mounted) {
         setState(() {
@@ -324,7 +306,6 @@ class _KycScreenState extends State<KycScreen> {
         showAppSnack(context, error.message, error: true);
       }
     } finally {
-      progressTimer.cancel();
       if (mounted) setState(() => _uploadingSelfie = false);
     }
   }

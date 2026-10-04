@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -521,3 +522,92 @@ Future<bool> confirmDialog(
   );
   return result ?? false;
 }
+
+/// Diálogo universal para visualización e inspección de imágenes con zoom interactivo y fallback.
+void showMediaViewerDialog(BuildContext context, String rawUrl, {String? title, Map<String, String>? httpHeaders}) {
+  String effectiveUrl = rawUrl.trim();
+  if (effectiveUrl.startsWith('ipfs://')) {
+    final cid = effectiveUrl.replaceFirst('ipfs://', '').replaceFirst('ipfs/', '');
+    effectiveUrl = 'https://ipfs.io/ipfs/$cid';
+  } else if (RegExp(r'^Qm[1-9A-HJ-NP-za-km-z]{44}').hasMatch(effectiveUrl)) {
+    effectiveUrl = 'https://ipfs.io/ipfs/$effectiveUrl';
+  }
+
+  showDialog(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(12),
+      child: Stack(
+        alignment: Alignment.topRight,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              color: Colors.black87,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.75,
+                minWidth: double.infinity,
+              ),
+              child: InteractiveViewer(
+                panEnabled: true,
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: CachedNetworkImage(
+                  imageUrl: effectiveUrl,
+                  httpHeaders: httpHeaders,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const SizedBox(
+                    height: 250,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: LivoraColors.forest,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    height: 250,
+                    padding: const EdgeInsets.all(20),
+                    color: LivoraColors.paper,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.broken_image_outlined, size: 48, color: LivoraColors.slate),
+                          const SizedBox(height: 12),
+                          Text(
+                            title ?? 'No se pudo cargar la imagen',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: LivoraColors.deep),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'El enlace puede haber expirado o la imagen no está disponible en la red.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: LivoraColors.slate),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: IconButton(
+              onPressed: () => Navigator.pop(ctx),
+              icon: const CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: Icon(Icons.close, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+

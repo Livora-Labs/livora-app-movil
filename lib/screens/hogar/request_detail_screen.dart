@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -362,6 +362,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   void _showImageDialog(String url) {
+    String effectiveUrl = url.trim();
+    if (effectiveUrl.startsWith('ipfs://')) {
+      final cid = effectiveUrl.replaceFirst('ipfs://', '').replaceFirst('ipfs/', '');
+      effectiveUrl = 'https://ipfs.io/ipfs/$cid';
+    } else if (RegExp(r'^Qm[1-9A-HJ-NP-za-km-z]{44}').hasMatch(effectiveUrl)) {
+      effectiveUrl = 'https://ipfs.io/ipfs/$effectiveUrl';
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -372,10 +380,52 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: InteractiveViewer(
-                child: CachedNetworkImage(
-                  imageUrl: url,
-                  fit: BoxFit.contain,
+              child: Container(
+                color: Colors.black87,
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.75,
+                ),
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: CachedNetworkImage(
+                    imageUrl: effectiveUrl,
+                    fit: BoxFit.contain,
+                    placeholder: (_, __) => const SizedBox(
+                      height: 250,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: LivoraColors.forest,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      height: 250,
+                      padding: const EdgeInsets.all(20),
+                      color: LivoraColors.paper,
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.broken_image_outlined, size: 48, color: LivoraColors.slate),
+                            SizedBox(height: 12),
+                            Text(
+                              'No se pudo cargar la imagen',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: LivoraColors.deep),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'El enlace puede haber expirado o la imagen no está disponible.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 12, color: LivoraColors.slate),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

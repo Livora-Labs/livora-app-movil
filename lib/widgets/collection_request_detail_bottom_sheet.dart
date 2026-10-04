@@ -214,32 +214,63 @@ class CollectionRequestDetailBottomSheet extends StatelessWidget {
 
                 // Visor de Evidencia Fotográfica
                 if (request.photoUrl != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: CachedNetworkImage(
-                      imageUrl: request.photoUrl!,
-                      height: 190,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 800,
-                      memCacheHeight: 600,
-                      placeholder: (context, url) => Container(
-                        height: 190,
-                        color: LivoraColors.forest.withValues(alpha: 0.08),
-                        child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        height: 190,
-                        color: LivoraColors.paper,
-                        child: const Center(
-                          child: Icon(
-                            Icons.broken_image_outlined,
-                            color: LivoraColors.ink,
-                            size: 40,
+                  GestureDetector(
+                    onTap: () => showMediaViewerDialog(
+                      context,
+                      request.photoUrl!,
+                      title: 'Foto de Solicitud #${request.shortId}',
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          CachedNetworkImage(
+                            imageUrl: request.photoUrl!,
+                            height: 190,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 800,
+                            memCacheHeight: 600,
+                            placeholder: (context, url) => Container(
+                              height: 190,
+                              color: LivoraColors.forest.withValues(alpha: 0.08),
+                              child: const Center(
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              height: 190,
+                              color: LivoraColors.paper,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: LivoraColors.ink,
+                                  size: 40,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          Container(
+                            margin: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.zoom_in, color: Colors.white, size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Ver foto completa',
+                                  style: TextStyle(color: Colors.white, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

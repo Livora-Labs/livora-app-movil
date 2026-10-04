@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/formats.dart';
 import '../../../models/models.dart';
+import '../../../widgets/common.dart';
 
 /// Tarjeta de solicitud disponible diseñada para el recolector profesional en calle:
 /// - Toma de decisión en < 3 segundos: Ganancia neta en Soles (PEN), distancia (km) y materiales (kg).
@@ -246,31 +247,62 @@ class _CollectorRequestCardState extends State<CollectorRequestCard> {
                 if (req.photoUrl != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
-                        imageUrl: req.photoUrl!,
-                        height: 140,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 600,
-                        placeholder: (_, __) => Container(
-                          height: 140,
-                          color: LivoraColors.paper,
-                          child: const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                    child: GestureDetector(
+                      onTap: () => showMediaViewerDialog(
+                        context,
+                        req.photoUrl!,
+                        title: 'Evidencia #${req.shortId}',
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            CachedNetworkImage(
+                              imageUrl: req.photoUrl!,
+                              height: 140,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 600,
+                              placeholder: (_, __) => Container(
+                                height: 140,
+                                color: LivoraColors.paper,
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (_, __, ___) => Container(
+                                height: 140,
+                                color: LivoraColors.paper,
+                                child: const Center(
+                                  child: Icon(Icons.broken_image_outlined, color: LivoraColors.slate),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          height: 140,
-                          color: LivoraColors.paper,
-                          child: const Center(
-                            child: Icon(Icons.broken_image_outlined, color: LivoraColors.slate),
-                          ),
+                            Container(
+                              margin: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.zoom_in, color: Colors.white, size: 13),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Ampliar',
+                                    style: TextStyle(color: Colors.white, fontSize: 10.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

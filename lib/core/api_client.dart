@@ -110,18 +110,20 @@ class ApiClient {
   Future<dynamic> delete(String path, {Map<String, Object?>? query, Object? body}) =>
       _send('DELETE', path, query: query, body: body);
 
-  /// Sube un archivo por multipart. El backend expone `POST /uploads` con el
-  /// campo `file` y un `purpose` que decide bucket y tipos permitidos.
+  /// Sube un archivo por multipart con soporte opcional para reporte de progreso reactivo [onProgress].
+  /// El backend expone `POST /uploads` con el campo `file` y un `purpose` que decide bucket y tipos permitidos.
   ///
-  /// Comparte con [_send] el manejo de sesión: ante un 401 renueva el token y
-  /// reintenta una sola vez.
+  /// Comparte con [_send] el manejo de sesión: ante un 401 renueva el token y reintenta una sola vez.
   Future<dynamic> uploadFile(
     String path, {
     required String filePath,
     required String fieldName,
     Map<String, String> fields = const {},
+    void Function(double progress)? onProgress,
     bool refreshed = false,
   }) async {
+    final file = File(filePath);
+    final fileLength = await file.length();
     final request = http.MultipartRequest('POST', _uri(path, null));
     request.headers['Accept'] = 'application/json';
     request.headers['X-Correlation-ID'] = correlationId;
@@ -129,18 +131,43 @@ class ApiClient {
       request.headers['Authorization'] = 'Bearer $authToken';
     }
     request.fields.addAll(fields);
-    request.files.add(
-      await http.MultipartFile.fromPath(
+
+    if (onProgress != null && fileLength > 0) {
+      int bytesSent = 0;
+      final fileStream = file.openRead();
+      final progressStream = fileStream.transform(
+        StreamTransformer<List<int>, List<int>>.fromHandlers(
+          handleData: (chunk, sink) {
+            bytesSent += chunk.length;
+            final progress = (bytesSent / fileLength).clamp(0.0, 1.0);
+            onProgress(progress);
+            sink.add(chunk);
+          },
+        ),
+      );
+
+      final multipartFile = http.MultipartFile(
         fieldName,
-        filePath,
+        progressStream,
+        fileLength,
+        filename: filePath.split(Platform.pathSeparator).last,
         contentType: _mediaTypeFor(filePath),
-      ),
-    );
+      );
+      request.files.add(multipartFile);
+    } else {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          fieldName,
+          filePath,
+          contentType: _mediaTypeFor(filePath),
+        ),
+      );
+    }
 
     http.Response response;
     try {
       final streamed = await _client.send(request).timeout(
-            const Duration(seconds: 45),
+            const Duration(seconds: 60),
           );
       response = await http.Response.fromStream(streamed);
     } on TimeoutException {
