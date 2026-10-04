@@ -129,10 +129,10 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
         throw Exception('El archivo de imagen no existe en el almacenamiento');
       }
 
-      // Usar 'collection' para persistencia directa en el bucket público livora-uploads
+      // Usar 'store' para persistencia permanente en el bucket público livora-uploads/store/
       final remoteUrl = await api.uploadFile(
         filePath: _localPhotoPath!,
-        purpose: 'collection',
+        purpose: 'store',
       );
 
       if (mounted) {

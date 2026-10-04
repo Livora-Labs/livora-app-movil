@@ -137,7 +137,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
         final api = context.read<LivoraApi>();
         final remoteUrl = await api.uploadFile(
           filePath: picked.path,
-          purpose: 'collection',
+          purpose: 'store',
         );
 
         if (mounted) {
