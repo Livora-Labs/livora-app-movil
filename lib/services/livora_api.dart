@@ -993,4 +993,20 @@ class LivoraApi {
     });
     return raw as Map<String, dynamic>;
   }
+
+  // ---------------------------------------------------------------- Gamificación Mi Bosque
+
+  /// Consulta el estado del Árbol Semanal y las 6 misiones calculadas por el backend.
+  Future<Map<String, dynamic>> getWeeklyForestState() async {
+    final raw = await client.get('/gamification/forest/weekly-state');
+    return raw as Map<String, dynamic>;
+  }
+
+  /// Reclama la recompensa de tokens LIVO (+0.50 LIVO en Etapa 3 o +1.00 LIVO en Etapa 4).
+  Future<Map<String, dynamic>> claimWeeklyForestReward(String stage) async {
+    final raw = await client.post('/gamification/forest/claim-reward', body: {
+      'stage': stage,
+    });
+    return raw as Map<String, dynamic>;
+  }
 }

@@ -38,7 +38,7 @@ class Web3ConfirmModal extends StatelessWidget {
         side: const BorderSide(color: Color(0xFF1E293B)),
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,

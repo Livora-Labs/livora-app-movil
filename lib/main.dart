@@ -12,12 +12,14 @@ import 'core/session.dart';
 import 'core/env_config.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/common/onboarding_screen.dart';
+import 'screens/common/force_update_screen.dart';
 import 'screens/shell/home_shell.dart';
 import 'services/livora_api.dart';
 import 'services/offline_queue_manager.dart';
 import 'services/livora_realtime.dart';
 import 'services/notification_router.dart';
 import 'services/network_connectivity_service.dart';
+import 'services/app_version_service.dart';
 import 'dart:ui';
 
 import 'firebase_options.dart';
@@ -53,6 +55,57 @@ Future<void> main() async {
         debugPrint('PLATFORM ERROR: $error\n$stack');
         Sentry.captureException(error, stackTrace: stack);
         return false;
+      };
+
+      // Fallback amigable y profesional para excepciones visuales de renderizado
+      ErrorWidget.builder = (FlutterErrorDetails details) {
+        Sentry.captureException(details.exception, stackTrace: details.stack);
+        return Material(
+          color: LivoraColors.paper,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: LivoraColors.coral.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error_outline_rounded,
+                      color: LivoraColors.coral,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Algo no salió como esperábamos',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: LivoraColors.deep,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Hemos reportado este incidente automáticamente a nuestro equipo técnico. Por favor, reintenta la acción.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: LivoraColors.ink,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
       };
 
       // Inicialización robusta de Firebase con credenciales multiplataforma
@@ -127,13 +180,38 @@ class LivoraApp extends StatefulWidget {
   State<LivoraApp> createState() => _LivoraAppState();
 }
 
-class _LivoraAppState extends State<LivoraApp> {
+class _LivoraAppState extends State<LivoraApp> with WidgetsBindingObserver {
   late bool _seenOnboarding;
+  AppVersionCheckResult? _versionCheckResult;
 
   @override
   void initState() {
     super.initState();
     _seenOnboarding = widget.hasSeenOnboarding;
+    WidgetsBinding.instance.addObserver(this);
+    _checkVersion();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkVersion();
+    }
+  }
+
+  Future<void> _checkVersion() async {
+    final result = await AppVersionService.checkVersion(widget.api);
+    if (mounted && result.needsHardUpdate != (_versionCheckResult?.needsHardUpdate ?? false)) {
+      setState(() {
+        _versionCheckResult = result;
+      });
+    }
   }
 
   @override
@@ -147,29 +225,45 @@ class _LivoraAppState extends State<LivoraApp> {
         ChangeNotifierProvider.value(value: widget.connectivityService),
       ],
       child: Consumer<SessionController>(
-        builder: (context, session, _) => MaterialApp(
-          navigatorKey: NotificationRouter.navigatorKey,
-          title: 'Livora Labs',
-          debugShowCheckedModeBanner: false,
-          theme: LivoraTheme.light(),
-          themeMode: ThemeMode.light,
-          locale: const Locale('es'),
-          supportedLocales: const [Locale('es'), Locale('en')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          home: !_seenOnboarding
-              ? OnboardingScreen(
-                  onComplete: () {
-                    setState(() => _seenOnboarding = true);
-                  },
-                )
-              : (session.isAuthenticated
-                  ? const HomeShell()
-                  : const LoginScreen()),
-        ),
+        builder: (context, session, _) {
+          Widget currentHome;
+
+          if (_versionCheckResult?.needsHardUpdate == true) {
+            currentHome = ForceUpdateScreen(
+              checkResult: _versionCheckResult!,
+              onUpdateResolved: () {
+                setState(() => _versionCheckResult = null);
+                _checkVersion();
+              },
+            );
+          } else if (!_seenOnboarding) {
+            currentHome = OnboardingScreen(
+              onComplete: () {
+                setState(() => _seenOnboarding = true);
+              },
+            );
+          } else if (session.isAuthenticated) {
+            currentHome = const HomeShell();
+          } else {
+            currentHome = const LoginScreen();
+          }
+
+          return MaterialApp(
+            navigatorKey: NotificationRouter.navigatorKey,
+            title: 'Livora Labs',
+            debugShowCheckedModeBanner: false,
+            theme: LivoraTheme.light(),
+            themeMode: ThemeMode.light,
+            locale: const Locale('es'),
+            supportedLocales: const [Locale('es'), Locale('en')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: currentHome,
+          );
+        },
       ),
     );
   }

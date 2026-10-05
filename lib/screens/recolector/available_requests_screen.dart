@@ -90,28 +90,20 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   Future<void> _activateGps({bool silentIfAlreadyLocated = false}) async {
     final enabled = await LocationService.isLocationServiceEnabled();
     if (!enabled && mounted) {
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (dlgCtx) => AlertDialog(
-          icon: const Icon(Icons.location_off_outlined, color: LivoraColors.forest, size: 36),
-          title: const Text('GPS requerido para el radar', style: TextStyle(fontWeight: FontWeight.w700)),
-          content: const Text(
+      final proceed = await showLivoraDialog<bool>(
+        context,
+        icon: Icons.location_off_outlined,
+        iconColor: LivoraColors.forest,
+        title: 'GPS requerido para el radar',
+        content:
             'Para calcular distancias precisas y listar solicitudes dentro de tu radio de recolección, activa el servicio de ubicación del dispositivo.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dlgCtx, false),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dlgCtx, true);
-                LocationService.openLocationSettings();
-              },
-              child: const Text('Activar GPS'),
-            ),
-          ],
-        ),
+        primaryActionLabel: 'Activar GPS',
+        onPrimaryAction: () {
+          Navigator.pop(context, true);
+          LocationService.openLocationSettings();
+        },
+        secondaryActionLabel: 'Cancelar',
+        onSecondaryAction: () => Navigator.pop(context, false),
       );
       if (proceed != true) return;
     }
@@ -121,28 +113,20 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.deniedForever && mounted) {
-      final openSettings = await showDialog<bool>(
-        context: context,
-        builder: (dlgCtx) => AlertDialog(
-          icon: const Icon(Icons.settings_outlined, color: LivoraColors.forest, size: 36),
-          title: const Text('Permiso de ubicación denegado', style: TextStyle(fontWeight: FontWeight.w700)),
-          content: const Text(
+      final openSettings = await showLivoraDialog<bool>(
+        context,
+        icon: Icons.settings_outlined,
+        iconColor: LivoraColors.forest,
+        title: 'Permiso de ubicación denegado',
+        content:
             'Livora necesita acceso a tu ubicación para centrar el radar y mostrar las solicitudes cercanas a tu vehículo. Habilítalo en los ajustes de la aplicación.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dlgCtx, false),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dlgCtx, true);
-                LocationService.openAppSettings();
-              },
-              child: const Text('Abrir Ajustes'),
-            ),
-          ],
-        ),
+        primaryActionLabel: 'Abrir Ajustes',
+        onPrimaryAction: () {
+          Navigator.pop(context, true);
+          LocationService.openAppSettings();
+        },
+        secondaryActionLabel: 'Cancelar',
+        onSecondaryAction: () => Navigator.pop(context, false),
       );
       if (openSettings != true) return;
     }
@@ -336,70 +320,24 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   }
 
   void _showInsufficientEscrowDialog(CollectionRequest request) {
-    HapticFeedback.lightImpact();
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: const Icon(
-          Icons.shield_outlined,
-          color: LivoraColors.blue,
-          size: 38,
-        ),
-        title: const Text(
-          'Garantía Temporal Requerida',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Para aceptar esta orden requieres contar con ${request.requiredEscrow.toStringAsFixed(2)} LIVO en tu billetera como garantía temporal de cumplimiento.',
-              style: const TextStyle(fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: LivoraColors.paper,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: LivoraColors.border),
-              ),
-              child: const Text(
-                'Esta garantía se desbloquea y se te compensa en Soles (PEN) al entregar el lote en el Centro de Acopio.',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: LivoraColors.deep,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Entendido'),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: LivoraColors.forest,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(builder: (_) => const WalletScreen()),
-              );
-            },
-            icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-            label: const Text('Recargar LIVO'),
-          ),
-        ],
-      ),
+    showLivoraDialog<void>(
+      context,
+      icon: Icons.shield_outlined,
+      iconColor: LivoraColors.blue,
+      title: 'Garantía Temporal Requerida',
+      content:
+          'Para aceptar esta orden requieres contar con ${request.requiredEscrow.toStringAsFixed(2)} LIVO en tu billetera como garantía temporal de cumplimiento.\n\nEsta garantía se desbloquea y se te compensa en Soles (PEN) al entregar el lote en el Centro de Acopio.',
+      primaryActionLabel: 'Recargar LIVO',
+      primaryIcon: Icons.account_balance_wallet_outlined,
+      onPrimaryAction: () {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const WalletScreen()),
+        );
+      },
+      secondaryActionLabel: 'Entendido',
+      onSecondaryAction: () => Navigator.pop(context),
     );
   }
 
@@ -416,60 +354,56 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   }
 
   Future<void> _showReputation(BuildContext context) async {
-    HapticFeedback.lightImpact();
     try {
       final rep = await context.read<LivoraApi>().collectorReputation();
       if (!context.mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          icon: const Icon(Icons.star_rounded, color: Colors.amber, size: 40),
-          title: const Text('Tu Reputación', textAlign: TextAlign.center),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    rep.score.toStringAsFixed(1),
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.star_rounded, color: Colors.amber, size: 30),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Basado en ${rep.ratingCount} calificaciones ciudadanas',
-                style: const TextStyle(fontSize: 12, color: LivoraColors.slate),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: LivoraColors.mint.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${rep.totalPickups} servicios completados exitosamente',
+      await showLivoraDialog<void>(
+        context,
+        icon: Icons.star_rounded,
+        iconColor: Colors.amber,
+        title: 'Tu Reputación Operativa',
+        bodyWidget: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  rep.score.toStringAsFixed(1),
                   style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: LivoraColors.forest,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w900,
+                    color: LivoraColors.deep,
                   ),
                 ),
+                const SizedBox(width: 8),
+                const Icon(Icons.star_rounded, color: Colors.amber, size: 32),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Basado en ${rep.ratingCount} calificaciones ciudadanas',
+              style: const TextStyle(fontSize: 12.5, color: LivoraColors.slate),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: LivoraColors.mint.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
               ),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cerrar'),
+              child: Text(
+                '${rep.totalPickups} servicios completados exitosamente',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: LivoraColors.forest,
+                ),
+              ),
             ),
           ],
         ),
+        primaryActionLabel: 'Entendido',
+        onPrimaryAction: () => Navigator.pop(context),
       );
     } catch (_) {
       if (context.mounted) showAppSnack(context, 'No se pudo cargar la reputación.');

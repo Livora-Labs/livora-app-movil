@@ -17,6 +17,7 @@ import '../acopio/center_prices_screen.dart';
 import '../common/notifications_screen.dart';
 import '../common/wallet_screen.dart';
 import '../hogar/hogar_dashboard.dart';
+import '../hogar/gamification/hogar_forest_screen.dart';
 import '../recolector/available_requests_screen.dart';
 import '../recolector/my_batch_screen.dart';
 import '../acopio/inventory_screen.dart';
@@ -271,6 +272,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     return switch (role) {
       Roles.hogar => const [
           _TabSpec('Inicio', Icons.home_outlined, HogarDashboard()),
+          _TabSpec('Mi Bosque', Icons.forest_outlined, HogarForestScreen()),
           wallet,
           alerts,
         ],

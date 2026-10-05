@@ -10,6 +10,7 @@ import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
+import '../../widgets/livora_shimmer.dart';
 
 /// Pantalla dedicada para que el Hogar compare las propuestas de tarifas
 /// enviadas por los Centros de Acopio en modo Subasta y elija la más conveniente.
@@ -153,7 +154,7 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const LivoraShimmerList(itemCount: 3)
           : SafeArea(
               child: ListView(
                 padding: const EdgeInsets.all(16),

@@ -20,6 +20,7 @@ import '../../widgets/common.dart';
 import '../../widgets/livora_map_tile_layer.dart';
 import 'auction_bids_screen.dart';
 import 'widgets/material_slider_card.dart';
+import 'gamification/batch_celebration_dialog.dart';
 
 /// Detalle de una solicitud de recolección (vista del HOGAR).
 class RequestDetailScreen extends StatefulWidget {
@@ -60,6 +61,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   bool _firstMapFitDone = false;
   DateTime? _lastLocationPing;
   Timer? _staleCheckTimer;
+  bool _celebratedCompleted = false;
 
   @override
   void initState() {
@@ -299,6 +301,33 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         if (_collectorPos != null && !_firstMapFitDone) {
           _firstMapFitDone = true;
           WidgetsBinding.instance.addPostFrameCallback((_) => _fitMapBounds());
+        }
+
+        // Celebración de Lote Completado con Micro-Confeti (Gamificación)
+        if (request.status == 'COMPLETED' && !_celebratedCompleted) {
+          _celebratedCompleted = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final reward = request.householdRewardEarned > 0
+                ? request.householdRewardEarned
+                : request.escrowLocked;
+            final actualW = request.actualWeights;
+            final estimatedW = request.itemsEstimated;
+            final kgActual = actualW != null
+                ? actualW.values.fold<double>(0.0, (sum, val) => sum + val)
+                : 0.0;
+            final kgEstimated = estimatedW.values.fold<double>(0.0, (sum, val) => sum + val);
+            final totalKg = kgActual > 0 ? kgActual : kgEstimated;
+            final co2 = totalKg * 2.5;
+
+            BatchCelebrationDialog.show(
+              context,
+              rewardLivo: reward,
+              kgRecycled: totalKg,
+              co2SavedKg: co2,
+              txHash: request.txHash,
+            );
+          });
         }
       }
     } on ApiException catch (error) {

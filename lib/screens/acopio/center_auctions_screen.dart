@@ -11,6 +11,7 @@ import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
+import '../../widgets/livora_shimmer.dart';
 
 /// Pantalla de visualización y postulación de subastas de recolección para CENTRO_ACOPIO.
 class CenterAuctionsScreen extends StatefulWidget {
@@ -529,7 +530,7 @@ class _CenterAuctionsScreenState extends State<CenterAuctionsScreen> {
           ),
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const LivoraShimmerList(itemCount: 4)
             : TabBarView(
                 children: [
                   _buildDirectTab(),

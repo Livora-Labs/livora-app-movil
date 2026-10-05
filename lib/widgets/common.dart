@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_theme.dart';
+import 'livora_dialog.dart';
+export 'livora_dialog.dart';
 
 /// Chip pequeño de estado con color semántico.
 class StatusChip extends StatelessWidget {
@@ -495,30 +497,20 @@ Future<bool> confirmDialog(
   required String message,
   String confirmLabel = 'Confirmar',
   String cancelLabel = 'Cancelar',
+  bool isDestructive = false,
+  IconData icon = Icons.help_outline_rounded,
 }) async {
-  final result = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () {
-            HapticFeedback.selectionClick();
-            Navigator.pop(context, false);
-          },
-          child: Text(cancelLabel),
-        ),
-        FilledButton(
-          onPressed: () {
-            HapticFeedback.mediumImpact();
-            Navigator.pop(context, true);
-          },
-          style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
-          child: Text(confirmLabel),
-        ),
-      ],
-    ),
+  final result = await showLivoraDialog<bool>(
+    context,
+    icon: icon,
+    iconColor: isDestructive ? LivoraColors.coral : LivoraColors.forest,
+    title: title,
+    content: message,
+    primaryActionLabel: confirmLabel,
+    isDestructive: isDestructive,
+    onPrimaryAction: () => Navigator.pop(context, true),
+    secondaryActionLabel: cancelLabel,
+    onSecondaryAction: () => Navigator.pop(context, false),
   );
   return result ?? false;
 }

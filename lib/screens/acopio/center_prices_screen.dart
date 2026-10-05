@@ -7,6 +7,7 @@ import '../../core/app_theme.dart';
 import '../../core/session.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
+import '../../widgets/livora_shimmer.dart';
 import '../common/profile.dart';
 
 class _MaterialDefault {
@@ -182,7 +183,7 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const LivoraShimmerList(itemCount: 5)
           : RefreshIndicator(
               onRefresh: _loadPrices,
               child: ListView(

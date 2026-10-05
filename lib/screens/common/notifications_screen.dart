@@ -11,6 +11,7 @@ import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
 import '../../widgets/common.dart';
+import '../../widgets/view_state_scaffold.dart';
 import '../hogar/create_request_screen.dart';
 import '../hogar/request_detail_screen.dart';
 import '../shell/home_shell.dart';
@@ -249,65 +250,49 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final items = _items;
     final hasUnread = items?.any((n) => !n.isRead) ?? false;
 
-    Widget body;
-    if (_error != null) {
-      body = EmptyState(
-        icon: Icons.cloud_off,
-        title: 'No se pudieron cargar las notificaciones',
-        message: _error,
-      );
-    } else if (items == null) {
-      body = const Center(child: CircularProgressIndicator());
-    } else if (items.isEmpty) {
-      final session = context.watch<SessionController>();
-      final user = session.user;
-      final hasActive = session.hasActiveRequest;
-      final activeReq = session.activeRequest;
+    final user = session.user;
+    final hasActive = session.hasActiveRequest;
+    final activeReq = session.activeRequest;
 
-      body = EmptyState(
-        icon: Icons.notifications_none_outlined,
-        title: 'Bandeja al día',
-        message: 'Aquí verás avisos automáticos sobre tus solicitudes, lotes y pagos.',
-        actions: user?.role == Roles.hogar
-            ? [
-                FilledButton.icon(
-                  onPressed: () {
-                    if (hasActive && activeReq != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              RequestDetailScreen(requestId: activeReq.id),
-                        ),
-                      );
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CreateRequestScreen(),
-                        ),
-                      );
-                    }
-                  },
-                  icon: Icon(
-                    hasActive ? Icons.assignment_outlined : Icons.recycling,
+    final body = ViewStateScaffold(
+      isLoading: items == null,
+      hasError: _error != null,
+      errorMessage: _error,
+      onRetry: _load,
+      onRefresh: _load,
+      isEmpty: items != null && items.isEmpty,
+      emptyIcon: Icons.notifications_none_outlined,
+      emptyTitle: 'Bandeja al día',
+      emptyMessage:
+          'Aquí verás avisos automáticos sobre tus solicitudes, lotes y pagos.',
+      emptyActionLabel: user?.role == Roles.hogar
+          ? (hasActive ? 'Ver solicitud en curso' : 'Solicitar recolección')
+          : null,
+      onEmptyAction: user?.role == Roles.hogar
+          ? () {
+              if (hasActive && activeReq != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RequestDetailScreen(requestId: activeReq.id),
                   ),
-                  label: Text(
-                    hasActive
-                        ? 'Ver solicitud en curso'
-                        : 'Solicitar recolección',
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CreateRequestScreen(),
                   ),
-                ),
-              ]
-            : null,
-      );
-    } else {
-      body = ListView.separated(
+                );
+              }
+            }
+          : null,
+      child: ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemCount: items.length,
+        itemCount: items?.length ?? 0,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
-          final item = items[index];
+          final item = items![index];
           final (icon, color) = _styleFor(item.type);
           return Card(
             child: ListTile(
@@ -340,8 +325,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           );
         },
-      );
-    }
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(

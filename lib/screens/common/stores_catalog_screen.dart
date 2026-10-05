@@ -8,6 +8,7 @@ import '../../core/app_theme.dart';
 import '../../services/livora_api.dart';
 import '../../services/location_service.dart';
 import '../../widgets/common.dart';
+import '../../widgets/livora_shimmer.dart';
 import '../../widgets/view_toggle_segmented_button.dart';
 import 'qr_scanner_view.dart';
 import 'stores/widgets/store_detail_bottom_sheet.dart';
@@ -288,7 +289,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
           // Listado o Mapa de Comercios
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const LivoraShimmerList(itemCount: 4)
                 : _error != null
                     ? EmptyState(
                         icon: Icons.cloud_off_rounded,

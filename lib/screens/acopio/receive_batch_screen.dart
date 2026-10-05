@@ -104,23 +104,43 @@ class _ReceiveBatchScreenState extends State<ReceiveBatchScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(
-            Icons.receipt_long_rounded,
-            color: LivoraColors.forest,
-            size: 40,
-          ),
-          title: const Text(
-            'Ticket de Liquidación en Balanza',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+        builder: (ctx, setModalState) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: LivoraColors.forest.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_rounded,
+                        color: LivoraColors.forest,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Ticket de Liquidación en Balanza',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: LivoraColors.deep,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 Text(
                   'Recolector: ${widget.batch.collectorName ?? widget.batch.collectorEmail ?? 'Recolector Urbano'}',
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
@@ -231,24 +251,47 @@ class _ReceiveBatchScreenState extends State<ReceiveBatchScreen> {
                   ),
                   onChanged: (val) => setModalState(() => confirmCashHandover = val),
                 ),
-              ],
+                const SizedBox(height: 20),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: LivoraColors.forest,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      HapticFeedback.mediumImpact();
+                      Navigator.pop(dialogCtx, true);
+                    },
+                    icon: const Icon(Icons.check_circle_rounded, size: 20),
+                    label: const Text(
+                      'Confirmar y Procesar',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: LivoraColors.slate,
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.pop(dialogCtx, false);
+                    },
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: LivoraColors.forest,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => Navigator.pop(dialogCtx, true),
-              icon: const Icon(Icons.check_circle_outline, size: 16),
-              label: const Text('Confirmar y Procesar'),
-            ),
-          ],
         ),
       ),
     );
