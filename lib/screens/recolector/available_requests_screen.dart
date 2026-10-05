@@ -631,7 +631,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
 
           // 4. PANEL INFERIOR DESLIZABLE (DraggableScrollableSheet - Estilo Conductor)
           DraggableScrollableSheet(
-            initialChildSize: 0.38,
+            initialChildSize: inRouteRequests.isNotEmpty ? 0.22 : 0.38,
             minChildSize: 0.16,
             maxChildSize: 0.88,
             snap: true,

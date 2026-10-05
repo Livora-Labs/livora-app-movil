@@ -41,6 +41,7 @@ class ActiveRouteHeroCard extends StatefulWidget {
 class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
   int _currentIndex = 0;
   bool _busy = false;
+  bool _isCollapsed = false;
   String? _loadingAction;
   final Map<String, CollectionRequest> _overrides = {};
 
@@ -460,23 +461,94 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
                     color: LivoraColors.deep,
                   ),
                 ),
+              const SizedBox(width: 4),
+              // Botón de colapsar / desplegar tarjeta para liberar el mapa
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                iconSize: 20,
+                tooltip: _isCollapsed ? 'Expandir detalle' : 'Minimizar tarjeta',
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _isCollapsed = !_isCollapsed);
+                },
+                icon: Icon(
+                  _isCollapsed
+                      ? Icons.keyboard_arrow_down_rounded
+                      : Icons.keyboard_arrow_up_rounded,
+                  color: LivoraColors.deep,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
 
-          // Información del Hogar y Acopio Destino
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      householdName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+          // Si está colapsado, mostramos una barra compacta ultra limpia
+          if (_isCollapsed) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        householdName,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: LivoraColors.deep,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        householdAddress,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: LivoraColors.ink.withValues(alpha: 0.7),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    backgroundColor: current.status == 'ARRIVED'
+                        ? LivoraColors.green
+                        : (current.status == 'EN_ROUTE'
+                            ? LivoraColors.blue
+                            : LivoraColors.forest),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _openNavigation(current),
+                  icon: const Icon(Icons.navigation_outlined, size: 14),
+                  label: Text(
+                    current.status == 'ARRIVED' ? 'PIN' : 'Navegar',
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+
+            // Información del Hogar y Acopio Destino
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        householdName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
                         color: LivoraColors.deep,
                       ),
                     ),
@@ -719,6 +791,7 @@ class _ActiveRouteHeroCardState extends State<ActiveRouteHeroCard> {
               ],
             ),
           ],
+        ], // Cierre del else
         ],
       ),
     );
