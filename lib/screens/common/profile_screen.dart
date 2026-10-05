@@ -13,10 +13,10 @@ import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/location_service.dart';
 import '../../widgets/common.dart';
+import '../../widgets/livora_shimmer.dart';
 import '../acopio/center_auctions_screen.dart';
 import '../acopio/center_prices_screen.dart';
 import '../acopio/inventory_screen.dart';
-import '../auth/login_screen.dart';
 import '../tienda/store_profile_screen.dart';
 import 'complaints_screen.dart';
 import 'onboarding_screen.dart';
@@ -590,10 +590,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await session.deleteAccount();
       if (mounted) {
         showAppSnack(context, 'Tu cuenta fue anonimizada y eliminada conforme a ley');
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (err) {
       if (mounted) {
@@ -623,8 +620,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     debugPrint('>>> [ProfileScreen] build called! user: ${user?.email}, refreshing: $_refreshing');
     
     if (user == null) {
-      debugPrint('>>> [ProfileScreen] user is NULL!');
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(title: const Text('Mi Perfil')),
+        body: const Padding(
+          padding: EdgeInsets.all(16),
+          child: LivoraShimmerList(itemCount: 4),
+        ),
+      );
     }
 
     return Scaffold(

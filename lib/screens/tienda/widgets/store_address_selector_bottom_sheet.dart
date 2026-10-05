@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/app_theme.dart';
@@ -35,6 +36,78 @@ class _StoreAddressSelectorBottomSheetState
   Future<void> _handleGpsLocation() async {
     HapticFeedback.lightImpact();
     final api = context.read<LivoraApi>();
+
+    final enabled = await LocationService.isLocationServiceEnabled();
+    if (!enabled) {
+      if (!mounted) return;
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (dlgCtx) => AlertDialog(
+          icon: const Icon(Icons.location_off_outlined, color: LivoraColors.forest, size: 36),
+          title: const Text('Ubicación desactivada', style: TextStyle(fontWeight: FontWeight.w700)),
+          content: const Text(
+            'Para detectar la posición de tu local comercial automáticamente, activa el GPS del dispositivo. También puedes fijar la dirección en el mapa.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx, 'MANUAL'),
+              child: const Text('Elegir en el mapa'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                LocationService.openLocationSettings();
+                Navigator.pop(dlgCtx);
+              },
+              child: const Text('Abrir Ajustes'),
+            ),
+          ],
+        ),
+      );
+      if (choice != 'MANUAL') return;
+      _openInteractiveMap(focusSearch: false);
+      return;
+    }
+
+    var permission = await LocationService.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await LocationService.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dlgCtx) => AlertDialog(
+          icon: const Icon(Icons.settings_outlined, color: LivoraColors.forest, size: 36),
+          title: const Text('Permiso de ubicación denegado', style: TextStyle(fontWeight: FontWeight.w700)),
+          content: const Text(
+            'Livora requiere acceso a la ubicación para geolocalizar tu tienda en el mapa. Por favor, habilítalo en los ajustes del dispositivo.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dlgCtx);
+                LocationService.openAppSettings();
+              },
+              child: const Text('Abrir Ajustes'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
+      if (mounted) {
+        showAppSnack(context, 'Permiso de ubicación denegado.', error: true);
+      }
+      return;
+    }
+
     setState(() => _locatingGps = true);
 
     try {

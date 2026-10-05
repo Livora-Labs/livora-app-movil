@@ -38,6 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
             _emailController.text.trim(),
             _passwordController.text,
           );
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } on WebExclusiveRoleException catch (e) {
       if (mounted) {
         await showDialog<void>(

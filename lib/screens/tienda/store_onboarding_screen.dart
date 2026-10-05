@@ -12,7 +12,6 @@ import '../../core/session.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
-import '../auth/login_screen.dart';
 import '../shell/home_shell.dart';
 import 'widgets/store_address_selector_bottom_sheet.dart';
 
@@ -395,10 +394,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
       final session = context.read<SessionController>();
       await session.logout();
       if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }
   }
