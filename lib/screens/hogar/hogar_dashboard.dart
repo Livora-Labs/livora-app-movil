@@ -21,9 +21,6 @@ import 'widgets/hero_active_request_card.dart';
 import 'widgets/hogar_active_address_bar.dart';
 import 'widgets/hogar_esg_stats_grid.dart';
 import 'widgets/hogar_first_steps_dialog.dart';
-import 'gamification/hogar_weekly_quest_service.dart';
-import 'gamification/hogar_tree_preview_capsule.dart';
-import '../shell/home_shell.dart';
 
 /// Pantalla principal del HOGAR.
 /// Optimizado, modularizado y con tokenomics LIVO como moneda principal y S/ secundario.
@@ -39,7 +36,6 @@ class _HogarDashboardState extends State<HogarDashboard> {
   Map<String, dynamic>? _dashboardData;
   bool _loadingDashboard = true;
   List<CollectionRequest>? _requests;
-  WeeklyTreeState? _treeState;
   String? _error;
 
   StreamSubscription<Map<String, dynamic>>? _bidSub;
@@ -100,11 +96,9 @@ class _HogarDashboardState extends State<HogarDashboard> {
       final results = await Future.wait([
         api.getDashboard(),
         api.collectionRequests(),
-        api.walletTransactions(page: 1, limit: 30),
       ]);
       if (!mounted) return;
       final reqList = results[1] as List<CollectionRequest>?;
-      final txList = results[2] as List<WalletTransaction>? ?? const [];
       CollectionRequest? active;
       if (reqList != null) {
         for (final request in reqList) {
@@ -123,16 +117,9 @@ class _HogarDashboardState extends State<HogarDashboard> {
       }
       context.read<SessionController>().updateActiveRequest(active);
 
-      // Evaluar estado del Árbol Semanal con las 6 misiones
-      final treeState = await HogarWeeklyQuestService.evaluateWeeklyState(
-        allRequests: reqList ?? const [],
-        allTransactions: txList,
-      );
-
       setState(() {
         _dashboardData = results[0] as Map<String, dynamic>?;
         _requests = reqList;
-        _treeState = treeState;
         _loadingDashboard = false;
         _error = null;
       });
@@ -287,16 +274,6 @@ class _HogarDashboardState extends State<HogarDashboard> {
                   _load();
                 },
               ),
-
-            // Cápsula Compacta de Metas Semanales (Sin sobrecargar el inicio)
-            if (_treeState != null) ...[
-              HogarTreePreviewCapsule(
-                treeState: _treeState!,
-                onTapOpenForest: () {
-                  HomeShell.switchTab(context, 1);
-                },
-              ),
-            ],
 
             // Métricas ESG y Saldo LIVO
             if (_loadingDashboard) ...[
