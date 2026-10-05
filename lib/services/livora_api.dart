@@ -733,6 +733,10 @@ class LivoraApi {
     await client.patch('/notifications/$id', body: {'isRead': isRead});
   }
 
+  Future<void> markAllNotificationsRead() async {
+    await client.patch('/notifications/mark-all-read');
+  }
+
   Future<void> updateFcmToken(String fcmToken) async {
     await client.patch('/users/fcm-token', body: {'fcmToken': fcmToken});
   }

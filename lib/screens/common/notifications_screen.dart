@@ -27,7 +27,6 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   List<AppNotification>? _items;
   String? _error;
-  int? _lastUnreadCount;
   int? _lastBatchesVersion;
   bool _loadInProgress = false;
   StreamSubscription<Map<String, dynamic>>? _notifSub;
@@ -64,7 +63,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           _error = null;
         });
         final unread = items.where((n) => !n.isRead).length;
-        _lastUnreadCount = unread;
         context.read<SessionController>().setUnreadNotificationsCount(unread);
       }
     } on ApiException catch (error) {
@@ -211,18 +209,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
       ];
     });
+
     context.read<SessionController>().setUnreadNotificationsCount(0);
 
     final api = context.read<LivoraApi>();
     try {
-      await Future.wait(
-        unread.map((n) => api.markNotification(n.id, isRead: true)),
-      );
+      await api.markAllNotificationsRead();
       if (mounted) {
         showAppSnack(context, 'Todas las notificaciones marcadas como leídas');
       }
     } catch (_) {
-      // Ignorado, el estado local ya refleja la lectura
+      // Ignorado, el estado visual ya refleja la lectura
     }
   }
 
@@ -235,15 +232,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
-    if ((_lastUnreadCount != null && _lastUnreadCount != session.unreadNotificationsCount) ||
-        (_lastBatchesVersion != null && _lastBatchesVersion != session.batchesVersion)) {
-      _lastUnreadCount = session.unreadNotificationsCount;
+    if (_lastBatchesVersion != null && _lastBatchesVersion != session.batchesVersion) {
       _lastBatchesVersion = session.batchesVersion;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_loadInProgress) _load();
       });
     } else {
-      _lastUnreadCount = session.unreadNotificationsCount;
       _lastBatchesVersion = session.batchesVersion;
     }
 
