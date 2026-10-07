@@ -31,84 +31,95 @@ class HogarEsgStatsGrid extends StatelessWidget {
     final balanceVal = double.tryParse(tokenBal) ?? 0.0;
     final treesSaved = (co2Saved / 21.7).toStringAsFixed(1);
 
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 1.35,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // 1. Saldo de Recompensas (LIVO primero, PEN secundario)
-        StatCard(
-          icon: Icons.toll,
-          label: 'Saldo de Recompensas',
-          value: tokenBal,
-          unit: 'LIVO',
-          subtitle: '≈ S/ ${balanceVal.toStringAsFixed(2)}',
-          color: LivoraColors.forest,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const WalletTransactionsScreen(),
+        Row(
+          children: [
+            // 1. Saldo de Recompensas (LIVO primero, PEN secundario)
+            Expanded(
+              child: StatCard(
+                icon: Icons.toll,
+                label: 'Saldo de Recompensas',
+                value: tokenBal,
+                unit: 'LIVO',
+                subtitle: 'Tokens disponibles',
+                color: LivoraColors.forest,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const WalletTransactionsScreen(),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
-
-        // 2. Kilogramos reciclados
-        StatCard(
-          icon: Icons.recycling,
-          label: 'Kg reciclados',
-          value: fmtNumber(kgRecycled),
-          unit: 'kg',
-          subtitle: 'Ver desglose',
-          color: LivoraColors.green,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => RecycledBreakdownScreen(
-                  totalKg: kgRecycled,
-                  requests: requests,
-                ),
+            ),
+            const SizedBox(width: 10),
+            // 2. Kilogramos reciclados
+            Expanded(
+              child: StatCard(
+                icon: Icons.recycling,
+                label: 'Kg reciclados',
+                value: fmtNumber(kgRecycled),
+                unit: 'kg',
+                subtitle: 'Ver desglose',
+                color: LivoraColors.green,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RecycledBreakdownScreen(
+                        totalKg: kgRecycled,
+                        requests: requests,
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         ),
-
-        // 3. Huella ambiental (CO2)
-        StatCard(
-          icon: Icons.eco_outlined,
-          label: 'CO₂ Ahorrado',
-          value: fmtNumber(co2Saved),
-          unit: 'kg',
-          subtitle: '≈ $treesSaved árboles salvados',
-          color: LivoraColors.amber,
-          onTap: () {
-            CarbonImpactModal.show(
-              context,
-              co2SavedKg: co2Saved,
-            );
-          },
-        ),
-
-        // 4. Historial de Recolecciones
-        StatCard(
-          icon: Icons.list_alt,
-          label: 'Recolecciones',
-          value: '$collections',
-          subtitle: 'Ver historial',
-          color: LivoraColors.cyan,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CollectionHistoryScreen(),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            // 3. Huella ambiental (CO2)
+            Expanded(
+              child: StatCard(
+                icon: Icons.eco_outlined,
+                label: 'CO₂ Ahorrado',
+                value: fmtNumber(co2Saved),
+                unit: 'kg',
+                subtitle: '≈ $treesSaved árboles salvados',
+                color: LivoraColors.amber,
+                onTap: () {
+                  CarbonImpactModal.show(
+                    context,
+                    co2SavedKg: co2Saved,
+                  );
+                },
               ),
-            );
-          },
+            ),
+            const SizedBox(width: 10),
+            // 4. Historial de Recolecciones
+            Expanded(
+              child: StatCard(
+                icon: Icons.list_alt,
+                label: 'Recolecciones',
+                value: '$collections',
+                subtitle: 'Ver historial',
+                color: LivoraColors.cyan,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CollectionHistoryScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ],
     );

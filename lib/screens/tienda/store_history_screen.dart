@@ -139,7 +139,7 @@ class _StoreHistoryScreenState extends State<StoreHistoryScreen>
   Widget _buildRedemptionsTab() {
     return PaginatedListView<dynamic>(
       controller: _redemptionsController,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
       emptyState: const LivoraEmptyState(
         icon: Icons.point_of_sale_rounded,
         title: 'Sin cobros registrados',
@@ -195,7 +195,7 @@ class _StoreHistoryScreenState extends State<StoreHistoryScreen>
   Widget _buildSettlementsTab() {
     return PaginatedListView<dynamic>(
       controller: _settlementsController,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
       emptyState: LivoraEmptyState(
         icon: Icons.account_balance_wallet_outlined,
         title: 'Sin liquidaciones solicitadas',

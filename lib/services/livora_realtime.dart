@@ -104,7 +104,7 @@ class LivoraRealtime extends ChangeNotifier {
           // donde proxies o NAT de operadoras celulares bloquean upgrades directos WSS.
           .setTransports(['websocket', 'polling'])
           .enableReconnection()
-          .setReconnectionAttempts(double.infinity.toInt())
+          .setReconnectionAttempts(999999)
           .setReconnectionDelay(1000)
           .setReconnectionDelayMax(5000)
           .disableAutoConnect()

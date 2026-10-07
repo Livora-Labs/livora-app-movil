@@ -116,8 +116,8 @@ void main() {
         ),
       );
 
-      // Margen del recolector = 50% de 20.0 = 10.0 LIVO
-      expect(find.text("+10.0 LIVO"), findsOneWidget);
+      // Margen del recolector = 70% de 20.0 = 14.0 LIVO
+      expect(find.text("+14.0 LIVO"), findsOneWidget);
       expect(find.byIcon(Icons.local_drink_rounded), findsOneWidget);
 
       await tester.tap(find.byType(CollectorRequestMarker));

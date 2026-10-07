@@ -12,12 +12,14 @@ class BatchCelebrationDialog extends StatefulWidget {
     required this.kgRecycled,
     required this.co2SavedKg,
     this.txHash,
+    this.isDonation = false,
   });
 
   final double rewardLivo;
   final double kgRecycled;
   final double co2SavedKg;
   final String? txHash;
+  final bool isDonation;
 
   static Future<void> show(
     BuildContext context, {
@@ -25,6 +27,7 @@ class BatchCelebrationDialog extends StatefulWidget {
     required double kgRecycled,
     required double co2SavedKg,
     String? txHash,
+    bool isDonation = false,
   }) {
     HapticFeedback.heavyImpact();
     return showDialog<void>(
@@ -35,6 +38,7 @@ class BatchCelebrationDialog extends StatefulWidget {
         kgRecycled: kgRecycled,
         co2SavedKg: co2SavedKg,
         txHash: txHash,
+        isDonation: isDonation,
       ),
     );
   }
@@ -132,73 +136,170 @@ class _BatchCelebrationDialogState extends State<BatchCelebrationDialog>
                 ),
                 const SizedBox(height: 20),
 
-                // Tarjeta de Tokens LIVO con contador animado
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: LivoraColors.forest.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: LivoraColors.forest.withValues(alpha: 0.2),
-                      width: 1.2,
+                // Tarjeta de Tokens / Donación con adaptación según modalidad
+                if (widget.isDonation)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: LivoraColors.mint.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: LivoraColors.mint.withValues(alpha: 0.4),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'DONACIÓN SOLIDARIA Y ECOLÓGICA',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: LivoraColors.forest,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.volunteer_activism_rounded, color: LivoraColors.forest, size: 26),
+                            SizedBox(width: 8),
+                            Text(
+                              '¡Aporte Solidario!',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: LivoraColors.deep,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tus materiales fueron donados al recolector para impulsar el reciclaje comunitario.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: LivoraColors.ink.withValues(alpha: 0.8),
+                            height: 1.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  )
+                else if (widget.rewardLivo <= 0)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: LivoraColors.blue.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: LivoraColors.blue.withValues(alpha: 0.25),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'ACREDITACIÓN EN CURSO',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: LivoraColors.blue,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Procesando en Stellar',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: LivoraColors.deep,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tus Livos se están consolidando en la blockchain y se reflejarán en tu billetera en breve.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: LivoraColors.ink.withValues(alpha: 0.8),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: LivoraColors.forest.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: LivoraColors.forest.withValues(alpha: 0.2),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'RECOMPENSA ACREDITADA',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: LivoraColors.forest,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0.0, end: widget.rewardLivo),
+                          duration: const Duration(milliseconds: 1400),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, _) {
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  '+${value.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w900,
+                                    color: LivoraColors.deep,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'LIVO',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: LivoraColors.forest,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        Text(
+                          'Canjeables en comercios aliados',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: LivoraColors.ink.withValues(alpha: 0.75),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'RECOMPENSA ACREDITADA',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: LivoraColors.forest,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0.0, end: widget.rewardLivo),
-                        duration: const Duration(milliseconds: 1400),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, value, _) {
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(
-                                '+${value.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.w900,
-                                  color: LivoraColors.deep,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'LIVO',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: LivoraColors.forest,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                      Text(
-                        '≈ S/ ${widget.rewardLivo.toStringAsFixed(2)} PEN canjeables en tiendas',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: LivoraColors.ink.withValues(alpha: 0.75),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 16),
 
                 // Resumen de Impacto Ecológico Tangible

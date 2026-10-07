@@ -64,6 +64,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         });
         final unread = items.where((n) => !n.isRead).length;
         context.read<SessionController>().setUnreadNotificationsCount(unread);
+
+        if (unread > 0) {
+          Future.delayed(const Duration(milliseconds: 1000), () async {
+            if (!mounted) return;
+            try {
+              await context.read<LivoraApi>().markAllNotificationsRead();
+              if (mounted) {
+                context.read<SessionController>().setUnreadNotificationsCount(0);
+                setState(() {
+                  _items = [
+                    for (final n in _items ?? <AppNotification>[])
+                      AppNotification(
+                        id: n.id,
+                        title: n.title,
+                        message: n.message,
+                        type: n.type,
+                        isRead: true,
+                        createdAt: n.createdAt,
+                        data: n.data,
+                      ),
+                  ];
+                });
+              }
+            } catch (_) {}
+          });
+        }
       }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -85,6 +111,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   type: n.type,
                   isRead: true,
                   createdAt: n.createdAt,
+                  data: n.data,
                 )
               : n,
       ];
@@ -206,6 +233,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             type: n.type,
             isRead: true,
             createdAt: n.createdAt,
+            data: n.data,
           ),
       ];
     });
@@ -282,7 +310,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             }
           : null,
       child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
         itemCount: items?.length ?? 0,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {

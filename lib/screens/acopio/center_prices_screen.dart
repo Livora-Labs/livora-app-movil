@@ -187,7 +187,7 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
           : RefreshIndicator(
               onRefresh: _loadPrices,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
                 children: [
                   Container(
                     padding: const EdgeInsets.all(16),

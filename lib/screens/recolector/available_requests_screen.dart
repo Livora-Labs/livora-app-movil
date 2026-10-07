@@ -651,7 +651,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
                 child: ListView(
                   controller: scrollController,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
                   children: [
                     // Tirador de arrastre (Grab Handle)
                     Center(

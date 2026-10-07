@@ -87,7 +87,7 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
           ? '¿Deseas aceptar la oferta de "$centerName"? '
               'La recolección será asignada y el 100% del valor apoyará la labor del recolector asignado (Donación Solidaria).'
           : '¿Deseas aceptar la oferta de "$centerName"? '
-              'Recibirás ${bid.totalEstimatedEco.toStringAsFixed(2)} LIVO (≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)}) '
+              'Recibirás ${bid.totalEstimatedEco.toStringAsFixed(2)} LIVO '
               'y se asignará un recolector a tu domicilio.',
       confirmLabel: 'Aceptar oferta',
     );
@@ -99,7 +99,11 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
       if (mounted) {
         showAppSnack(context, 'Oferta aceptada. El centro de acopio ha sido asignado.');
         await _refreshRequest();
-        if (mounted) Navigator.pop(context, true);
+        if (mounted) {
+          context.read<SessionController>().updateActiveRequest(_request);
+          context.read<SessionController>().notifyBatchesChanged();
+          Navigator.pop(context, true);
+        }
       }
     } on ApiException catch (err) {
       if (mounted) showAppSnack(context, err.message, error: true);
@@ -401,14 +405,6 @@ class _AuctionBidsScreenState extends State<AuctionBidsScreen> {
                                                   fontSize: 15,
                                                   fontWeight: FontWeight.w900,
                                                   color: LivoraColors.forest,
-                                                ),
-                                              ),
-                                              Text(
-                                                '(≈ S/ ${bid.totalEstimatedEco.toStringAsFixed(2)})',
-                                                style: TextStyle(
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: LivoraColors.ink.withValues(alpha: 0.65),
                                                 ),
                                               ),
                                             ],

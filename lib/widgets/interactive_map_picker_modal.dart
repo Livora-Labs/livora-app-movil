@@ -6,7 +6,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:provider/provider.dart';
+
 import '../core/app_theme.dart';
+import '../services/livora_api.dart';
 import '../services/location_service.dart';
 import 'center_picker_pin.dart';
 import 'common.dart';
@@ -62,8 +65,9 @@ class _InteractiveMapPickerModalState extends State<InteractiveMapPickerModal> {
     if (widget.initialAddressQuery != null && widget.initialAddressQuery!.isNotEmpty) {
       _searchController.text = widget.initialAddressQuery!;
       _address = widget.initialAddressQuery!;
+    } else {
+      _resolveAddress(_lat, _lng);
     }
-    _resolveAddress(_lat, _lng);
 
     if (widget.focusSearch) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -125,11 +129,17 @@ class _InteractiveMapPickerModalState extends State<InteractiveMapPickerModal> {
   Future<void> _resolveAddress(double lat, double lng) async {
     setState(() => _geocoding = true);
     try {
-      final street = await LocationService.reverseGeocode(lat, lng);
+      LivoraApi? api;
+      try {
+        api = context.read<LivoraApi>();
+      } catch (_) {}
+
+      final street = await LocationService.reverseGeocode(lat, lng, api: api);
       if (mounted) {
         setState(() {
-          _address = street ??
-              'Ubicación seleccionada (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
+          _address = (street != null && street.trim().isNotEmpty)
+              ? street
+              : 'Dirección fijada en mapa';
           if (!_searchFocusNode.hasFocus) {
             _searchController.text = _address;
           }
@@ -137,8 +147,7 @@ class _InteractiveMapPickerModalState extends State<InteractiveMapPickerModal> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _address =
-            'Ubicación: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}');
+        setState(() => _address = 'Dirección fijada en mapa');
       }
     } finally {
       if (mounted) setState(() => _geocoding = false);

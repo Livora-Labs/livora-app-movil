@@ -81,28 +81,27 @@ class StatCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          // Expanded + FittedBox: el valor se encoge si la celda es baja,
-          // así la tarjeta nunca desborda la cuadrícula.
-          Expanded(
-            child: Align(
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: LivoraColors.deep,
-                      ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: LivoraColors.deep,
                     ),
-                    if (unit != null) ...[
-                      const SizedBox(width: 3),
-                      Text(
+                  ),
+                  if (unit != null) ...[
+                    const SizedBox(width: 3),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
                         unit!,
                         style: TextStyle(
                           fontSize: 13,
@@ -110,12 +109,13 @@ class StatCard extends StatelessWidget {
                           color: LivoraColors.ink.withValues(alpha: 0.7),
                         ),
                       ),
-                    ],
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
           ),
+          const SizedBox(height: 4),
           Text(
             label,
             maxLines: 1,
@@ -169,8 +169,10 @@ class SectionTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 10),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             child: Text(
               text,
               style: const TextStyle(

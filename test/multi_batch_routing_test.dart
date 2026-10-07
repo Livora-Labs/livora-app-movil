@@ -16,7 +16,7 @@ void main() {
 
       expect(req.totalEstimatedKg, equals(20.0));
       expect(req.totalEstimatedValuePEN, equals(30.0));
-      expect(req.collectorMarginPEN, equals(15.0)); // 50%
+      expect(req.collectorMarginPEN, equals(21.0)); // 70%
       expect(req.requiredEscrow, equals(15.0)); // 50%
       expect(req.averageRatePerKg, equals(1.5)); // 30 / 20 = 1.5 PEN/kg
     });

@@ -273,7 +273,7 @@ class _StoreDashboardState extends State<StoreDashboard> {
         child: _loading && _balance == null
             ? const LivoraShimmerList(itemCount: 4, padding: EdgeInsets.all(16))
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
                 children: [
                   // Estado de Onboarding o Evaluación Administrativa
                   if (_isProfileIncomplete) ...[

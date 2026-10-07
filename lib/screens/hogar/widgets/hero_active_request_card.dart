@@ -4,6 +4,7 @@ import '../../../core/app_theme.dart';
 import '../../../core/formats.dart';
 import '../../../models/models.dart';
 import '../../../widgets/common.dart';
+import '../../../widgets/transparent_economic_breakdown_card.dart';
 import '../auction_bids_screen.dart';
 
 /// Tarjeta Héroe que muestra la solicitud de reciclaje activa del hogar en el Dashboard.
@@ -172,7 +173,7 @@ class HeroActiveRequestCard extends StatelessWidget {
                               color: LivoraColors.slate,
                             ),
                           )
-                        else ...[
+                        else
                           TextSpan(
                             text: livoEarnings > 0
                                 ? 'Recompensa est.: ${livoEarnings.toStringAsFixed(2)} LIVO'
@@ -183,16 +184,6 @@ class HeroActiveRequestCard extends StatelessWidget {
                               color: LivoraColors.forest,
                             ),
                           ),
-                          if (livoEarnings > 0)
-                            TextSpan(
-                              text: ' (≈ S/ ${penEarnings.toStringAsFixed(2)})',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: LivoraColors.ink.withValues(alpha: 0.65),
-                              ),
-                            ),
-                        ],
                       ],
                     ),
                   ),
@@ -339,6 +330,19 @@ class HeroActiveRequestCard extends StatelessWidget {
             ],
             const SizedBox(height: 12),
 
+            // Desglose Económico Transparente (25% Hogar / 70% Recolector / 5% Livora)
+            TransparentEconomicBreakdownCard(
+              totalGrossPEN: request.totalEstimatedValuePEN,
+              hogarLivo: request.householdRewardEarned > 0
+                  ? request.householdRewardEarned
+                  : request.hogarEstimatedEarningsPEN,
+              collectorPEN: request.collectorMarginPEN,
+              livoraFeePEN: request.livoraFeePEN,
+              isDonation: request.isDonation,
+              initiallyExpanded: false,
+            ),
+            const SizedBox(height: 12),
+
             if (isAuction) ...[
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
@@ -349,12 +353,17 @@ class HeroActiveRequestCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AuctionBidsScreen(request: request),
-                  ),
-                ),
+                onPressed: () async {
+                  final res = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AuctionBidsScreen(request: request),
+                    ),
+                  );
+                  if (res == true && context.mounted) {
+                    onTapDetail();
+                  }
+                },
                 icon: const Icon(Icons.gavel, size: 16),
                 label: Text(
                   'Comparar ofertas de acopio (${request.bids.length})',

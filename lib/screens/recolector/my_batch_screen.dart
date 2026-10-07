@@ -195,7 +195,7 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
               onRefresh: _load,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
                 children: [
                   // Indicador reactivo de cola offline pendiente de sincronizar
                   ValueListenableBuilder<int>(
@@ -415,7 +415,7 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
               onRefresh: _load,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
                 children: [
                   if (_error != null)
                     EmptyState(

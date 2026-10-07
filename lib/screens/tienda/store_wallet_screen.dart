@@ -139,7 +139,7 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
       body: RefreshIndicator(
         onRefresh: _loadAll,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
           children: [
             // TARJETA DE SALDO COMERCIAL
             Container(

@@ -20,6 +20,7 @@ import 'services/livora_realtime.dart';
 import 'services/notification_router.dart';
 import 'services/network_connectivity_service.dart';
 import 'services/app_version_service.dart';
+import 'data/local/app_local_cache.dart';
 import 'dart:ui';
 
 import 'firebase_options.dart';
@@ -129,9 +130,13 @@ Future<void> main() async {
 
       final livoraApi = LivoraApi(api);
       await OfflineQueueManager.init(livoraApi, connectivityService: connectivityService);
+      await AppLocalCache.init();
 
       final realtime = LivoraRealtime(api);
-      session.onLogout = () => realtime.disconnect();
+      session.onLogout = () {
+        realtime.disconnect();
+        AppLocalCache.clearAll();
+      };
 
       try {
         final initialMessage = await FirebaseMessaging.instance.getInitialMessage();

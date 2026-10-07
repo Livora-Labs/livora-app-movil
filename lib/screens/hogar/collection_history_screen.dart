@@ -145,7 +145,7 @@ class _CollectionHistoryScreenState extends State<CollectionHistoryScreen> {
           Expanded(
             child: PaginatedListView<CollectionRequest>(
               controller: _pagingController,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               emptyState: LivoraEmptyState(
                 icon: Icons.history_rounded,
                 title: 'Sin solicitudes',

@@ -13,15 +13,64 @@ import '../../widgets/common.dart';
 import '../../widgets/livora_logo.dart';
 import '../../widgets/kyc_shield_button.dart';
 import 'complaints_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 
-/// AppBar estándar de la app con acceso al perfil y estado KYC.
+/// Botón con campana de notificaciones y badge animado para la cabecera.
+class NotificationBellButton extends StatelessWidget {
+  const NotificationBellButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
+    final hasUnread = session.hasUnreadNotifications;
+
+    return IconButton(
+      tooltip: 'Notificaciones',
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications_outlined, size: 24),
+          if (hasUnread)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: LivoraColors.coral,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) => const NotificationsScreen(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// AppBar estándar de la app con acceso a notificaciones, estado KYC y perfil.
 AppBar livoraAppBar(
   BuildContext context,
   String title, {
   List<Widget>? actions,
+  PreferredSizeWidget? bottom,
 }) {
+  final session = context.watch<SessionController>();
+  final user = session.user;
+  final isHogar = user?.role == Roles.hogar;
+
   return AppBar(
+    bottom: bottom,
     title: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -33,7 +82,8 @@ AppBar livoraAppBar(
     actions: [
       ...?actions,
       const KycShieldButton(),
-      const ProfileButton(),
+      const NotificationBellButton(),
+      if (!isHogar) const ProfileButton(),
       const SizedBox(width: 6),
     ],
   );

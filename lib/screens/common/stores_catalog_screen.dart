@@ -102,7 +102,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
   List<Map<String, dynamic>> get _filteredStores {
     final query = _searchController.text.trim().toLowerCase();
 
-    return _allStores.where((store) {
+    final result = _allStores.where((store) {
       final name = (store['name']?.toString() ?? store['businessName']?.toString() ?? '').toLowerCase();
       final category = (store['category']?.toString() ?? '').toLowerCase();
       final address = (store['address']?.toString() ?? '').toLowerCase();
@@ -128,6 +128,17 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
 
       return true;
     }).toList();
+
+    // Ordenar por distancia (más cercanos primero si hay GPS disponible)
+    if (_userLat != null && _userLng != null) {
+      result.sort((a, b) {
+        final distA = _distanceMeters(a) ?? double.infinity;
+        final distB = _distanceMeters(b) ?? double.infinity;
+        return distA.compareTo(distB);
+      });
+    }
+
+    return result;
   }
 
   Future<void> _recenterOnUser() async {
@@ -322,7 +333,7 @@ class _StoresCatalogScreenState extends State<StoresCatalogScreen> {
                                     : 'No hay comercios registrados en esta categoría.',
                               )
                             : ListView.separated(
-                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                                 itemCount: filtered.length,
                                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                                 itemBuilder: (context, index) {

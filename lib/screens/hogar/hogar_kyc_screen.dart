@@ -343,16 +343,29 @@ class _HogarKycScreenState extends State<HogarKycScreen> {
     }
 
     setState(() => _sending = true);
+    final api = context.read<LivoraApi>();
+    final session = context.read<SessionController>();
     try {
       // Envío especializado: solo datos personales residenciales, CERO vehículos ni placas
-      await context.read<LivoraApi>().submitKycApplication(
+      await api.submitKycApplication(
             _documentUrl!,
             selfieUrl: _selfieUrl,
             documentUrlBack: _documentBackUrl,
             documentNumber: _docNumberCtrl.text.trim(),
           );
+      if (session.user != null) {
+        await session.updateUser(
+          session.user!.copyWith(
+            dniDocumentNumber: _docNumberCtrl.text.trim(),
+            dniPhotoUrl: _documentUrl,
+            profilePhotoUrl: _selfieUrl,
+            kycStatus: KycStatus.pending,
+          ),
+        );
+      } else {
+        session.updateKycStatus(KycStatus.pending);
+      }
       if (!mounted) return;
-      context.read<SessionController>().updateKycStatus(KycStatus.pending);
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(

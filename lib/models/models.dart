@@ -30,6 +30,9 @@ class AuthUser {
     this.longitude,
     this.marketingAccepted = false,
     this.kycStatus = KycStatus.unverified,
+    this.dniDocumentNumber,
+    this.dniPhotoUrl,
+    this.profilePhotoUrl,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
@@ -44,6 +47,9 @@ class AuthUser {
         longitude: json['longitude'] != null ? _toDouble(json['longitude']) : null,
         marketingAccepted: json['marketingAccepted'] as bool? ?? false,
         kycStatus: KycStatus.fromString(json['kycStatus'] as String?),
+        dniDocumentNumber: json['dniDocumentNumber'] as String?,
+        dniPhotoUrl: json['dniPhotoUrl'] as String?,
+        profilePhotoUrl: json['profilePhotoUrl'] as String?,
       );
 
   final String id;
@@ -57,6 +63,9 @@ class AuthUser {
   final double? longitude;
   final bool marketingAccepted;
   final KycStatus kycStatus;
+  final String? dniDocumentNumber;
+  final String? dniPhotoUrl;
+  final String? profilePhotoUrl;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -70,6 +79,9 @@ class AuthUser {
         'longitude': longitude,
         'marketingAccepted': marketingAccepted,
         'kycStatus': kycStatus.toBackendString(),
+        'dniDocumentNumber': dniDocumentNumber,
+        'dniPhotoUrl': dniPhotoUrl,
+        'profilePhotoUrl': profilePhotoUrl,
       };
 
   AuthUser copyWith({
@@ -84,6 +96,9 @@ class AuthUser {
     double? longitude,
     bool? marketingAccepted,
     KycStatus? kycStatus,
+    String? dniDocumentNumber,
+    String? dniPhotoUrl,
+    String? profilePhotoUrl,
   }) =>
       AuthUser(
         id: id ?? this.id,
@@ -97,6 +112,9 @@ class AuthUser {
         longitude: longitude ?? this.longitude,
         marketingAccepted: marketingAccepted ?? this.marketingAccepted,
         kycStatus: kycStatus ?? this.kycStatus,
+        dniDocumentNumber: dniDocumentNumber ?? this.dniDocumentNumber,
+        dniPhotoUrl: dniPhotoUrl ?? this.dniPhotoUrl,
+        profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
       );
 }
 
@@ -335,27 +353,47 @@ class CollectionRequest {
 
   String get shortId => id.length >= 8 ? id.substring(0, 8).toUpperCase() : id;
 
-  /// Valor total estimado del material según las tarifas acordadas
+  /// Valor total estimado del material según las tarifas acordadas o la mejor oferta en subasta
   double get totalEstimatedValuePEN {
-    double total = 0;
+    if (agreedRates.isNotEmpty) {
+      double total = 0;
+      itemsEstimated.forEach((mat, weight) {
+        final rate = agreedRates[mat] ?? agreedRates[mat.toUpperCase()] ?? 1.0;
+        total += weight * rate;
+      });
+      return total;
+    }
+
+    // Si está en subasta y aún no se ha asignado un acopio, reflejar la mejor oferta recibida
+    if (bids.isNotEmpty) {
+      final bestBid = bids.reduce((a, b) => a.totalEstimatedPenn > b.totalEstimatedPenn ? a : b);
+      return bestBid.totalEstimatedPenn;
+    }
+
+    // Fallback estándar a cotización estimada del mercado
+    double fallbackTotal = 0;
     itemsEstimated.forEach((mat, weight) {
-      final rate = agreedRates[mat] ?? agreedRates[mat.toUpperCase()] ?? 1.0;
-      total += weight * rate;
+      fallbackTotal += weight * 1.0;
     });
-    return total;
+    return fallbackTotal;
   }
 
-  /// Ganancia estimada para el Hogar: 40% del valor total (o 0 si es donación)
-  double get hogarEstimatedEarningsPEN =>
-      isDonation ? 0.0 : totalEstimatedValuePEN * 0.40;
+  /// Ganancia estimada para el Hogar: 25% del valor total (o 0 si es donación)
+  double get hogarEstimatedEarningsPEN {
+    if (isDonation) return 0.0;
+    if (bids.isNotEmpty && agreedRates.isEmpty) {
+      final bestBid = bids.reduce((a, b) => a.totalEstimatedPenn > b.totalEstimatedPenn ? a : b);
+      return bestBid.totalEstimatedEco;
+    }
+    return totalEstimatedValuePEN * 0.25;
+  }
 
-  /// Comisión Livora: 10% del valor total (o 0 si es donación)
-  double get livoraFeePEN =>
-      isDonation ? 0.0 : totalEstimatedValuePEN * 0.10;
+  /// Comisión Livora: 5% del valor total (Livora mantiene su 5% de comisión técnica)
+  double get livoraFeePEN => totalEstimatedValuePEN * 0.05;
 
-  /// Margen del Recolector: 50% del valor total (o 100% si es donación solidaria)
+  /// Margen del Recolector: 70% en canje estándar o 95% si es donación solidaria (Hogar cede su 25%)
   double get collectorMarginPEN =>
-      isDonation ? totalEstimatedValuePEN : totalEstimatedValuePEN * 0.50;
+      isDonation ? totalEstimatedValuePEN * 0.95 : totalEstimatedValuePEN * 0.70;
 
   /// Calcula la garantía requerida en EcoTokens: 50% del valor estimado total (0 en donación)
   double get requiredEscrow {
@@ -373,6 +411,50 @@ class CollectionRequest {
     final sum = agreedRates.values.fold<double>(0.0, (s, r) => s + r);
     return sum / agreedRates.length;
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'status': status,
+        'assignmentMode': assignmentMode,
+        'itemsEstimated': itemsEstimated,
+        'description': description,
+        'photoUrl': photoUrl,
+        'verificationPin': verificationPin,
+        'latitude': latitude,
+        'longitude': longitude,
+        'householdId': householdId,
+        'collectorId': collectorId,
+        'collectorName': collectorName,
+        'collectorPhone': collectorPhone,
+        'assignedCenterId': assignedCenterId,
+        'assignedCenterName': assignedCenterName,
+        'assignedCenterEmail': assignedCenterEmail,
+        'agreedRates': agreedRates,
+        'escrowLocked': escrowLocked,
+        'actualWeights': actualWeights,
+        'batchId': batchId,
+        'householdEmail': householdEmail,
+        'householdAddress': householdAddress,
+        'householdName': householdName,
+        'householdPhone': householdPhone,
+        'distanceMeters': distanceMeters,
+        'txHash': txHash,
+        'rating': rating,
+        'feedback': feedback,
+        'createdAt': createdAt?.toIso8601String(),
+        'arrivedAt': arrivedAt?.toIso8601String(),
+        'isDonation': isDonation,
+        'householdRewardEarned': householdRewardEarned,
+        if (collectorLocation != null)
+          'collectorLocation': {
+            'latitude': collectorLocation!.latitude,
+            'longitude': collectorLocation!.longitude,
+            'heading': collectorLocation!.heading,
+            'transportType': collectorLocation!.transportType,
+            'etaMinutes': collectorLocation!.etaMinutes,
+            'distanceRemainingMeters': collectorLocation!.distanceRemainingMeters,
+          },
+      };
 }
 
 /// Lote de un recolector.
@@ -478,6 +560,29 @@ class Batch {
     }
     return totals;
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'status': status,
+        'materialsActual': materialsActual,
+        'collectorId': collectorId,
+        'destinationCenterId': destinationCenterId,
+        'destinationCenterName': destinationCenterName,
+        'destinationCenterAddress': destinationCenterAddress,
+        'consolidatedBatchId': consolidatedBatchId,
+        'collectorEmail': collectorEmail,
+        'collectorName': collectorName,
+        'destinationCenterEmail': destinationCenterEmail,
+        'requests': requests.map((r) => r.toJson()).toList(),
+        'txHash': txHash,
+        'hasDiscrepancy': hasDiscrepancy,
+        'discrepancyNote': discrepancyNote,
+        'fiatSettled': fiatSettled,
+        'fiatSettledAt': fiatSettledAt?.toIso8601String(),
+        'disputeReason': disputeReason,
+        'disputedAt': disputedAt?.toIso8601String(),
+        'createdAt': createdAt?.toIso8601String(),
+      };
 }
 
 /// Notificación del usuario.
@@ -536,6 +641,13 @@ class InventoryItem {
   final String materialType;
   final double quantityKg;
   final DateTime? updatedAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'materialType': materialType,
+        'quantityKg': quantityKg,
+        'updatedAt': updatedAt?.toIso8601String(),
+      };
 }
 
 /// Movimiento de inventario (IN báscula / OUT venta o merma).
@@ -565,6 +677,15 @@ class InventoryMovement {
   final String materialType;
   final String centerId;
   final DateTime? createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        'quantityKg': quantityKg,
+        'materialType': materialType,
+        'centerId': centerId,
+        'createdAt': createdAt?.toIso8601String(),
+      };
 }
 
 /// Empresa B2B registrada y verificada en el ecosistema Livora.
@@ -859,6 +980,18 @@ class WalletTransaction {
 
   bool get isIncoming => direction == 'IN';
   double get amountPen => amount; // 1 LIVO = 1 PEN
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        'amount': amount,
+        'direction': direction,
+        'recipientName': recipientName,
+        'recipientWallet': recipientWallet,
+        'txHash': txHash,
+        'ipfsCid': ipfsCid,
+        'createdAt': createdAt?.toIso8601String(),
+      };
 }
 
 class CollectorLocationTelemetry {
@@ -896,5 +1029,66 @@ class CollectorLocationTelemetry {
       timestamp: (json['timestamp'] as num?)?.toInt(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'latitude': latitude,
+        'longitude': longitude,
+        'heading': heading,
+        'speed': speed,
+        'distanceRemainingMeters': distanceRemainingMeters,
+        'etaMinutes': etaMinutes,
+        'transportType': transportType,
+        'timestamp': timestamp,
+      };
+}
+
+/// Puja u oferta en subasta de reciclaje por parte de centros de acopio.
+class AuctionBid {
+  AuctionBid({
+    required this.id,
+    required this.centerId,
+    required this.centerName,
+    required this.totalEstimatedPenn,
+    required this.totalEstimatedLivo,
+    required this.pricePerKg,
+    this.status = 'PENDING',
+    this.createdAt,
+  });
+
+  factory AuctionBid.fromJson(Map<String, dynamic> json) => AuctionBid(
+        id: json['id'] as String? ?? json['bidId'] as String? ?? '',
+        centerId: json['centerId'] as String? ?? '',
+        centerName: json['centerName'] as String? ?? 'Centro de Acopio',
+        totalEstimatedPenn:
+            _toDouble(json['totalEstimatedPenn'] ?? json['totalPenn']),
+        totalEstimatedLivo:
+            _toDouble(json['totalEstimatedLivo'] ?? json['totalLivo']),
+        pricePerKg: json['pricePerKg'] is Map
+            ? Map<String, double>.from((json['pricePerKg'] as Map)
+                .map((k, v) => MapEntry('$k', _toDouble(v))))
+            : {},
+        status: json['status'] as String? ?? 'PENDING',
+        createdAt: _toDate(json['createdAt']),
+      );
+
+  final String id;
+  final String centerId;
+  final String centerName;
+  final double totalEstimatedPenn;
+  final double totalEstimatedLivo;
+  final Map<String, double> pricePerKg;
+  final String status;
+  final DateTime? createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'centerId': centerId,
+        'centerName': centerName,
+        'totalEstimatedPenn': totalEstimatedPenn,
+        'totalEstimatedLivo': totalEstimatedLivo,
+        'pricePerKg': pricePerKg,
+        'status': status,
+        'createdAt': createdAt?.toIso8601String(),
+      };
 }
 

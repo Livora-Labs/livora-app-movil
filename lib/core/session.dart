@@ -415,6 +415,7 @@ class SessionController extends ChangeNotifier {
     _inFlightRefresh = null;
     _activeRequest = null;
     _kycStatus = KycStatus.unverified;
+    _unreadNotificationsCount = 0;
 
     await _secureStorage.delete(key: _tokenKey);
     await _secureStorage.delete(key: _refreshTokenKey);

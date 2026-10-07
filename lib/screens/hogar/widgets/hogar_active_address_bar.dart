@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../models/models.dart';
+import '../../../services/livora_api.dart';
 import '../../../services/location_service.dart';
 import '../../../widgets/common.dart';
 import '../../../widgets/interactive_map_picker_modal.dart';
@@ -266,6 +268,10 @@ class AddressSelectorBottomSheet extends StatelessWidget {
               style: TextStyle(fontSize: 11.5),
             ),
             onTap: () async {
+              LivoraApi? api;
+              try {
+                api = context.read<LivoraApi>();
+              } catch (_) {}
               final enabled = await LocationService.isLocationServiceEnabled();
               if (!enabled) {
                 if (!context.mounted) return;
@@ -346,13 +352,17 @@ class AddressSelectorBottomSheet extends StatelessWidget {
                 }
                 return;
               }
+
               final street = await LocationService.reverseGeocode(
                 pos.latitude,
                 pos.longitude,
+                api: api,
               );
               if (context.mounted) {
                 Navigator.pop(context, {
-                  'address': street ?? 'Ubicación GPS (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})',
+                  'address': (street != null && street.trim().isNotEmpty)
+                      ? street
+                      : 'Ubicación actual detectada',
                   'latitude': pos.latitude,
                   'longitude': pos.longitude,
                 });

@@ -486,31 +486,30 @@ class _HogarForestScreenState extends State<HogarForestScreen> {
             ),
 
             // 4. Lista desplegada de las 6 Misiones
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final quest = state.quests[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _ExpandedQuestCard(
-                        quest: quest,
-                        index: index + 1,
-                        onTapStoreCatalog: quest.id == 'quest_6_store_redemption' && !quest.isCompleted
-                            ? () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const StoresCatalogScreen(),
-                                  ),
-                                );
-                              }
-                            : null,
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                child: Column(
+                  children: [
+                    for (int i = 0; i < state.quests.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _ExpandedQuestCard(
+                          quest: state.quests[i],
+                          index: i + 1,
+                          onTapStoreCatalog: state.quests[i].id == 'quest_6_store_redemption' && !state.quests[i].isCompleted
+                              ? () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const StoresCatalogScreen(),
+                                    ),
+                                  );
+                                }
+                              : null,
+                        ),
                       ),
-                    );
-                  },
-                  childCount: state.quests.length,
+                  ],
                 ),
               ),
             ),
@@ -538,32 +537,21 @@ class _ExpandedQuestCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        // Relieve inferior estilo RPG / Duolingo táctil
-        border: Border(
-          top: BorderSide(
-            color: quest.isCompleted
-                ? quest.color.withValues(alpha: 0.35)
-                : LivoraColors.border,
-            width: 1.2,
-          ),
-          left: BorderSide(
-            color: quest.isCompleted
-                ? quest.color.withValues(alpha: 0.35)
-                : LivoraColors.border,
-            width: 1.2,
-          ),
-          right: BorderSide(
-            color: quest.isCompleted
-                ? quest.color.withValues(alpha: 0.35)
-                : LivoraColors.border,
-            width: 1.2,
-          ),
-          bottom: BorderSide(
-            color: quest.isCompleted ? quest.color : const Color(0xFFCBD5E1),
-            width: 3.5, // Reborde 3D presionante
-          ),
+        border: Border.all(
+          color: quest.isCompleted
+              ? quest.color.withValues(alpha: 0.35)
+              : LivoraColors.border,
+          width: 1.2,
         ),
         boxShadow: [
+          // Relieve inferior 3D táctil estilo RPG
+          BoxShadow(
+            color: quest.isCompleted
+                ? quest.color.withValues(alpha: 0.6)
+                : const Color(0xFFCBD5E1),
+            offset: const Offset(0, 3.5),
+            blurRadius: 0,
+          ),
           BoxShadow(
             color: quest.isCompleted
                 ? quest.color.withValues(alpha: 0.08)

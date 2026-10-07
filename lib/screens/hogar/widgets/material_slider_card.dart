@@ -272,25 +272,12 @@ class MaterialSliderCard extends StatelessWidget {
                   children: [
                     const Icon(Icons.toll, size: 14, color: LivoraColors.forest),
                     const SizedBox(width: 6),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Recompensa est.: ${livoReward.toStringAsFixed(2)} LIVO',
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: LivoraColors.forest,
-                            ),
-                          ),
-                          TextSpan(
-                            text: ' (≈ S/ ${penReward.toStringAsFixed(2)})',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: LivoraColors.ink.withValues(alpha: 0.6),
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Recompensa est.: ${livoReward.toStringAsFixed(2)} LIVO',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: LivoraColors.forest,
                       ),
                     ),
                   ],

@@ -46,12 +46,12 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
 
-    // Desglose de Ganancia y Garantía (Margen Recolector 50% = 12.50)
+    // Desglose de Ganancia (70% = 17.50) y Garantía (50% = 12.50)
     expect(find.text('Compensación y Garantía Operativa'), findsOneWidget);
-    expect(find.text('+12.5 LIVO (S/ 12.50)'), findsOneWidget);
+    expect(find.text('+17.5 LIVO (S/ 17.50)'), findsOneWidget);
     expect(find.text('12.50 LIVO'), findsOneWidget); // Garantia a retener
 
-    // Botón aceptar con saldo suficiente
+    // Botón aceptar con saldo suficiente (Escrow = 12.5 LIVO)
     expect(find.text('Aceptar recolección (12.5 LIVO)'), findsOneWidget);
     await tester.tap(find.text('Aceptar recolección (12.5 LIVO)'));
     await tester.pump();
