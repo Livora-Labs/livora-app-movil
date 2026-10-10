@@ -522,9 +522,9 @@ void showMediaViewerDialog(BuildContext context, String rawUrl, {String? title, 
   String effectiveUrl = rawUrl.trim();
   if (effectiveUrl.startsWith('ipfs://')) {
     final cid = effectiveUrl.replaceFirst('ipfs://', '').replaceFirst('ipfs/', '');
-    effectiveUrl = 'https://gateway.pinata.cloud/ipfs/$cid';
+    effectiveUrl = 'https://grupolivoralabs.com/ipfs/$cid';
   } else if (RegExp(r'^Qm[1-9A-HJ-NP-za-km-z]{44}').hasMatch(effectiveUrl)) {
-    effectiveUrl = 'https://gateway.pinata.cloud/ipfs/$effectiveUrl';
+    effectiveUrl = 'https://grupolivoralabs.com/ipfs/$effectiveUrl';
   }
 
   showDialog(
