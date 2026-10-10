@@ -101,7 +101,6 @@ class MaterialSliderCard extends StatelessWidget {
     // 40% del valor de mercado para el Hogar:
     final estimatedValuePEN = weightKg * spec.avgMarketRatePerKg;
     final livoReward = estimatedValuePEN * 0.40;
-    final penReward = livoReward;
     final co2Saved = weightKg * spec.co2FactorPerKg;
 
     return Container(

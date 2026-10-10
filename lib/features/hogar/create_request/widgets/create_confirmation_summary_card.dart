@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../core/app_theme.dart';
-import '../../../../models/models.dart';
 import '../../../../screens/hogar/widgets/material_slider_card.dart';
 import '../../../../widgets/transparent_economic_breakdown_card.dart';
 

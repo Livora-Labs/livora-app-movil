@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:livora_labs/core/api_client.dart';
-import 'package:livora_labs/features/hogar/create_request/views/create_request_view.dart';
 import 'package:livora_labs/features/hogar/create_request/widgets/create_assignment_mode_selector.dart';
 import 'package:livora_labs/features/hogar/create_request/widgets/create_donation_switch.dart';
 import 'package:livora_labs/features/hogar/request_detail/widgets/request_rating_card.dart';
-import 'package:livora_labs/services/livora_api.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-class _FakeLivoraApi extends Fake implements LivoraApi {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

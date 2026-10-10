@@ -53,7 +53,7 @@ En cumplimiento de la Ley N.° 29733 (Ley de Protección de Datos Personales) y 
 
 3. EJERCICIO DE DERECHOS ARCO (ACCESO, RECTIFICACIÓN, CANCELACIÓN Y OPOSICIÓN)
 El titular de los datos personales puede ejercer en cualquier momento sus derechos de Acceso, Rectificación, Cancelación y Oposición previstos en la Ley N.° 29733:
-- Canal de Atención: Correo electrónico privacidad@livora.pe o a través del botón "Eliminar cuenta definitivamente" en la sección de seguridad de la aplicación.
+- Canal de Atención: Correo electrónico soporte@grupolivoralabs.com o a través del botón "Eliminar cuenta definitivamente" en la sección de seguridad de la aplicación.
 - Plazo de Respuesta: Livora atenderá la solicitud en un plazo máximo legal de 10 días hábiles para rectificaciones y cancelaciones, y 20 días para solicitudes de acceso.
 
 4. SEGURIDAD Y TRANSFERENCIA DE DATOS

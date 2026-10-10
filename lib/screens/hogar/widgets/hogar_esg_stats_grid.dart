@@ -28,7 +28,6 @@ class HogarEsgStatsGrid extends StatelessWidget {
     final co2Saved = (esg?['co2SavedKg'] as num?)?.toDouble() ?? 0.0;
     final collections = (esg?['totalCollections'] as num?)?.toInt() ?? 0;
     final tokenBal = dashboardData['wallet']?['balance']?.toString() ?? "0.00";
-    final balanceVal = double.tryParse(tokenBal) ?? 0.0;
     final treesSaved = (co2Saved / 21.7).toStringAsFixed(1);
 
     return Column(

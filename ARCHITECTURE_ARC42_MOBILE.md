@@ -157,7 +157,7 @@ graph TD
 
     subgraph ExternalServices["Servicios y Backend Externo"]
         APIBackend["Livora API Service (NestJS Fastify)"]
-        SupabaseStorage["Supabase Storage (livora-uploads)"]
+        CloudflareR2["Cloudflare R2 Storage (livora-uploads)"]
         FCMServer["Firebase Cloud Messaging (FCM Push)"]
         SentryServer["Sentry Cloud (Monitoreo de Errores)"]
         StellarExplorer["Stellar Expert (Explorador Público Testnet)"]
@@ -180,7 +180,7 @@ graph TD
     ApiClient -->|Multipart Upload| APIBackend
     WebSocketClient -->|WSS Socket.IO| APIBackend
     
-    APIBackend -->|Fotos & KYC| SupabaseStorage
+    APIBackend -->|Fotos & KYC| CloudflareR2
     FCMServer -.->|Push Notifications| MobileApp
     MobileApp -->|Telemetría de Excepciones| SentryServer
     MobileApp -->|Visualización de Transacciones| StellarExplorer
@@ -299,7 +299,7 @@ Para evitar fallos en dispositivos de prueba que mantenían guardada la URL del 
 
 ### 4.4 Gestión de Sesión, JWT y Renovación Automática
 
-El backend emite tokens de acceso Supabase con expiración de 1 hora (`expiresIn: 3600`) y tokens de refresco rotativos (`refreshToken`). 
+El backend emite tokens de acceso JWT nativos con expiración de 1 hora (`expiresIn: 3600`) y tokens de refresco rotativos (`refreshToken`). 
 
 ```mermaid
 sequenceDiagram

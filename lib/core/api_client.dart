@@ -349,7 +349,7 @@ class ApiClient {
       );
     }
 
-    // El accessToken de Supabase vive 1 h. Ante un 401 en una petición
+    // El accessToken JWT vive 1 h. Ante un 401 en una petición
     // autenticada intentamos renovar la sesión una sola vez (compartida en vuelo) y repetimos.
     if (response.statusCode == 401 &&
         !refreshed &&

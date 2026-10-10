@@ -81,7 +81,6 @@ class HeroActiveRequestCard extends StatelessWidget {
     };
 
     final livoEarnings = request.hogarEstimatedEarningsPEN;
-    final penEarnings = request.hogarEstimatedEarningsPEN;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),

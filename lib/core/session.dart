@@ -12,7 +12,7 @@ import '../services/offline_queue_manager.dart';
 import 'api_client.dart';
 import 'formats.dart';
 
-/// Estado de autenticación de la app (sesión Supabase + usuario actual).
+/// Estado de autenticación de la app (sesión JWT + usuario actual).
 class SessionController extends ChangeNotifier {
   SessionController(this._api, this._prefs) {
     _api.onTokenExpired = _refreshSession;
@@ -127,8 +127,8 @@ class SessionController extends ChangeNotifier {
     }
   }
 
-  /// Token de refresco emitido por Supabase; se canjea en `POST /auth/refresh`
-  /// por una sesión nueva. Supabase lo rota en cada uso, así que siempre se
+  /// Token de refresco emitido por el backend; se canjea en `POST /auth/refresh`
+  /// por una sesión nueva. El servidor lo rota en cada uso, así que siempre se
   /// guarda el último recibido.
   String? get refreshToken => _refreshToken;
 
