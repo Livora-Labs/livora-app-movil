@@ -20,7 +20,12 @@ void main() {
     await session.restore();
     final livoraApi = LivoraApi(api);
     final realtime = LivoraRealtime(api);
+    // Sin el plugin de conectividad en el entorno de test, la comprobación
+    // inicial falla y el servicio se queda en su estado por defecto (online)
+    // sin tocar la red. Se cierra al terminar: cuando se detecta offline
+    // arranca un timer periódico que, sin dispose, se filtra entre tests.
     final connectivity = NetworkConnectivityService();
+    addTearDown(connectivity.dispose);
 
     await tester.pumpWidget(LivoraApp(
       api: api,

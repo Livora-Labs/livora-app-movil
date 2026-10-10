@@ -4,21 +4,51 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/env_config.dart';
+
 enum NetworkReachabilityState {
   online,
   offline,
   checking,
 }
 
+/// Comprueba si `host:port` es alcanzable dentro de `timeout`.
+typedef ReachabilityProbe = Future<bool> Function(
+  String host,
+  int port,
+  Duration timeout,
+);
+
+/// Sonda real por defecto: completa un handshake TCP.
+Future<bool> _tcpProbe(String host, int port, Duration timeout) async {
+  Socket? socket;
+  try {
+    socket = await Socket.connect(host, port, timeout: timeout);
+    return true;
+  } catch (_) {
+    return false;
+  } finally {
+    // Siempre cerrar: un socket colgado filtra descriptores de archivo.
+    socket?.destroy();
+  }
+}
+
 /// Servicio centralizado de conectividad y accesibilidad real a internet para producción.
 /// Valida no solo la interfaz de radio (WiFi/Celular) sino también la resolución y alcance real de red.
 class NetworkConnectivityService extends ChangeNotifier {
-  NetworkConnectivityService({Connectivity? connectivity})
-      : _connectivity = connectivity ?? Connectivity() {
+  NetworkConnectivityService({
+    Connectivity? connectivity,
+    ReachabilityProbe? reachabilityProbe,
+  })  : _connectivity = connectivity ?? Connectivity(),
+        _reachabilityProbe = reachabilityProbe ?? _tcpProbe {
     _init();
   }
 
   final Connectivity _connectivity;
+
+  /// Sonda de alcance real. Se inyecta en los tests para ejercitar la máquina
+  /// de estados sin depender de la red.
+  final ReachabilityProbe _reachabilityProbe;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   Timer? _offlinePollingTimer;
 
@@ -77,25 +107,22 @@ class NetworkConnectivityService extends ChangeNotifier {
     }
   }
 
-  /// Prueba ligera de alcance por resolución DNS y socket TCP con timeout estricto.
+  /// Prueba de alcance real: abre un socket TCP contra el backend.
+  ///
+  /// No sirve resolver una IP literal como `8.8.8.8`: `InternetAddress.lookup`
+  /// la devuelve sin tocar la red (incluso en modo avión), así que daría
+  /// "online" siempre. Tampoco basta el DNS del dominio, porque puede venir
+  /// de la caché. Lo único concluyente es completar un handshake TCP.
+  ///
+  /// El fallback contra el DNS público de Google cubre el caso de que el
+  /// backend esté caído pero el dispositivo sí tenga internet.
   Future<bool> _probeReachability() async {
-    try {
-      final result = await InternetAddress.lookup('api.grupolivoralabs.com')
-          .timeout(const Duration(milliseconds: 3000));
-      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
-        return true;
-      }
-    } catch (_) {
-      // Fallback a servidor DNS público global en caso de fallo temporal de resolución específica
-      try {
-        final fallback = await InternetAddress.lookup('8.8.8.8')
-            .timeout(const Duration(milliseconds: 2500));
-        return fallback.isNotEmpty && fallback[0].rawAddress.isNotEmpty;
-      } catch (_) {
-        return false;
-      }
+    final host = Uri.parse(EnvConfig.apiBaseUrl).host;
+    if (await _reachabilityProbe(host, 443, const Duration(seconds: 3))) {
+      return true;
     }
-    return false;
+    // 8.8.8.8:53 — aquí sí se conecta de verdad al puerto, no se resuelve.
+    return _reachabilityProbe('8.8.8.8', 53, const Duration(milliseconds: 2500));
   }
 
   void _setOnlineState() {

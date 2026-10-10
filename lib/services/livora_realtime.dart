@@ -104,7 +104,9 @@ class LivoraRealtime extends ChangeNotifier {
           // donde proxies o NAT de operadoras celulares bloquean upgrades directos WSS.
           .setTransports(['websocket', 'polling'])
           .enableReconnection()
-          .setReconnectionAttempts(999999)
+          // Reintentos infinitos: es el valor por defecto del manager, así que
+          // no se fija a mano. Ojo con `double.infinity.toInt()`, que en Dart
+          // lanza UnsupportedError en vez de devolver un entero grande.
           .setReconnectionDelay(1000)
           .setReconnectionDelayMax(5000)
           .disableAutoConnect()
