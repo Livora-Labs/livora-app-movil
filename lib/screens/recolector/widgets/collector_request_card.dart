@@ -386,15 +386,37 @@ class _CollectorRequestCardState extends State<CollectorRequestCard> {
     if (widget.kycStatus == KycStatus.pending) {
       return FilledButton.icon(
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.grey.shade400,
+          backgroundColor: Colors.amber.shade700,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        onPressed: null,
+        onPressed: () {
+          showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.hourglass_top, color: LivoraColors.forest),
+                  SizedBox(width: 8),
+                  Text('Cuenta en Revisión'),
+                ],
+              ),
+              content: const Text(
+                'Tu documentación de identidad (KYC) ha sido enviada y se encuentra en proceso de validación por el equipo de operaciones.\n\nUna vez aprobada, podrás aceptar y recolectar solicitudes en tu zona.',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Entendido'),
+                ),
+              ],
+            ),
+          );
+        },
         icon: const Icon(Icons.hourglass_top, size: 18),
         label: const Text(
-          'Cuenta en revisión',
+          'Cuenta en revisión (Toca para ver info)',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       );

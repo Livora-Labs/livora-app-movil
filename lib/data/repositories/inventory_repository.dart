@@ -1,15 +1,16 @@
+import '../../domain/repositories/i_inventory_repository.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../local/app_local_cache.dart';
 
 /// Repositorio desacoplado para el Kárdex, stock y despachos B2B de Centros de Acopio.
 /// Soporta persistencia Hive Cache-First para operación continua sin cobertura.
-class InventoryRepository {
+class InventoryRepository implements IInventoryRepository {
   final LivoraApi _api;
 
   InventoryRepository(this._api);
 
-  /// Obtiene los ítems del inventario actual con cache SWR.
+  @override
   Future<List<InventoryItem>> getInventory(String centerId, {bool forceRefresh = false}) async {
     final cached = AppLocalCache.getInventory(centerId);
     if (cached != null && !forceRefresh) {
@@ -31,12 +32,12 @@ class InventoryRepository {
     }
   }
 
-  /// Obtiene las transferencias B2B hacia transformadores o industrias.
+  @override
   Future<List<B2bTransfer>> getB2bTransfers() {
     return _api.fetchB2bTransfers();
   }
 
-  /// Confirma y acepta una transferencia B2B entrante.
+  @override
   Future<void> acceptTransfer(String transferId, {
     required Map<String, double> actualMaterials,
     String? notes,
@@ -51,7 +52,7 @@ class InventoryRepository {
     );
   }
 
-  /// Registra un movimiento de salida o merma en el inventario.
+  @override
   Future<void> createMovement({
     required String type,
     required String materialType,
@@ -64,7 +65,7 @@ class InventoryRepository {
     );
   }
 
-  /// Obtiene los movimientos paginados de inventario.
+  @override
   Future<List<InventoryMovement>> getMovements({
     required String materialType,
     int page = 1,

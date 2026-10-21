@@ -4,7 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/api_client.dart';
-import '../../../../data/repositories/collection_repository.dart';
+import '../../../../domain/repositories/i_collection_repository.dart';
 import '../../../../domain/state/ui_state.dart';
 import '../../../../models/models.dart';
 import '../../../../services/livora_realtime.dart';
@@ -16,7 +16,7 @@ import '../../../../services/location_service.dart';
 class RequestDetailViewModel extends ChangeNotifier {
   RequestDetailViewModel({
     required this.requestId,
-    required CollectionRepository repository,
+    required ICollectionRepository repository,
     required LivoraRealtime realtime,
   })  : _repository = repository,
         _realtime = realtime {
@@ -24,7 +24,7 @@ class RequestDetailViewModel extends ChangeNotifier {
   }
 
   final String requestId;
-  final CollectionRepository _repository;
+  final ICollectionRepository _repository;
   final LivoraRealtime _realtime;
 
   UIState<CollectionRequest> _state = const UIState.initial();

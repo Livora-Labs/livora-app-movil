@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:livora_labs/data/repositories/auctions_repository.dart';
+import 'package:livora_labs/domain/repositories/i_auctions_repository.dart';
 import 'package:livora_labs/domain/state/ui_state.dart';
 import 'package:livora_labs/models/models.dart';
 import 'package:livora_labs/services/livora_realtime.dart';
 
 /// ViewModel desacoplado para la gestión de subastas y cotizaciones de Centros de Acopio.
 class AuctionsViewModel extends ChangeNotifier {
-  final AuctionsRepository _repository;
+  final IAuctionsRepository _repository;
   final LivoraRealtime? _realtime;
   final String? _centerId;
 
@@ -26,7 +26,7 @@ class AuctionsViewModel extends ChangeNotifier {
   final List<StreamSubscription> _subscriptions = [];
 
   AuctionsViewModel({
-    required AuctionsRepository repository,
+    required IAuctionsRepository repository,
     String? centerId,
     LivoraRealtime? realtime,
   })  : _repository = repository,

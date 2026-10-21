@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/api_client.dart';
 import '../../core/session.dart';
+import '../../data/repositories/complaints_repository.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 
@@ -98,12 +99,12 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
     HapticFeedback.mediumImpact();
 
     try {
-      final api = context.read<LivoraApi>();
+      final repo = ComplaintsRepository(api: context.read<LivoraApi>());
       final amountVal = _amountController.text.trim().isNotEmpty
           ? double.tryParse(_amountController.text.trim())
           : null;
 
-      final res = await api.createComplaint(
+      final res = await repo.submitComplaint(
         documentType: _documentType,
         documentNumber: _docNumberController.text.trim(),
         fullName: _fullNameController.text.trim(),
@@ -159,6 +160,13 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Consultar Estado de Reclamo',
+            icon: const Icon(Icons.track_changes_rounded),
+            onPressed: _showTrackComplaintDialog,
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -522,6 +530,163 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+
+  Future<void> _showTrackComplaintDialog() async {
+    final correlativeCtrl = TextEditingController();
+    final docNumberCtrl = TextEditingController();
+    final trackFormKey = GlobalKey<FormState>();
+    bool tracking = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.track_changes_rounded, color: LivoraColors.forest),
+                SizedBox(width: 8),
+                Text('Seguimiento de Reclamo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Form(
+              key: trackFormKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ingresa tu número correlativo y documento de identidad para verificar el estado de atención:',
+                    style: TextStyle(fontSize: 12.5, color: LivoraColors.slate),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: correlativeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Número Correlativo *',
+                      hintText: 'Ej. R-00001-2026 o Q-00001-2026',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: docNumberCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Número de Documento (DNI/CE/RUC) *',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: tracking ? null : () => Navigator.pop(ctx),
+                child: const Text('Cerrar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+                onPressed: tracking
+                    ? null
+                    : () async {
+                        if (!trackFormKey.currentState!.validate()) return;
+                        setDialogState(() => tracking = true);
+                        try {
+                          final api = context.read<LivoraApi>();
+                          final res = await api.trackComplaint(
+                            correlativeNumber: correlativeCtrl.text.trim(),
+                            documentNumber: docNumberCtrl.text.trim(),
+                          );
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                            _showTrackingResultDialog(res);
+                          }
+                        } catch (e) {
+                          setDialogState(() => tracking = false);
+                          if (ctx.mounted) {
+                            showAppSnack(ctx, 'No se encontró la reclamación o los datos no coinciden', error: true);
+                          }
+                        }
+                      },
+                child: tracking
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Consultar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showTrackingResultDialog(Map<String, dynamic> data) {
+    final status = data['status'] as String? ?? 'RECEIVED';
+    final correlative = data['correlativeNumber'] as String? ?? '';
+    final createdAt = data['createdAt'] != null ? DateTime.tryParse(data['createdAt'].toString()) : null;
+    final responseText = data['responseText'] as String?;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Estado de la Reclamación', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: status == 'RESOLVED' ? Colors.green.shade50 : Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: status == 'RESOLVED' ? Colors.green : Colors.amber),
+              ),
+              child: Text(
+                'ESTADO: $status',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: status == 'RESOLVED' ? Colors.green.shade800 : Colors.amber.shade900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Correlativo: $correlative', style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (createdAt != null) ...[
+              const SizedBox(height: 4),
+              Text('Fecha de registro: ${createdAt.day}/${createdAt.month}/${createdAt.year}'),
+            ],
+            const SizedBox(height: 10),
+            if (responseText != null && responseText.isNotEmpty) ...[
+              const Text('Respuesta oficial:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(responseText, style: const TextStyle(fontSize: 13)),
+            ] else ...[
+              const Text(
+                'Tu reclamación se encuentra en trámite. Conforme a ley, el plazo de respuesta es de hasta 15 días hábiles.',
+                style: TextStyle(fontSize: 12, color: LivoraColors.slate),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Aceptar'),
+          ),
+        ],
       ),
     );
   }

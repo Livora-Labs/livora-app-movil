@@ -998,6 +998,18 @@ class LivoraApi {
     return raw as Map<String, dynamic>;
   }
 
+  /// Consulta el estado público de una reclamación mediante correlativo y documento (Ley 29571).
+  Future<Map<String, dynamic>> trackComplaint({
+    required String correlativeNumber,
+    required String documentNumber,
+  }) async {
+    final raw = await client.post('/complaints/track', body: {
+      'correlativeNumber': correlativeNumber,
+      'documentNumber': documentNumber,
+    });
+    return raw as Map<String, dynamic>;
+  }
+
   // ---------------------------------------------------------------- Gamificación Mi Bosque
 
   /// Consulta el estado del Árbol Semanal y las 6 misiones calculadas por el backend.

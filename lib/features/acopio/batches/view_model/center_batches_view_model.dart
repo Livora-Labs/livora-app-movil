@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../../../../data/repositories/batch_repository.dart';
+import '../../../../domain/repositories/i_batch_repository.dart';
 import '../../../../domain/state/ui_state.dart';
 import '../../../../models/models.dart';
 import '../../../../services/livora_api.dart';
@@ -10,19 +10,17 @@ import '../../../../services/livora_realtime.dart';
 /// Implementa Cache-First con SWR para carga instantánea y resiliencia offline en galpones.
 class CenterBatchesViewModel extends ChangeNotifier {
   CenterBatchesViewModel({
-    required BatchRepository repository,
+    required IBatchRepository repository,
     required LivoraRealtime realtime,
-    required LivoraApi api,
+    LivoraApi? api,
   })  : _repository = repository,
         _realtime = realtime,
-        _api = api,
         _state = const UIState.initial() {
     _init();
   }
 
-  final BatchRepository _repository;
+  final IBatchRepository _repository;
   final LivoraRealtime _realtime;
-  final LivoraApi _api;
 
   UIState<List<Batch>> _state;
   String? _selectedFilter;
@@ -115,7 +113,7 @@ class CenterBatchesViewModel extends ChangeNotifier {
     _safeNotify();
 
     try {
-      await _api.consolidateBatches(_selectedBatchIds.toList());
+      await _repository.consolidateBatches(_selectedBatchIds.toList());
       _selectedBatchIds.clear();
       await loadBatches(forceRefresh: true);
       _isConsolidating = false;

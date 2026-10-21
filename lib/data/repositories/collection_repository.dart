@@ -1,21 +1,20 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../../domain/repositories/i_collection_repository.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../local/app_local_cache.dart';
 
 /// Repositorio desacoplado para solicitudes de recolección de residuos.
 /// Implementa una estrategia de datos Cache-First con SWR (Stale-While-Revalidate).
-class CollectionRepository {
+class CollectionRepository implements ICollectionRepository {
   CollectionRepository({
     required LivoraApi api,
   }) : _api = api;
 
   final LivoraApi _api;
 
-  /// Obtiene una solicitud por su ID.
-  /// Si está en caché local de Hive, la retorna de inmediato sin latencia de red.
-  /// En segundo plano (o si no está en caché o [forceRefresh] es true), consulta la API remota.
+  @override
   Future<CollectionRequest> getRequest(
     String id, {
     bool forceRefresh = false,
@@ -45,7 +44,7 @@ class CollectionRepository {
     return remoteRequest;
   }
 
-  /// Flujo reactivo SWR: emite primero la versión cacheada (si existe) y luego la versión fresca de red.
+  @override
   Stream<CollectionRequest> watchRequest(String id) async* {
     final cachedJson = AppLocalCache.getRequest(id);
     if (cachedJson != null) {
@@ -66,7 +65,7 @@ class CollectionRepository {
     }
   }
 
-  /// Cancela una solicitud de recolección y actualiza la caché local.
+  @override
   Future<void> cancelRequest(String id, {String? reason}) async {
     await _api.updateCollectionStatus(id, 'CANCELLED');
     final cached = AppLocalCache.getRequest(id);
@@ -76,7 +75,7 @@ class CollectionRepository {
     }
   }
 
-  /// Edita los materiales estimados o notas de una solicitud pendiente o en subasta abierta.
+  @override
   Future<void> editRequest(
     String id, {
     Map<String, double>? itemsEstimated,
@@ -91,7 +90,7 @@ class CollectionRepository {
     await AppLocalCache.putRequest(id, fresh.toJson());
   }
 
-  /// Selecciona una propuesta de subasta (bid) y sincroniza la orden.
+  @override
   Future<void> selectBid(String requestId, String bidId) async {
     await _api.selectBid(requestId, bidId);
     // Invalidar caché para forzar recarga fresca del nuevo centro asignado
@@ -99,7 +98,7 @@ class CollectionRepository {
     await AppLocalCache.putRequest(requestId, fresh.toJson());
   }
 
-  /// Califica el servicio de recolección y actualiza la caché local.
+  @override
   Future<void> rateRequest(String id, {required int rating, String? feedback}) async {
     await _api.rateCollectionRequest(id, rating: rating, feedback: feedback);
     final cached = AppLocalCache.getRequest(id);
@@ -110,7 +109,14 @@ class CollectionRepository {
     }
   }
 
-  /// Calcula la ruta vehicular/pedestre entre dos coordenadas a través del proxy backend OSRM.
+  @override
+  Future<CollectionRequest> confirmArrival(String id) async {
+    final updated = await _api.confirmArrival(id);
+    await AppLocalCache.putRequest(id, updated.toJson());
+    return updated;
+  }
+
+  @override
   Future<Map<String, dynamic>> calculateRoute({
     required double originLat,
     required double originLng,

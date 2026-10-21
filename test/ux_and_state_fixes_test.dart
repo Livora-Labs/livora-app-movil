@@ -1,3 +1,5 @@
+import 'package:livora_labs/features/acopio/inventory/widgets/inventory_item_card.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:livora_labs/core/api_client.dart';
@@ -100,6 +102,31 @@ void main() {
       expect(updated.walletAddress, equals('GBRPB7W6NYKPVKCG...'));
       expect(updated.name, equals('Huarique Nuevo'));
       expect(updated.phone, equals('999888777'));
+    });
+
+    testWidgets('Zero dead controls: InventoryItemCard invokes callback on tap', (tester) async {
+      bool tapped = false;
+      final item = InventoryItem(
+        id: 'item-pet-1',
+        materialType: 'PET',
+        quantityKg: 45.5,
+        updatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InventoryItemCard(
+              item: item,
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(InventoryItemCard));
+      await tester.pump();
+      expect(tapped, isTrue);
     });
   });
 }

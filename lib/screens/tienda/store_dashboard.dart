@@ -11,6 +11,10 @@ import '../../widgets/store_redemption_detail_modal.dart';
 import '../../widgets/store_settlement_detail_modal.dart';
 import '../common/notifications_screen.dart';
 import '../common/profile.dart';
+import '../../data/repositories/store_repository.dart';
+import '../../data/repositories/wallet_repository.dart';
+import '../../domain/repositories/i_store_repository.dart';
+import '../../domain/repositories/i_wallet_repository.dart';
 import '../../models/models.dart';
 import '../shell/home_shell.dart';
 import 'store_onboarding_screen.dart';
@@ -21,13 +25,25 @@ import 'widgets/store_quick_actions_bar.dart';
 
 /// Centro de control comercial y panel de operaciones para el rol TIENDA.
 class StoreDashboard extends StatefulWidget {
-  const StoreDashboard({super.key});
+  const StoreDashboard({
+    super.key,
+    this.walletRepository,
+    this.storeRepository,
+  });
+
+  final IWalletRepository? walletRepository;
+  final IStoreRepository? storeRepository;
 
   @override
   State<StoreDashboard> createState() => _StoreDashboardState();
 }
 
 class _StoreDashboardState extends State<StoreDashboard> {
+  IWalletRepository get _walletRepo =>
+      widget.walletRepository ?? WalletRepository(context.read<LivoraApi>());
+
+  IStoreRepository get _storeRepo =>
+      widget.storeRepository ?? StoreRepository(api: context.read<LivoraApi>());
   bool _loading = true;
   String? _balance;
   Map<String, dynamic>? _storeProfile;
@@ -46,10 +62,10 @@ class _StoreDashboardState extends State<StoreDashboard> {
       final api = context.read<LivoraApi>();
       await context.read<SessionController>().refreshKycStatus(api);
       final results = await Future.wait([
-        api.walletBalance(),
-        api.getStoreProfile(),
-        api.storeRedemptions(page: 1, limit: 10),
-        api.storeSettlements(page: 1, limit: 5),
+        _walletRepo.getBalance(),
+        _storeRepo.getStoreProfile(),
+        _storeRepo.getRedemptions(page: 1, limit: 10),
+        _storeRepo.getSettlements(page: 1, limit: 5),
       ]);
 
       if (mounted) {

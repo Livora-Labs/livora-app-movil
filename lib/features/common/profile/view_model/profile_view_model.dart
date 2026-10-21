@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../../data/repositories/profile_repository.dart';
+import '../../../../domain/repositories/i_profile_repository.dart';
 import '../../../../domain/state/ui_state.dart';
 import '../../../../models/models.dart';
 import '../../../../services/location_service.dart';
@@ -8,13 +8,13 @@ import '../../../../services/location_service.dart';
 /// ViewModel desacoplado para la gestión del perfil del usuario.
 class ProfileViewModel extends ChangeNotifier {
   ProfileViewModel({
-    required ProfileRepository repository,
+    required IProfileRepository repository,
     required AuthUser initialUser,
   })  : _repository = repository,
         _user = initialUser,
         _state = UIState.success(initialUser);
 
-  final ProfileRepository _repository;
+  final IProfileRepository _repository;
   AuthUser _user;
   UIState<AuthUser> _state;
 

@@ -5,7 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import '../../../../data/repositories/collection_repository.dart';
+import '../../../../domain/repositories/i_collection_repository.dart';
 import '../../../../domain/state/ui_state.dart';
 import '../../../../models/models.dart';
 import '../../../../services/location_service.dart';
@@ -15,7 +15,7 @@ import '../../../../services/telemetry_service.dart';
 class CollectorRouteViewModel extends ChangeNotifier {
   CollectorRouteViewModel({
     required CollectionRequest initialRequest,
-    required CollectionRepository repository,
+    required ICollectionRepository repository,
     required TelemetryService telemetryService,
     double? initialCollectorLat,
     double? initialCollectorLng,
@@ -29,7 +29,7 @@ class CollectorRouteViewModel extends ChangeNotifier {
     _init();
   }
 
-  final CollectionRepository _repository;
+  final ICollectionRepository _repository;
   final TelemetryService _telemetryService;
   final CollectionRequest _request;
   final UIState<CollectionRequest> _state;
@@ -182,7 +182,7 @@ class CollectorRouteViewModel extends ChangeNotifier {
     _isBusy = true;
     _safeNotify();
     try {
-      await _repository.cancelRequest(_request.id); // O actualización de estado a ARRIVED
+      await _repository.confirmArrival(_request.id);
       _telemetryService.stopTracking();
       _isBusy = false;
       _safeNotify();

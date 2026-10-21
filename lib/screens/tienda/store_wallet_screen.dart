@@ -7,6 +7,10 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
 import '../../core/stellar.dart';
+import '../../data/repositories/store_repository.dart';
+import '../../data/repositories/wallet_repository.dart';
+import '../../domain/repositories/i_store_repository.dart';
+import '../../domain/repositories/i_wallet_repository.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/cash_out_modal.dart';
@@ -21,13 +25,25 @@ import 'widgets/store_counter_qr_flyer_dialog.dart';
 /// Billetera comercial dedicada para comercios aliados (Rol TIENDA).
 /// Centraliza la custodia de tokens de cobro POS y la solicitud de liquidación FIAT a cuenta CCI.
 class StoreWalletScreen extends StatefulWidget {
-  const StoreWalletScreen({super.key});
+  const StoreWalletScreen({
+    super.key,
+    this.walletRepository,
+    this.storeRepository,
+  });
+
+  final IWalletRepository? walletRepository;
+  final IStoreRepository? storeRepository;
 
   @override
   State<StoreWalletScreen> createState() => _StoreWalletScreenState();
 }
 
 class _StoreWalletScreenState extends State<StoreWalletScreen> {
+  IWalletRepository get _walletRepo =>
+      widget.walletRepository ?? WalletRepository(context.read<LivoraApi>());
+
+  IStoreRepository get _storeRepo =>
+      widget.storeRepository ?? StoreRepository(api: context.read<LivoraApi>());
   String? _balance;
   Map<String, dynamic>? _storeProfile;
   List<dynamic>? _recentSettlements;
@@ -42,11 +58,10 @@ class _StoreWalletScreenState extends State<StoreWalletScreen> {
   Future<void> _loadAll() async {
     setState(() => _loading = true);
     try {
-      final api = context.read<LivoraApi>();
       final results = await Future.wait([
-        api.walletBalance(),
-        api.getStoreProfile(),
-        api.storeSettlements(),
+        _walletRepo.getBalance(),
+        _storeRepo.getStoreProfile(),
+        _storeRepo.getSettlements(),
       ]);
 
       if (mounted) {

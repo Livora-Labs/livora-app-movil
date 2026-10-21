@@ -12,6 +12,8 @@ import 'package:latlong2/latlong.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/session.dart';
+import '../../data/repositories/collector_repository.dart';
+import '../../data/repositories/wallet_repository.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/location_service.dart';
@@ -215,6 +217,10 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     _loadInProgress = true;
     final api = context.read<LivoraApi>();
     final session = context.read<SessionController>();
+    final collectorRepo = CollectorRepository(api: api);
+    final walletRepo = WalletRepository(api, session);
+
+
 
     final lat = _userLat ?? -12.0464;
     final lng = _userLng ?? -77.0428;
@@ -222,7 +228,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
     try {
       final Future<List<CollectionRequest>> fetchReqs;
       if (_userLat != null && _userLng != null) {
-        fetchReqs = api.availableCollectionRequests(
+        fetchReqs = collectorRepo.getAvailableRequests(
           lat: lat,
           lng: lng,
           radiusKm: _selectedRadiusKm,
@@ -230,13 +236,13 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
           onlyActiveBatches: _onlyActiveBatches,
         );
       } else {
-        fetchReqs = api.collectionRequests(lat: lat, lng: lng, radiusKm: _selectedRadiusKm);
+        fetchReqs = collectorRepo.getAvailableRequests(lat: lat, lng: lng, radiusKm: _selectedRadiusKm);
       }
 
       final results = await Future.wait([
         fetchReqs,
-        api.openBatches().catchError((_) => <Batch>[]),
-        api.walletBalance().catchError((_) => '0.00'),
+        collectorRepo.getOpenBatches().catchError((_) => <Batch>[]),
+        walletRepo.getBalance().catchError((_) => '0.00'),
         session.refreshKycStatus(api),
       ]);
 
@@ -287,6 +293,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
   Future<void> _accept(CollectionRequest request) async {
     HapticFeedback.lightImpact();
     final session = context.read<SessionController>();
+
     if (session.kycStatus != KycStatus.approved) {
       Navigator.push(
         context,
@@ -303,9 +310,9 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
 
     setState(() => _acceptingId = request.id);
     try {
-      await context
-          .read<LivoraApi>()
-          .updateCollectionStatus(request.id, 'ACCEPTED');
+      await
+          CollectorRepository(api: context.read<LivoraApi>())
+          .acceptRequest(request.id);
       if (!mounted) return;
       showAppSnack(context, '¡Solicitud asignada a tu vehículo!');
       context.read<SessionController>().notifyBatchesChanged();
@@ -355,7 +362,7 @@ class _AvailableRequestsScreenState extends State<AvailableRequestsScreen> {
 
   Future<void> _showReputation(BuildContext context) async {
     try {
-      final rep = await context.read<LivoraApi>().collectorReputation();
+      final rep = await CollectorRepository(api: context.read<LivoraApi>()).getReputation();
       if (!context.mounted) return;
       await showLivoraDialog<void>(
         context,

@@ -7,6 +7,8 @@ import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
+import '../../data/repositories/notification_repository.dart';
+import '../../domain/repositories/i_notification_repository.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
@@ -18,13 +20,17 @@ import '../shell/home_shell.dart';
 import 'profile.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.repository});
+
+  final INotificationRepository? repository;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  INotificationRepository get _repo =>
+      widget.repository ?? NotificationRepository(api: context.read<LivoraApi>());
   List<AppNotification>? _items;
   String? _error;
   int? _lastBatchesVersion;
@@ -56,7 +62,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (_loadInProgress) return;
     _loadInProgress = true;
     try {
-      final items = await context.read<LivoraApi>().notifications();
+      final items = await _repo.getNotifications();
       if (mounted) {
         setState(() {
           _items = items;
@@ -69,7 +75,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Future.delayed(const Duration(milliseconds: 1000), () async {
             if (!mounted) return;
             try {
-              await context.read<LivoraApi>().markAllNotificationsRead();
+              await _repo.markAllAsRead();
               if (mounted) {
                 context.read<SessionController>().setUnreadNotificationsCount(0);
                 setState(() {
@@ -120,10 +126,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       });
       final unread = updatedList.where((n) => !n.isRead).length;
       context.read<SessionController>().setUnreadNotificationsCount(unread);
-      context
-          .read<LivoraApi>()
-          .markNotification(item.id, isRead: true)
-          .catchError((_) {});
+      _repo.markAsRead(item.id).catchError((_) {});
     }
 
     final session = context.read<SessionController>();
@@ -240,9 +243,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     context.read<SessionController>().setUnreadNotificationsCount(0);
 
-    final api = context.read<LivoraApi>();
     try {
-      await api.markAllNotificationsRead();
+      await _repo.markAllAsRead();
       if (mounted) {
         showAppSnack(context, 'Todas las notificaciones marcadas como leídas');
       }

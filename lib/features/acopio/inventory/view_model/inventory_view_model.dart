@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:livora_labs/data/repositories/inventory_repository.dart';
+import 'package:livora_labs/domain/repositories/i_inventory_repository.dart';
 import 'package:livora_labs/domain/state/ui_state.dart';
 import 'package:livora_labs/models/models.dart';
 import 'package:livora_labs/services/livora_realtime.dart';
 
 /// ViewModel desacoplado para el control de stock, Kárdex y transferencias B2B.
 class InventoryViewModel extends ChangeNotifier {
-  final InventoryRepository _repository;
+  final IInventoryRepository _repository;
   final LivoraRealtime? _realtime;
   final String _centerId;
 
@@ -23,7 +23,7 @@ class InventoryViewModel extends ChangeNotifier {
   final List<StreamSubscription> _subscriptions = [];
 
   InventoryViewModel({
-    required InventoryRepository repository,
+    required IInventoryRepository repository,
     required String centerId,
     LivoraRealtime? realtime,
     bool canRegisterSale = false,

@@ -18,6 +18,98 @@ class InventoryView extends StatelessWidget {
 
   const InventoryView({super.key, this.canRegisterSale = false});
 
+  void _showItemDetailsModal(BuildContext context, InventoryItem item) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (bCtx) => Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: LivoraColors.forest.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.recycling_rounded, color: LivoraColors.forest, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.materialType.toUpperCase(),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                    ),
+                    const Text('Material clasificado en planta', style: TextStyle(color: LivoraColors.slate, fontSize: 13)),
+                  ],
+                ),
+              ],
+            ),
+            const Divider(height: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Stock Disponible en Planta:', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                Text(
+                  fmtKg(item.quantityKg),
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: LivoraColors.forest),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Última Actualización:', style: TextStyle(fontSize: 13, color: LivoraColors.slate)),
+                Text(
+                  fmtDate(item.updatedAt),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(bCtx),
+                    child: const Text('Cerrar'),
+                  ),
+                ),
+                if (canRegisterSale) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(backgroundColor: LivoraColors.forest),
+                      onPressed: () {
+                        Navigator.pop(bCtx);
+                        Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SaleScreen()),
+                        );
+                      },
+                      icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 18),
+                      label: const Text('Vender B2B'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showAcceptTransferModal(BuildContext context, InventoryViewModel vm, B2bTransfer transfer) async {
     final controllers = <String, TextEditingController>{};
     final matList = transfer.materials.isNotEmpty ? transfer.materials.keys.toList() : ['PET'];
@@ -188,7 +280,7 @@ class InventoryView extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (_, i) => InventoryItemCard(
         item: items[i],
-        onTap: () {},
+        onTap: () => _showItemDetailsModal(context, items[i]),
       ),
     );
   }

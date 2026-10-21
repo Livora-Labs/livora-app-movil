@@ -7,6 +7,7 @@ import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/session.dart';
+import '../../data/repositories/batch_repository.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../services/livora_realtime.dart';
@@ -80,9 +81,9 @@ class _MyBatchScreenState extends State<MyBatchScreen> {
   Future<void> _load() async {
     if (_loadInProgress) return;
     _loadInProgress = true;
-    final api = context.read<LivoraApi>();
+    final batchRepo = BatchRepository(api: context.read<LivoraApi>());
     try {
-      final results = await Future.wait([api.openBatches(), api.batches()]);
+      final results = await Future.wait([batchRepo.getOpenBatches(), batchRepo.getBatches()]);
       if (!mounted) return;
       setState(() {
         _openBatches = results[0].where((b) => b.status == 'OPEN').toList();

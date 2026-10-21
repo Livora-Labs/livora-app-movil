@@ -6,6 +6,8 @@ import '../../core/app_theme.dart';
 import '../../core/formats.dart';
 import '../../core/paging_controller.dart';
 import '../../core/stellar.dart';
+import '../../data/repositories/wallet_repository.dart';
+import '../../domain/repositories/i_wallet_repository.dart';
 import '../../models/models.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/livora_empty_state.dart';
@@ -15,7 +17,9 @@ import '../../widgets/wallet_transaction_voucher_modal.dart';
 /// Pantalla dedicada para consultar el historial completo de movimientos,
 /// recompensas y canjes en Stellar / Soles de la billetera.
 class WalletTransactionsScreen extends StatefulWidget {
-  const WalletTransactionsScreen({super.key});
+  const WalletTransactionsScreen({super.key, this.walletRepository});
+
+  final IWalletRepository? walletRepository;
 
   @override
   State<WalletTransactionsScreen> createState() =>
@@ -23,6 +27,8 @@ class WalletTransactionsScreen extends StatefulWidget {
 }
 
 class _WalletTransactionsScreenState extends State<WalletTransactionsScreen> {
+  IWalletRepository get _walletRepo =>
+      widget.walletRepository ?? WalletRepository(context.read<LivoraApi>());
   late final PagingController<WalletTransaction> _pagingController;
   String? _balance;
   String _selectedFilter = 'TODAS'; // 'TODAS', 'IN', 'OUT'
@@ -42,7 +48,7 @@ class _WalletTransactionsScreenState extends State<WalletTransactionsScreen> {
     if (page == 1) {
       _loadBalance();
     }
-    return context.read<LivoraApi>().walletTransactions(
+    return _walletRepo.getTransactions(
           page: page,
           limit: limit,
           direction: _selectedFilter == 'TODAS' ? null : _selectedFilter,
@@ -51,7 +57,7 @@ class _WalletTransactionsScreenState extends State<WalletTransactionsScreen> {
 
   Future<void> _loadBalance() async {
     try {
-      final bal = await context.read<LivoraApi>().walletBalance();
+      final bal = await _walletRepo.getBalance();
       if (mounted) {
         setState(() => _balance = bal);
       }

@@ -132,6 +132,40 @@ class _CollectorActiveRouteContentState extends State<_CollectorActiveRouteConte
                   ),
                 Row(
                   children: [
+                    if (req.status == 'EN_ROUTE') ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: LivoraColors.deep,
+                            side: const BorderSide(color: LivoraColors.forest, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: const Icon(Icons.where_to_vote_rounded, color: LivoraColors.forest),
+                          label: vm.isBusy
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: LivoraColors.forest),
+                                )
+                              : const Text(
+                                  'Llegué al Domicilio',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                                ),
+                          onPressed: vm.isBusy
+                              ? null
+                              : () async {
+                                  final ok = await vm.markArrived();
+                                  if (ok && context.mounted) {
+                                    showAppSnack(context, '¡Arribo confirmado! Sensor GPS apagado.');
+                                    _openVerificationModal(context, req);
+                                  }
+                                },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
@@ -144,7 +178,7 @@ class _CollectorActiveRouteContentState extends State<_CollectorActiveRouteConte
                         icon: const Icon(Icons.verified_user_rounded),
                         label: const Text(
                           'Verificar con PIN',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
                         ),
                         onPressed: () => _openVerificationModal(context, req),
                       ),

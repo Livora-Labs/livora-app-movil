@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:livora_labs/data/repositories/wallet_repository.dart';
+import 'package:livora_labs/domain/repositories/i_wallet_repository.dart';
 import 'package:livora_labs/domain/state/ui_state.dart';
 import 'package:livora_labs/services/livora_realtime.dart';
 
 /// ViewModel de arquitectura limpia para el módulo de Billetera Web3 / LIVOs.
 /// Encapsula estado, reactividad en tiempo real (WebSocket), integración Izipay y Web3.
 class WalletViewModel extends ChangeNotifier {
-  final WalletRepository _repository;
+  final IWalletRepository _repository;
   final LivoraRealtime? _realtime;
 
   UIState<String> _balanceState = const UIState.initial();
@@ -19,7 +19,7 @@ class WalletViewModel extends ChangeNotifier {
   final List<StreamSubscription> _subscriptions = [];
 
   WalletViewModel({
-    required WalletRepository repository,
+    required IWalletRepository repository,
     LivoraRealtime? realtime,
   })  : _repository = repository,
         _realtime = realtime {

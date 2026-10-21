@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../core/session.dart';
+import '../../data/repositories/auctions_repository.dart';
 import '../../services/livora_api.dart';
 import '../../widgets/common.dart';
 import '../../widgets/livora_shimmer.dart';
@@ -79,7 +80,8 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
     });
 
     try {
-      final prices = await context.read<LivoraApi>().fetchCenterPrices(centerId);
+      final repo = AuctionsRepository(context.read<LivoraApi>());
+      final prices = await repo.getCenterPrices(centerId);
       if (mounted) {
         if (prices.isNotEmpty) {
           _enabledMaterials.clear();
@@ -141,7 +143,7 @@ class _CenterPricesScreenState extends State<CenterPricesScreen> {
 
     setState(() => _saving = true);
     try {
-      await context.read<LivoraApi>().updateMyPrices(payload);
+      await AuctionsRepository(context.read<LivoraApi>()).updateMyPrices(payload);
       await HapticFeedback.lightImpact();
       if (mounted) {
         context.read<SessionController>().notifyBatchesChanged();
